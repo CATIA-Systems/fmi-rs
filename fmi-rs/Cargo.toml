@@ -1,0 +1,23 @@
+[package]
+name = "fmi-rs"
+description = "Functional Mock-up Interface (FMI) for Rust"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = ["zip"]
+zip = []
+
+[dependencies]
+approx = "0.5.1"
+colored = "3.1.1"
+csv = "1.4.0"
+libloading = "0.9.0"
+roxmltree = "0.21.1"
+tempfile = "3.27"
+url = "2"
+zip = "8.6"
+
+[build-dependencies]
+cc = "1.2"
