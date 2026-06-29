@@ -51,7 +51,7 @@ fn fetch_and_build_libxml2(install_dir: &Path, target: &str) {
 
     // Determine CMake generator based on the Rust target
     let generator = if target.contains("msvc") {
-        "Visual Studio 17 2022"
+        "Visual Studio 18 2026"
     } else if target.contains("windows-gnu") {
         "MinGW Makefiles"
     } else {
