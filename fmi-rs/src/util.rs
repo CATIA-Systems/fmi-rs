@@ -46,7 +46,7 @@ pub fn extract_fmu_<P: AsRef<Path>>(fmu_path: P) -> Result<TempDir, Box<dyn std:
     Ok(temp_dir)
 }
 
-/// Returns all entries of the ZIP archive
+/// Returns all (raw) entries of the ZIP archive
 pub fn get_zip_contents(fmu_path: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     // Open the FMU file (which is a ZIP archive)
     let file = File::open(fmu_path)?;
@@ -56,9 +56,9 @@ pub fn get_zip_contents(fmu_path: &str) -> Result<Vec<String>, Box<dyn std::erro
 
     for i in 0..archive.len() {
         let file = archive.by_index(i)?;
-        if let Some(path) = file.enclosed_name() {
-            entries.push(path.to_str().unwrap().to_string());
-        }
+        let entry = String::from_utf8(file.name_raw().to_owned())
+            .map_err(|e| format!("Failed to read ZIP entry: {e}"))?;
+        entries.push(entry);
     }
 
     Ok(entries)
