@@ -19,7 +19,7 @@ fn create_fmu() -> FMU3 {
     let reference_fmus_dir = resources_dir.join("Reference-FMUs");
     
     if !reference_fmus_dir.exists() {
-        download_reference_fmus().unwrap();
+        download_reference_fmus(&reference_fmus_dir).unwrap();
     }
     
     let unzipdir = resources_dir.join("fmi3/Feedthrough");
