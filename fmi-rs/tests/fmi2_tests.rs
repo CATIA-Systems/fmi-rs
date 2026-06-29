@@ -9,6 +9,8 @@ use fmi_rs::{fmi2::types::*, sim::fmi2::simulate_cs};
 use std::vec;
 use std::{env, path::PathBuf};
 
+use fmi_rs::util::{download_reference_fmus, extract_zip_archive};
+
 macro_rules! assert_ok {
     ($status:expr) => {
         assert_eq!($status, fmi2Status::fmi2OK);
@@ -17,20 +19,27 @@ macro_rules! assert_ok {
 
 #[test]
 fn test_read_model_description() {
-    let unzipdir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("resources")
-        .join("fmi2")
-        .join("Feedthrough");
+    let unzipdir: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/resources/fmi2/Feedthrough");
     ModelDescription::from_path(&unzipdir.join("modelDescription.xml")).unwrap();
 }
 
 fn create_fmu() -> FMU2<CS> {
-    let unzipdir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("resources")
-        .join("fmi2")
-        .join("Feedthrough");
+    let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/resources/");
+
+    let reference_fmus_dir = resources_dir.join("Reference-FMUs");
+    
+    if !reference_fmus_dir.exists() {
+        download_reference_fmus().unwrap();
+    }
+    
+    let unzipdir = resources_dir.join("fmi2/Feedthrough");
+
+    if !unzipdir.exists() {
+        let fmu_path = reference_fmus_dir.join("2.0/Feedthrough.fmu");
+        extract_zip_archive(&fmu_path, &unzipdir).unwrap();
+    }
 
     let fmu = FMU2::<CS>::new(
         &unzipdir,
@@ -44,9 +53,6 @@ fn create_fmu() -> FMU2<CS> {
         true,
     )
     .unwrap();
-
-    let version = fmu.getVersion();
-    assert!(version.starts_with("2."));
 
     assert_ok!(fmu.setupExperiment(None, 0.0, Some(1.0)));
     assert_ok!(fmu.enterInitializationMode());

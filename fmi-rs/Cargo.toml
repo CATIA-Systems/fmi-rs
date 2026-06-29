@@ -7,17 +7,22 @@ license.workspace = true
 
 [features]
 default = ["zip"]
-zip = []
+zip = ["dep:zip"]
+test-fixtures = ["dep:reqwest"]
 
 [dependencies]
 approx = "0.5.1"
 colored = "3.1.1"
 csv = "1.4.0"
 libloading = "0.9.0"
+reqwest = { version = "0.13.4", features = ["blocking"], optional = true }
 roxmltree = "0.21.1"
 tempfile = "3.27"
 url = "2"
-zip = "8.6"
+zip = { version = "8.6", optional = true }
 
 [build-dependencies]
 cc = "1.2"
+
+[dev-dependencies]
+fmi-rs = { path = ".", features = ["test-fixtures"] }

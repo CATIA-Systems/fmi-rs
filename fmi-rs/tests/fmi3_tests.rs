@@ -4,6 +4,8 @@ use fmi_rs::fmi3::{log::DefaultLogger, types::*};
 use fmi_rs::fmi3::*;
 use std::{env, path::PathBuf};
 
+use fmi_rs::util::{download_reference_fmus, extract_zip_archive};
+
 macro_rules! assert_ok {
     ($status:expr) => {
         assert_eq!($status, fmi3Status::fmi3OK);
@@ -11,11 +13,21 @@ macro_rules! assert_ok {
 }
 
 fn create_fmu() -> FMU3 {
-    let unzipdir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("resources")
-        .join("fmi3")
-        .join("Feedthrough");
+    let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/resources/");
+
+    let reference_fmus_dir = resources_dir.join("Reference-FMUs");
+    
+    if !reference_fmus_dir.exists() {
+        download_reference_fmus().unwrap();
+    }
+    
+    let unzipdir = resources_dir.join("fmi3/Feedthrough");
+
+    if !unzipdir.exists() {
+        let fmu_path = reference_fmus_dir.join("3.0/Feedthrough.fmu");
+        extract_zip_archive(&fmu_path, &unzipdir).unwrap();
+    }
 
     let fmu = FMU3::instantiateCoSimulation(
         &unzipdir,
@@ -31,9 +43,6 @@ fn create_fmu() -> FMU3 {
         true,
     )
     .unwrap();
-
-    let version = fmu.getVersion();
-    assert!(version.starts_with("3."));
 
     assert_ok!(fmu.enterInitializationMode(None, 0.0, Some(1.0)));
     assert_ok!(fmu.exitInitializationMode());

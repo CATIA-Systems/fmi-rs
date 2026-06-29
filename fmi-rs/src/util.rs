@@ -12,7 +12,7 @@ use crate::{
     fmi3,
 };
 
-pub fn extract_fmu<P: AsRef<Path>>(fmu_path: P) -> Result<TempDir, Box<dyn std::error::Error>> {
+pub fn extract_fmu_<P: AsRef<Path>>(fmu_path: P) -> Result<TempDir, Box<dyn std::error::Error>> {
     // Create temporary directory
     let temp_dir = TempDir::new()?;
 
@@ -75,10 +75,14 @@ pub struct FMU2Builder {
 
 impl FMU2Builder {
     pub fn new<P: AsRef<Path>>(fmu_path: &P) -> Result<Self, Box<dyn std::error::Error>> {
-        let unzipdir = extract_fmu(fmu_path)?;
+        let unzipdir = TempDir::new()?;
+
+        extract_zip_archive(fmu_path, &unzipdir)?;
+        
         let model_description = crate::model_description::fmi2::ModelDescription::from_path(
             &unzipdir.path().join("modelDescription.xml"),
         )?;
+
         Ok(Self {
             unzipdir,
             model_description,
@@ -178,7 +182,10 @@ pub struct FMU3Builder {
 
 impl FMU3Builder {
     pub fn new<P: AsRef<Path>>(fmu_path: &P) -> Result<Self, Box<dyn std::error::Error>> {
-        let unzipdir = extract_fmu(fmu_path)?;
+        let unzipdir = TempDir::new()?;
+
+        extract_zip_archive(fmu_path, &unzipdir)?;
+
         let model_description = crate::model_description::fmi3::ModelDescription::from_path(
             &unzipdir.path().join("modelDescription.xml"),
         )?;
@@ -273,4 +280,75 @@ impl FMU3Builder {
             Err("Co-Simulation is not supported.".into())
         }
     }
+}
+
+#[cfg(feature = "test-fixtures")]
+pub fn download_file<P: AsRef<Path>>(url: &str, target_path: P) -> Result<(), Box<dyn std::error::Error>> {
+    
+    let path = target_path.as_ref();
+    
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let mut response = reqwest::blocking::get(url)?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned an error: {}", response.status()).into());
+    }
+
+    let mut destination = File::create(&path)?;
+
+    std::io::copy(&mut response, &mut destination)?;
+
+    Ok(())
+}
+
+#[cfg(feature = "zip")]
+pub fn extract_zip_archive<P: AsRef<Path>, T: AsRef<Path>>(zip_path: P, target_path: T) -> Result<(), Box<dyn std::error::Error>> {
+
+    let file = File::open(&zip_path)?;
+
+    let mut archive = ZipArchive::new(file)?;
+
+    let target_path = target_path.as_ref();
+    
+    std::fs::create_dir_all(target_path)?;
+
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+
+        let outpath = match file.enclosed_name() {
+            Some(path) => target_path.join(path),
+            None => continue,
+        };
+
+        if (*file.name()).ends_with('/') {
+            // Directory
+            std::fs::create_dir_all(&outpath)?;
+        } else {
+            // File
+            if let Some(p) = outpath.parent()
+                && !p.exists()
+            {
+                std::fs::create_dir_all(p)?;
+            }
+            let mut outfile = File::create(&outpath)?;
+            std::io::copy(&mut file, &mut outfile)?;
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "test-fixtures")]
+pub fn download_reference_fmus() -> Result<(), Box<dyn std::error::Error>> {
+    let version = "0.0.39";
+    let url = format!("https://github.com/modelica/Reference-FMUs/releases/download/v{version}/Reference-FMUs-{version}.zip");
+    let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/resources");
+    let archive_path = resources_dir.join(format!("Reference-FMUs-{version}.zip"));
+    let target_path = resources_dir.join("Reference-FMUs");
+    
+    download_file(&url, &archive_path)?;
+    extract_zip_archive(archive_path, target_path)
 }
