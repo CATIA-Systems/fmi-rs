@@ -19,21 +19,20 @@ macro_rules! assert_ok {
 
 #[test]
 fn test_read_model_description() {
-    let unzipdir: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/resources/fmi2/Feedthrough");
+    let unzipdir: PathBuf =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/resources/fmi2/Feedthrough");
     ModelDescription::from_path(&unzipdir.join("modelDescription.xml")).unwrap();
 }
 
 fn create_fmu() -> FMU2<CS> {
-    let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/resources/");
+    let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/resources/");
 
     let reference_fmus_dir = resources_dir.join("Reference-FMUs");
-    
+
     if !reference_fmus_dir.exists() {
         download_reference_fmus(&reference_fmus_dir).unwrap();
     }
-    
+
     let unzipdir = resources_dir.join("fmi2/Feedthrough");
 
     if !unzipdir.exists() {
@@ -87,6 +86,8 @@ fn test_csv_input() {
         early_return_allowed: false,
         event_mode_used: false,
         log_file: None,
+        initial_fmu_state_file: None,
+        final_fmu_state_file: None,
     };
 
     let output_variables = settings

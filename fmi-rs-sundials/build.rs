@@ -54,8 +54,9 @@ fn fetch_and_build_sundials(install_dir: &Path, target: &str) {
     };
 
     // 1. Download source using curl (standard on modern Windows)
-    let url =
-        format!("https://github.com/llnl/sundials/releases/download/v{version}/sundials-{version}.tar.gz");
+    let url = format!(
+        "https://github.com/llnl/sundials/releases/download/v{version}/sundials-{version}.tar.gz"
+    );
     let tar_path = out_path.join("sundials.tar.gz");
     let status = Command::new("curl")
         .args(["-L", "-o", tar_path.to_str().unwrap(), &url])

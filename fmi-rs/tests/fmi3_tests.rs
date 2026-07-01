@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case)]
 
-use fmi_rs::fmi3::{log::DefaultLogger, types::*};
 use fmi_rs::fmi3::*;
+use fmi_rs::fmi3::{log::DefaultLogger, types::*};
 use std::{env, path::PathBuf};
 
 use fmi_rs::util::{download_reference_fmus, extract_zip_archive};
@@ -13,15 +13,14 @@ macro_rules! assert_ok {
 }
 
 fn create_fmu() -> FMU3 {
-    let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/resources/");
+    let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/resources/");
 
     let reference_fmus_dir = resources_dir.join("Reference-FMUs");
-    
+
     if !reference_fmus_dir.exists() {
         download_reference_fmus(&reference_fmus_dir).unwrap();
     }
-    
+
     let unzipdir = resources_dir.join("fmi3/Feedthrough");
 
     if !unzipdir.exists() {

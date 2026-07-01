@@ -19,7 +19,7 @@ use crate::{
     },
 };
 
-use std::{collections::HashMap, error::Error};
+use std::{collections::HashMap, error::Error, fs, ptr};
 
 use std::path::{Path, PathBuf};
 
@@ -38,6 +38,8 @@ pub struct SimulationSettings<'a> {
     pub early_return_allowed: bool,
     pub event_mode_used: bool,
     pub log_file: Option<PathBuf>,
+    pub initial_fmu_state_file: Option<PathBuf>,
+    pub final_fmu_state_file: Option<PathBuf>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -230,6 +232,33 @@ fn set_start_values<T>(
     Ok(fmi2Status::fmi2OK)
 }
 
+fn read_initial_fmu_state<I>(fmu: &FMU2<I>, path: &Path) -> Result<(), Box<dyn Error>> {
+    let serialized_state =
+        fs::read(path).map_err(|e| format!("Failed to read initial FMU state: {e}"))?;
+
+    let mut fmu_state = ptr::null_mut();
+    call(fmu.deSerializeFMUstate(&serialized_state, &mut fmu_state))?;
+    call(fmu.setFMUstate(fmu_state))?;
+
+    Ok(())
+}
+
+fn write_final_fmu_state<I>(fmu: &FMU2<I>, path: &Path) -> Result<(), Box<dyn Error>> {
+    let mut fmu_state = ptr::null_mut();
+    call(fmu.getFMUstate(&mut fmu_state))?;
+
+    let mut size = 0usize;
+    call(fmu.serializedFMUstateSize(fmu_state, &mut size))?;
+
+    let mut serialized_state = vec![0; size];
+    call(fmu.serializeFMUstate(fmu_state, &mut serialized_state))?;
+
+    fs::write(path, &serialized_state)
+        .map_err(|e| format!("Failed to write final FMU state: {e}"))?;
+
+    Ok(())
+}
+
 pub fn simulate_cs(
     settings: &SimulationSettings,
     input: Option<&StaticInput>,
@@ -273,22 +302,27 @@ pub fn simulate_cs(
         !co_simulation.canNotUseMemoryManagementFunctions,
     )?;
 
-    set_start_values(&settings.start_values, settings.model_description, &fmu)?;
+    if let Some(path) = &settings.initial_fmu_state_file {
+        read_initial_fmu_state(&fmu, path)?;
+        set_start_values(&settings.start_values, settings.model_description, &fmu)?;
+    } else {
+        set_start_values(&settings.start_values, settings.model_description, &fmu)?;
 
-    call(fmu.setupExperiment(
-        settings.tolerance,
-        time,
-        if set_stop_time { Some(stop_time) } else { None },
-    ))?;
+        call(fmu.setupExperiment(
+            settings.tolerance,
+            time,
+            if set_stop_time { Some(stop_time) } else { None },
+        ))?;
 
-    call(fmu.enterInitializationMode())?;
+        call(fmu.enterInitializationMode())?;
 
-    if let Some(input) = &input {
-        input.set_discrete_inputs(time, &fmu)?;
-        input.set_continuous_inputs(time, true, &fmu)?;
+        if let Some(input) = &input {
+            input.set_discrete_inputs(time, &fmu)?;
+            input.set_continuous_inputs(time, true, &fmu)?;
+        }
+
+        call(fmu.exitInitializationMode())?;
     }
-
-    call(fmu.exitInitializationMode())?;
 
     recorder.sample(time, &fmu)?;
 
@@ -351,6 +385,10 @@ pub fn simulate_cs(
         }
     }
 
+    if let Some(path) = &settings.final_fmu_state_file {
+        write_final_fmu_state(&fmu, path)?;
+    }
+
     call(fmu.terminate())?;
 
     Ok(())
@@ -399,56 +437,61 @@ pub fn simulate_me<S: SolverFactory>(
         !model_exchange.canNotUseMemoryManagementFunctions,
     )?;
 
-    set_start_values(&settings.start_values, settings.model_description, &fmu)?;
-
-    call(fmu.setupExperiment(
-        settings.tolerance,
-        time,
-        if set_stop_time { Some(stop_time) } else { None },
-    ))?;
-
-    call(fmu.enterInitializationMode())?;
-
-    if let Some(input) = &input {
-        input.set_discrete_inputs(time, &fmu)?;
-        input.set_continuous_inputs(time, true, &fmu)?;
-    }
-
-    call(fmu.exitInitializationMode())?;
-
     let mut nextEventTime: Option<fmi2Real> = None;
 
-    loop {
-        let mut newDiscreteStatesNeeded: bool = false;
-        let mut terminateSimulation: bool = false;
-        let mut _nominalsOfContinuousStatesChanged: bool = false;
-        let mut _valuesOfContinuousStatesChanged: bool = false;
+    if let Some(path) = &settings.initial_fmu_state_file {
+        read_initial_fmu_state(&fmu, path)?;
+        set_start_values(&settings.start_values, settings.model_description, &fmu)?;
+    } else {
+        set_start_values(&settings.start_values, settings.model_description, &fmu)?;
 
-        call(fmu.newDiscreteStates(
-            &mut newDiscreteStatesNeeded,
-            &mut terminateSimulation,
-            &mut _nominalsOfContinuousStatesChanged,
-            &mut _valuesOfContinuousStatesChanged,
-            &mut nextEventTime,
+        call(fmu.setupExperiment(
+            settings.tolerance,
+            time,
+            if set_stop_time { Some(stop_time) } else { None },
         ))?;
 
-        if let Some(next_event_time) = nextEventTime
-            && relative_le(next_event_time, time)
-        {
-            return Err(format!("The next event time ({next_event_time}) must be greater than the current time ({time}).").into());
+        call(fmu.enterInitializationMode())?;
+
+        if let Some(input) = &input {
+            input.set_discrete_inputs(time, &fmu)?;
+            input.set_continuous_inputs(time, true, &fmu)?;
         }
 
-        if terminateSimulation {
-            call(fmu.terminate())?;
-            return Ok(());
+        call(fmu.exitInitializationMode())?;
+
+        loop {
+            let mut newDiscreteStatesNeeded: bool = false;
+            let mut terminateSimulation: bool = false;
+            let mut _nominalsOfContinuousStatesChanged: bool = false;
+            let mut _valuesOfContinuousStatesChanged: bool = false;
+
+            call(fmu.newDiscreteStates(
+                &mut newDiscreteStatesNeeded,
+                &mut terminateSimulation,
+                &mut _nominalsOfContinuousStatesChanged,
+                &mut _valuesOfContinuousStatesChanged,
+                &mut nextEventTime,
+            ))?;
+
+            if let Some(next_event_time) = nextEventTime
+                && relative_le(next_event_time, time)
+            {
+                return Err(format!("The next event time ({next_event_time}) must be greater than the current time ({time}).").into());
+            }
+
+            if terminateSimulation {
+                call(fmu.terminate())?;
+                return Ok(());
+            }
+
+            if !newDiscreteStatesNeeded {
+                break;
+            }
         }
 
-        if !newDiscreteStatesNeeded {
-            break;
-        }
+        call(fmu.enterContinuousTimeMode())?;
     }
-
-    call(fmu.enterContinuousTimeMode())?;
 
     let derivative_indices: Vec<u32> = settings
         .model_description
@@ -645,6 +688,10 @@ pub fn simulate_me<S: SolverFactory>(
 
             solver.reset(time)?;
         }
+    }
+
+    if let Some(path) = &settings.final_fmu_state_file {
+        write_final_fmu_state(&fmu, path)?;
     }
 
     call(fmu.terminate())?;

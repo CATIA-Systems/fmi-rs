@@ -3,6 +3,7 @@ pub mod input;
 pub mod recorder;
 
 use std::{collections::HashMap, error::Error};
+use std::{fs, ptr};
 
 use crate::fmi3::log::DefaultLogger;
 use crate::model_description::fmi3::{Causality, ModelDescription};
@@ -34,6 +35,8 @@ pub struct SimulationSettings<'a> {
     pub early_return_allowed: bool,
     pub event_mode_used: bool,
     pub log_file: Option<PathBuf>,
+    pub initial_fmu_state_file: Option<PathBuf>,
+    pub final_fmu_state_file: Option<PathBuf>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -452,6 +455,33 @@ fn set_start_values(
     Ok(fmi3Status::fmi3OK)
 }
 
+fn read_initial_fmu_state(fmu: &FMU3, path: &Path) -> Result<(), Box<dyn Error>> {
+    let serialized_state =
+        fs::read(path).map_err(|e| format!("Failed to read initial FMU state: {e}"))?;
+
+    let mut fmu_state = ptr::null_mut();
+    call(fmu.deserializeFMUState(&serialized_state, &mut fmu_state))?;
+    call(fmu.setFMUState(fmu_state))?;
+
+    Ok(())
+}
+
+fn write_final_fmu_state(fmu: &FMU3, path: &Path) -> Result<(), Box<dyn Error>> {
+    let mut fmu_state = ptr::null_mut();
+    call(fmu.getFMUState(&mut fmu_state))?;
+
+    let mut size = 0usize;
+    call(fmu.serializedFMUStateSize(fmu_state, &mut size))?;
+
+    let mut serialized_state = vec![0; size];
+    call(fmu.serializeFMUState(fmu_state, &mut serialized_state))?;
+
+    fs::write(path, &serialized_state)
+        .map_err(|e| format!("Failed to write final FMU state: {e}"))?;
+
+    Ok(())
+}
+
 pub fn simulate_cs(
     settings: &SimulationSettings,
     input: Option<&StaticInput>,
@@ -499,54 +529,59 @@ pub fn simulate_cs(
         settings.log_fmi_calls,
     )?;
 
-    set_start_values(&settings.start_values, settings.model_description, &fmu)?;
+    if let Some(path) = &settings.initial_fmu_state_file {
+        read_initial_fmu_state(&fmu, path)?;
+        set_start_values(&settings.start_values, settings.model_description, &fmu)?;
+    } else {
+        set_start_values(&settings.start_values, settings.model_description, &fmu)?;
 
-    call(fmu.enterInitializationMode(
-        settings.tolerance,
-        start_time,
-        if set_stop_time { Some(stop_time) } else { None },
-    ))?;
+        call(fmu.enterInitializationMode(
+            settings.tolerance,
+            start_time,
+            if set_stop_time { Some(stop_time) } else { None },
+        ))?;
 
-    if let Some(input) = &input {
-        input.set_discrete_inputs(time, &fmu)?;
-        input.set_continuous_inputs(time, true, &fmu)?;
-    }
-
-    call(fmu.exitInitializationMode())?;
-
-    if event_mode_used {
-        loop {
-            let mut discreteStatesNeedUpdate = false;
-            let mut terminateSimulation = false;
-            let mut nominalsOfContinuousStatesChanged = false;
-            let mut valuesOfContinuousStatesChanged = false;
-            let mut nextEventTime = None;
-
-            call(fmu.updateDiscreteStates(
-                &mut discreteStatesNeedUpdate,
-                &mut terminateSimulation,
-                &mut nominalsOfContinuousStatesChanged,
-                &mut valuesOfContinuousStatesChanged,
-                &mut nextEventTime,
-            ))?;
-
-            if let Some(nextEventTime) = nextEventTime
-                && relative_le(nextEventTime, time)
-            {
-                return Err(format!("The next event time ({nextEventTime}) must be greater than the current time ({time}).").into());
-            }
-
-            if terminateSimulation {
-                call(fmu.terminate())?;
-                return Ok(());
-            }
-
-            if !discreteStatesNeedUpdate {
-                break;
-            }
+        if let Some(input) = &input {
+            input.set_discrete_inputs(time, &fmu)?;
+            input.set_continuous_inputs(time, true, &fmu)?;
         }
 
-        call(fmu.enterStepMode())?;
+        call(fmu.exitInitializationMode())?;
+
+        if event_mode_used {
+            loop {
+                let mut discreteStatesNeedUpdate = false;
+                let mut terminateSimulation = false;
+                let mut nominalsOfContinuousStatesChanged = false;
+                let mut valuesOfContinuousStatesChanged = false;
+                let mut nextEventTime = None;
+
+                call(fmu.updateDiscreteStates(
+                    &mut discreteStatesNeedUpdate,
+                    &mut terminateSimulation,
+                    &mut nominalsOfContinuousStatesChanged,
+                    &mut valuesOfContinuousStatesChanged,
+                    &mut nextEventTime,
+                ))?;
+
+                if let Some(nextEventTime) = nextEventTime
+                    && relative_le(nextEventTime, time)
+                {
+                    return Err(format!("The next event time ({nextEventTime}) must be greater than the current time ({time}).").into());
+                }
+
+                if terminateSimulation {
+                    call(fmu.terminate())?;
+                    return Ok(());
+                }
+
+                if !discreteStatesNeedUpdate {
+                    break;
+                }
+            }
+
+            call(fmu.enterStepMode())?;
+        }
     }
 
     recorder.sample(time, &fmu)?;
@@ -678,6 +713,10 @@ pub fn simulate_cs(
         } else {
             false
         };
+    }
+
+    if let Some(path) = &settings.final_fmu_state_file {
+        write_final_fmu_state(&fmu, path)?;
     }
 
     call(fmu.terminate())?;

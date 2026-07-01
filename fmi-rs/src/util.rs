@@ -7,10 +7,7 @@ use std::{
 use tempfile::TempDir;
 use zip::ZipArchive;
 
-use crate::{
-    fmi2,
-    fmi3,
-};
+use crate::{fmi2, fmi3};
 
 pub fn extract_fmu_<P: AsRef<Path>>(fmu_path: P) -> Result<TempDir, Box<dyn std::error::Error>> {
     // Create temporary directory
@@ -78,7 +75,7 @@ impl FMU2Builder {
         let unzipdir = TempDir::new()?;
 
         extract_zip_archive(fmu_path, &unzipdir)?;
-        
+
         let model_description = crate::model_description::fmi2::ModelDescription::from_path(
             &unzipdir.path().join("modelDescription.xml"),
         )?;
@@ -113,7 +110,6 @@ impl FMU2Builder {
         instanceName: &str,
     ) -> Result<fmi2::FMU2<fmi2::ME>, Box<dyn std::error::Error>> {
         if let Some(me) = &self.model_description.modelExchange {
-
             let logger = if let Some(log_file) = &self.logFile {
                 fmi2::log::DefaultLogger::from_path(log_file)
                     .map_err(|e| format!("Failed to create log file: {e}"))?
@@ -142,7 +138,6 @@ impl FMU2Builder {
         instanceName: &str,
     ) -> Result<fmi2::FMU2<fmi2::CS>, Box<dyn std::error::Error>> {
         if let Some(cs) = &self.model_description.coSimulation {
-
             let logger = if let Some(log_file) = &self.logFile {
                 fmi2::log::DefaultLogger::from_path(log_file)
                     .map_err(|e| format!("Failed to create log file: {e}"))?
@@ -257,10 +252,10 @@ impl FMU3Builder {
     ) -> Result<fmi3::FMU3, Box<dyn std::error::Error>> {
         if let Some(cs) = &self.model_description.coSimulation {
             let logger = if let Some(log_file) = &self.logFile {
-                 fmi3::log::DefaultLogger::from_path(log_file)
+                fmi3::log::DefaultLogger::from_path(log_file)
                     .map_err(|e| format!("Failed to create log file: {e}"))?
             } else {
-                 fmi3::log::DefaultLogger::default()
+                fmi3::log::DefaultLogger::default()
             };
 
             fmi3::FMU3::instantiateCoSimulation(
@@ -283,10 +278,12 @@ impl FMU3Builder {
 }
 
 #[cfg(feature = "test-fixtures")]
-pub fn download_file<P: AsRef<Path>>(url: &str, target_path: P) -> Result<(), Box<dyn std::error::Error>> {
-    
+pub fn download_file<P: AsRef<Path>>(
+    url: &str,
+    target_path: P,
+) -> Result<(), Box<dyn std::error::Error>> {
     let path = target_path.as_ref();
-    
+
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -305,14 +302,16 @@ pub fn download_file<P: AsRef<Path>>(url: &str, target_path: P) -> Result<(), Bo
 }
 
 #[cfg(feature = "zip")]
-pub fn extract_zip_archive<P: AsRef<Path>, T: AsRef<Path>>(zip_path: P, target_path: T) -> Result<(), Box<dyn std::error::Error>> {
-
+pub fn extract_zip_archive<P: AsRef<Path>, T: AsRef<Path>>(
+    zip_path: P,
+    target_path: T,
+) -> Result<(), Box<dyn std::error::Error>> {
     let file = File::open(&zip_path)?;
 
     let mut archive = ZipArchive::new(file)?;
 
     let target_path = target_path.as_ref();
-    
+
     std::fs::create_dir_all(target_path)?;
 
     for i in 0..archive.len() {
@@ -342,9 +341,13 @@ pub fn extract_zip_archive<P: AsRef<Path>, T: AsRef<Path>>(zip_path: P, target_p
 }
 
 #[cfg(feature = "test-fixtures")]
-pub fn download_reference_fmus<P: AsRef<Path>>(target_path: P) -> Result<(), Box<dyn std::error::Error>> {
+pub fn download_reference_fmus<P: AsRef<Path>>(
+    target_path: P,
+) -> Result<(), Box<dyn std::error::Error>> {
     let version = "0.0.39";
-    let url = format!("https://github.com/modelica/Reference-FMUs/releases/download/v{version}/Reference-FMUs-{version}.zip");
+    let url = format!(
+        "https://github.com/modelica/Reference-FMUs/releases/download/v{version}/Reference-FMUs-{version}.zip"
+    );
     let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/resources");
     let archive_path = resources_dir.join(format!("Reference-FMUs-{version}.zip"));
     download_file(&url, &archive_path)?;

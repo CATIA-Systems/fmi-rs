@@ -15,7 +15,10 @@ fn main() {
     cc::Build::new()
         .file("src/c/src/fmi_rs_xsd.c")
         .include("src/c/include")
-        .include(format!("{}", library_dir.join("include").join("libxml2").display()))
+        .include(format!(
+            "{}",
+            library_dir.join("include").join("libxml2").display()
+        ))
         .compile("fmi_rs_xsd");
 
     println!(
