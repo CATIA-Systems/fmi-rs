@@ -89,7 +89,7 @@ pub fn peek_fmi_version(path: &Path) -> Result<String, Box<dyn Error>> {
     }
 }
 
-pub fn peak_fmi_major_version(path: &Path) -> Result<FMIMajorVersion, Box<dyn Error>> {
+pub fn peek_fmi_major_version(path: &Path) -> Result<FMIMajorVersion, Box<dyn Error>> {
     let fmi_version = peek_fmi_version(path)?;
 
     if fmi_version == "1.0" {
