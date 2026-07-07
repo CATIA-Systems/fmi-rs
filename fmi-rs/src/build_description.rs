@@ -87,7 +87,7 @@ pub struct PreprocessorDefinition {
     #[serde(rename = "@name")]
     pub name: String,
 
-    #[serde(rename = "@optional")]
+    #[serde(rename = "@optional", default)]
     pub optional: bool,
 
     #[serde(rename = "@value")]
