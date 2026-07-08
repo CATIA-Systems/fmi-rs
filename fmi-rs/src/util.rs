@@ -233,6 +233,8 @@ pub fn download_file<P: AsRef<Path>>(
     url: &str,
     target_path: P,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    use std::fs::File;
+
     let path = target_path.as_ref();
 
     if let Some(parent) = path.parent() {
