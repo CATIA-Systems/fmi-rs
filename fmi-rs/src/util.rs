@@ -464,7 +464,10 @@ pub fn create_cmake_project(
                 FMI3_PLATFORM_TYPES_H,
             )?;
 
-            let mut definitions = vec![];
+            let mut definitions = vec![
+                "FMI3_OVERRIDE_FUNCTION_PREFIX".to_string(),
+                "FMI3_ACTUAL_FUNCTION_PREFIX=\"\"".to_string(),
+            ];
 
             let mut include_dirs = vec!["include".to_string()];
 
