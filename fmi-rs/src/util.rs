@@ -1,69 +1,16 @@
 #![allow(non_snake_case)]
 
-use askama::Template;
-use std::{
-    fs::{self, File},
-    path::{Path, PathBuf},
-};
-use tempfile::TempDir;
-use zip::ZipArchive;
-
 use crate::{
     fmi2, fmi3,
     model_description::{self, peek_fmi_major_version},
+    zip::extract_zip_archive,
 };
-
-pub fn extract_fmu_<P: AsRef<Path>>(fmu_path: P) -> Result<TempDir, Box<dyn std::error::Error>> {
-    // Create temporary directory
-    let temp_dir = TempDir::new()?;
-
-    // Open the FMU file (which is a ZIP archive)
-    let file = File::open(fmu_path)?;
-    let mut archive = ZipArchive::new(file)?;
-
-    // Extract all files
-    for i in 0..archive.len() {
-        let mut file = archive.by_index(i)?;
-        let outpath = match file.enclosed_name() {
-            Some(path) => temp_dir.path().join(path),
-            None => continue,
-        };
-
-        if (*file.name()).ends_with('/') {
-            // Directory
-            std::fs::create_dir_all(&outpath)?;
-        } else {
-            // File
-            if let Some(p) = outpath.parent()
-                && !p.exists()
-            {
-                std::fs::create_dir_all(p)?;
-            }
-            let mut outfile = File::create(&outpath)?;
-            std::io::copy(&mut file, &mut outfile)?;
-        }
-    }
-
-    Ok(temp_dir)
-}
-
-/// Returns all (raw) entries of the ZIP archive
-pub fn get_zip_contents(fmu_path: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    // Open the FMU file (which is a ZIP archive)
-    let file = File::open(fmu_path)?;
-    let mut archive = ZipArchive::new(file)?;
-
-    let mut entries = vec![];
-
-    for i in 0..archive.len() {
-        let file = archive.by_index(i)?;
-        let entry = String::from_utf8(file.name_raw().to_owned())
-            .map_err(|e| format!("Failed to read ZIP entry: {e}"))?;
-        entries.push(entry);
-    }
-
-    Ok(entries)
-}
+use askama::Template;
+use std::{
+    fs::{self},
+    path::{Path, PathBuf},
+};
+use tempfile::TempDir;
 
 pub struct FMU2Builder {
     pub unzipdir: TempDir,
@@ -301,45 +248,6 @@ pub fn download_file<P: AsRef<Path>>(
     let mut destination = File::create(&path)?;
 
     std::io::copy(&mut response, &mut destination)?;
-
-    Ok(())
-}
-
-#[cfg(feature = "zip")]
-pub fn extract_zip_archive<P: AsRef<Path>, T: AsRef<Path>>(
-    zip_path: P,
-    target_path: T,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let file = File::open(&zip_path)?;
-
-    let mut archive = ZipArchive::new(file)?;
-
-    let target_path = target_path.as_ref();
-
-    std::fs::create_dir_all(target_path)?;
-
-    for i in 0..archive.len() {
-        let mut file = archive.by_index(i)?;
-
-        let outpath = match file.enclosed_name() {
-            Some(path) => target_path.join(path),
-            None => continue,
-        };
-
-        if (*file.name()).ends_with('/') {
-            // Directory
-            std::fs::create_dir_all(&outpath)?;
-        } else {
-            // File
-            if let Some(p) = outpath.parent()
-                && !p.exists()
-            {
-                std::fs::create_dir_all(p)?;
-            }
-            let mut outfile = File::create(&outpath)?;
-            std::io::copy(&mut file, &mut outfile)?;
-        }
-    }
 
     Ok(())
 }

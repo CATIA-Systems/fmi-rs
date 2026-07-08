@@ -9,7 +9,8 @@ use fmi_rs::{fmi2::types::*, sim::fmi2::simulate_cs};
 use std::vec;
 use std::{env, path::PathBuf};
 
-use fmi_rs::util::{download_reference_fmus, extract_zip_archive};
+use fmi_rs::util::download_reference_fmus;
+use fmi_rs::zip::extract_zip_archive;
 
 macro_rules! assert_ok {
     ($status:expr) => {

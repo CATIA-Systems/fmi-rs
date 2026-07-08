@@ -3,9 +3,9 @@ pub mod fmi2;
 pub mod fmi3;
 pub mod model_description;
 pub mod sim;
-
-#[cfg(feature = "zip")]
 pub mod util;
+#[cfg(feature = "zip")]
+pub mod zip;
 
 #[cfg(target_os = "linux")]
 pub const SHARED_LIBRARY_EXTENSION: &str = ".so";
