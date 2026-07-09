@@ -8,7 +8,7 @@
 pub mod log;
 pub mod types;
 
-use crate::SHARED_LIBRARY_EXTENSION;
+use crate::{SHARED_LIBRARY_EXTENSION, get_symbol};
 use crate::fmi2::log::Logger;
 use libloading::{Library, Symbol};
 use std::cell::RefCell;
@@ -221,19 +221,6 @@ pub extern "C" fn logger(
         logger
             .borrow()
             .log_message(status, &category_str, &message_str);
-    }
-}
-
-fn get_symbol<T>(lib: &Library, symbol_name: &[u8]) -> Result<Symbol<'static, T>, String> {
-    unsafe {
-        let symbol: Result<Symbol<T>, libloading::Error> = lib.get(symbol_name);
-        match symbol {
-            Ok(s) => Ok(std::mem::transmute(s)),
-            Err(error) => {
-                let message = format!("Failed to load {symbol_name:?}. {error:?}");
-                Err(message)
-            }
-        }
     }
 }
 
