@@ -8,7 +8,7 @@ use crate::{
 use askama::Template;
 use std::{
     fs::{self},
-    path::{Path, PathBuf},
+    path::{self, Path, PathBuf},
 };
 use tempfile::TempDir;
 
@@ -303,6 +303,10 @@ pub fn create_cmake_project(
 
     let fmi_major_version = peek_fmi_major_version(&model_description_path)?;
 
+    let target_path = path::absolute(fmu_path)?
+        .to_string_lossy()
+        .replace("\\", "/");
+
     let cmake_lists_template = match fmi_major_version {
         model_description::FMIMajorVersion::V2 => {
             let model_description = crate::model_description::fmi2::ModelDescription::from_path(
@@ -349,7 +353,7 @@ pub fn create_cmake_project(
                 definitions: vec![],
                 sources,
                 include_dirs,
-                target_path: fmu_path.to_string_lossy().replace('\\', "/"),
+                target_path,
             }
         }
         model_description::FMIMajorVersion::V3 => {
@@ -415,7 +419,7 @@ pub fn create_cmake_project(
                 definitions,
                 sources,
                 include_dirs,
-                target_path: fmu_path.to_string_lossy().replace('\\', "/"),
+                target_path,
             }
         }
     };
