@@ -8,8 +8,8 @@
 pub mod log;
 pub mod types;
 
-use crate::{SHARED_LIBRARY_EXTENSION, get_symbol};
 use crate::fmi2::log::Logger;
+use crate::{SHARED_LIBRARY_EXTENSION, get_symbol};
 use libloading::{Library, Symbol};
 use std::cell::RefCell;
 use std::error::Error;

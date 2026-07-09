@@ -8,8 +8,8 @@
 pub mod log;
 pub mod types;
 
-use crate::{SHARED_LIBRARY_EXTENSION, get_symbol};
 use crate::fmi3::log::Logger;
+use crate::{SHARED_LIBRARY_EXTENSION, get_symbol};
 use libloading::{Library, Symbol};
 use std::cell::RefCell;
 use std::error::Error;
@@ -1675,43 +1675,32 @@ impl FMU3 {
         status
     }
 
-    pub fn getNumberOfEventIndicators(&self) -> Result<usize, fmi3Status> {
-        let mut nEventIndicators: usize = 0;
+    pub fn getNumberOfEventIndicators(&self, nEventIndicators: &mut usize) -> fmi3Status {
         let status =
-            unsafe { (self.fmi3GetNumberOfEventIndicators)(self.instance, &mut nEventIndicators) };
+            unsafe { (self.fmi3GetNumberOfEventIndicators)(self.instance, nEventIndicators) };
+
         if self.logCalls {
             let message = format!(
-                "fmi3GetNumberOfEventIndicators(nEventIndicators={}) -> {:?}",
-                nEventIndicators, status
+                "fmi3GetNumberOfEventIndicators(nEventIndicators={nEventIndicators}) -> {status:?}"
             );
             self.log_call(status, &message);
         }
 
-        if status == fmi3Status::fmi3OK {
-            Ok(nEventIndicators)
-        } else {
-            Err(status)
-        }
+        status
     }
 
-    pub fn getNumberOfContinuousStates(&self) -> Result<usize, fmi3Status> {
-        let mut nContinuousStates: usize = 0;
-        let status = unsafe {
-            (self.fmi3GetNumberOfContinuousStates)(self.instance, &mut nContinuousStates)
-        };
+    pub fn getNumberOfContinuousStates(&self, nContinuousStates: &mut usize) -> fmi3Status {
+        let status =
+            unsafe { (self.fmi3GetNumberOfContinuousStates)(self.instance, nContinuousStates) };
+
         if self.logCalls {
             let message = format!(
-                "fmi3GetNumberOfContinuousStates(nContinuousStates={}) -> {:?}, ",
-                nContinuousStates, status
+                "fmi3GetNumberOfContinuousStates(nContinuousStates={nContinuousStates}) -> {status:?}"
             );
             self.log_call(status, &message);
         }
 
-        if status == fmi3Status::fmi3OK {
-            Ok(nContinuousStates)
-        } else {
-            Err(status)
-        }
+        status
     }
 
     pub fn evaluateDiscreteStates(&self) -> fmi3Status {

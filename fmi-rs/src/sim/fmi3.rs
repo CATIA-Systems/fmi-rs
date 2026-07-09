@@ -844,8 +844,8 @@ pub fn simulate_me<S: SolverFactory>(
 
     let mut solver = solver_factory.create(
         time,
-        settings.model_description.derivatives.len(),
-        settings.model_description.eventIndicators.len(),
+        1usize,
+        0usize,
         settings.tolerance.unwrap_or(1e-6),
         derivative_vrs,
         state_vrs,
@@ -859,38 +859,46 @@ pub fn simulate_me<S: SolverFactory>(
             }
             Ok(())
         }),
-        Box::new(|event_indicators| {
-            fmu.getEventIndicators(event_indicators);
-            Ok(())
-        }),
-        Box::new(|continuous_states| {
-            fmu.getContinuousStates(continuous_states);
-            Ok(())
-        }),
-        Box::new(|nominals| {
-            fmu.getNominalsOfContinuousStates(nominals);
-            Ok(())
-        }),
-        Box::new(|state_derivatives| {
-            fmu.getContinuousStateDerivatives(state_derivatives);
-            Ok(())
-        }),
+        Box::new(
+            |event_indicators| match fmu.getEventIndicators(event_indicators) {
+                fmi3Status::fmi3OK => Ok(()),
+                _ => Err("Failed to get event indicators".into()),
+            },
+        ),
+        Box::new(
+            |continuous_states| match fmu.getContinuousStates(continuous_states) {
+                fmi3Status::fmi3OK => Ok(()),
+                _ => Err("Failed to get contninuous states".into()),
+            },
+        ),
+        Box::new(
+            |nominals| match fmu.getNominalsOfContinuousStates(nominals) {
+                fmi3Status::fmi3OK => Ok(()),
+                _ => Err("Failed to get nominals of contninuous states".into()),
+            },
+        ),
+        Box::new(
+            |state_derivatives| match fmu.getContinuousStateDerivatives(state_derivatives) {
+                fmi3Status::fmi3OK => Ok(()),
+                _ => Err("Failed to get contninuous state derivatives".into()),
+            },
+        ),
         if model_exchange.providesDirectionalDerivatives {
             Some(Box::new(|unknowns, knowns, seed, sensitivity| {
-                let status = fmu.getDirectionalDerivative(unknowns, knowns, seed, sensitivity);
-                if status == fmi3Status::fmi3OK {
-                    Ok(())
-                } else {
-                    Err("Failed to get directional derivative".into())
+                match fmu.getDirectionalDerivative(unknowns, knowns, seed, sensitivity) {
+                    fmi3Status::fmi3OK => Ok(()),
+                    _ => Err("Failed to get directional derivative".into()),
                 }
             }))
         } else {
             None
         },
-        Box::new(|continuous_states| {
-            fmu.setContinuousStates(continuous_states);
-            Ok(())
-        }),
+        Box::new(
+            |continuous_states| match fmu.setContinuousStates(continuous_states) {
+                fmi3Status::fmi3OK => Ok(()),
+                _ => Err("Failed to set contninuous states".into()),
+            },
+        ),
     )?;
 
     let mut n_steps = 0;
