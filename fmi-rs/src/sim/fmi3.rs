@@ -842,10 +842,16 @@ pub fn simulate_me<S: SolverFactory>(
         })
         .collect();
 
+    let mut nx = 0;
+    let mut nz = 0;
+
+    call(fmu.getNumberOfContinuousStates(&mut nx))?;
+    call(fmu.getNumberOfEventIndicators(&mut nz))?;
+
     let mut solver = solver_factory.create(
         time,
-        1usize,
-        0usize,
+        nx,
+        nz,
         settings.tolerance.unwrap_or(1e-6),
         derivative_vrs,
         state_vrs,
