@@ -383,6 +383,9 @@ pub fn create_cmake_project(
                 "FMI3_ACTUAL_FUNCTION_PREFIX=\"\"".to_string(),
             ];
 
+            #[cfg(target_os = "windows")]
+            definitions.push("FMI3_Export=__declspec(dllexport)".to_string());
+
             let mut include_dirs = vec!["include".to_string()];
 
             let mut sources = vec!["src/modelDescription.xml".to_string()];
