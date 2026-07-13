@@ -110,7 +110,6 @@ fn compress_folder_recursive(
             // Recursively dive into the subfolder
             compress_folder_recursive(root_dir, &entry_path, zip, options)?;
         } else if entry_path.is_file() {
-            println!("Adding file: {}", relative_path);
             zip.start_file(relative_path, options)?;
 
             let mut f = File::open(&entry_path)?;
