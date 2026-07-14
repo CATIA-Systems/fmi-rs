@@ -9,6 +9,8 @@ pub mod euler;
 pub mod fmi2;
 pub mod fmi3;
 
+use std::path::PathBuf;
+
 use approx::relative_eq;
 use thiserror::Error;
 
@@ -22,8 +24,11 @@ pub enum SimulationError {
     #[error("Failed to load the shared library")]
     Library(#[from] libloading::Error),
 
-    #[error("Failed to open the file")]
-    Io(#[from] std::io::Error),
+    #[error("Failed to open {path}: {source}")]
+    Io {
+        source: std::io::Error,
+        path: PathBuf,
+    },
 
     #[error("FMI call failed")]
     FMICallError,
@@ -39,6 +44,14 @@ pub enum SimulationError {
 
     #[error("Solver error: {0}")]
     Solver(String),
+}
+
+impl SimulationError {
+    /// Helper to easily wrap an IO error with its path
+    pub fn io(path: impl Into<std::path::PathBuf>) -> impl FnOnce(std::io::Error) -> Self {
+        let path = path.into();
+        move |source| SimulationError::Io { source, path }
+    }
 }
 
 pub type SetTimeFn<'a> = Box<dyn Fn(f64) -> Result<(), SimulationError> + 'a>;

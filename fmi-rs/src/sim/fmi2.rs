@@ -241,7 +241,7 @@ fn set_start_values<T>(
 }
 
 fn read_initial_fmu_state<I>(fmu: &FMU2<I>, path: &Path) -> Result<(), SimulationError> {
-    let serialized_state = fs::read(path)?;
+    let serialized_state = fs::read(path).map_err(SimulationError::io(&path))?;
     let mut fmu_state = ptr::null_mut();
 
     call(fmu.deSerializeFMUstate(&serialized_state, &mut fmu_state))?;
@@ -260,7 +260,7 @@ fn write_final_fmu_state<I>(fmu: &FMU2<I>, path: &Path) -> Result<(), Simulation
     let mut serialized_state = vec![0; size];
     call(fmu.serializeFMUstate(fmu_state, &mut serialized_state))?;
 
-    fs::write(path, &serialized_state)?;
+    fs::write(path, &serialized_state).map_err(SimulationError::io(&path))?;
 
     Ok(())
 }
@@ -290,7 +290,7 @@ pub fn simulate_cs(
         co_simulation.canHandleVariableCommunicationStepSize;
 
     let logger = if let Some(log_file) = &settings.log_file {
-        fmi2::log::DefaultLogger::from_path(log_file)?
+        fmi2::log::DefaultLogger::from_path(log_file).map_err(SimulationError::io(&log_file))?
     } else {
         fmi2::log::DefaultLogger::default()
     };
@@ -424,7 +424,7 @@ pub fn simulate_me<S: SolverFactory>(
     let needs_completed_integrator_step = !model_exchange.completedIntegratorStepNotNeeded;
 
     let logger = if let Some(log_file) = &settings.log_file {
-        fmi2::log::DefaultLogger::from_path(log_file)?
+        fmi2::log::DefaultLogger::from_path(log_file).map_err(SimulationError::io(&log_file))?
     } else {
         fmi2::log::DefaultLogger::default()
     };

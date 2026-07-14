@@ -63,7 +63,8 @@ impl FMU2Builder {
     ) -> Result<fmi2::FMU2<fmi2::ME>, SimulationError> {
         if let Some(me) = &self.model_description.modelExchange {
             let logger = if let Some(log_file) = &self.logFile {
-                fmi2::log::DefaultLogger::from_path(log_file)?
+                fmi2::log::DefaultLogger::from_path(log_file)
+                    .map_err(SimulationError::io(&log_file))?
             } else {
                 fmi2::log::DefaultLogger::default()
             };
@@ -90,7 +91,8 @@ impl FMU2Builder {
     ) -> Result<fmi2::FMU2<fmi2::CS>, SimulationError> {
         if let Some(cs) = &self.model_description.coSimulation {
             let logger = if let Some(log_file) = &self.logFile {
-                fmi2::log::DefaultLogger::from_path(log_file)?
+                fmi2::log::DefaultLogger::from_path(log_file)
+                    .map_err(SimulationError::io(&log_file))?
             } else {
                 fmi2::log::DefaultLogger::default()
             };
@@ -172,7 +174,8 @@ impl FMU3Builder {
     pub fn instantiate_me(&self, instanceName: &str) -> Result<fmi3::FMU3, SimulationError> {
         if let Some(me) = &self.model_description.modelExchange {
             let logger = if let Some(log_file) = &self.logFile {
-                fmi3::log::DefaultLogger::from_path(log_file)?
+                fmi3::log::DefaultLogger::from_path(log_file)
+                    .map_err(SimulationError::io(&log_file))?
             } else {
                 fmi3::log::DefaultLogger::default()
             };
@@ -195,7 +198,8 @@ impl FMU3Builder {
     pub fn instantiate_cs(&self, instanceName: &str) -> Result<fmi3::FMU3, SimulationError> {
         if let Some(cs) = &self.model_description.coSimulation {
             let logger = if let Some(log_file) = &self.logFile {
-                fmi3::log::DefaultLogger::from_path(log_file)?
+                fmi3::log::DefaultLogger::from_path(log_file)
+                    .map_err(SimulationError::io(&log_file))?
             } else {
                 fmi3::log::DefaultLogger::default()
             };
