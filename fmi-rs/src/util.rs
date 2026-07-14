@@ -229,10 +229,7 @@ impl FMU3Builder {
 }
 
 #[cfg(feature = "test-fixtures")]
-pub fn download_file<P: AsRef<Path>>(
-    url: &str,
-    target_path: P,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn download_file<P: AsRef<Path>>(url: &str, target_path: P) -> anyhow::Result<()> {
     use std::fs::File;
 
     let path = target_path.as_ref();
@@ -244,7 +241,10 @@ pub fn download_file<P: AsRef<Path>>(
     let mut response = reqwest::blocking::get(url)?;
 
     if !response.status().is_success() {
-        return Err(format!("Server returned an error: {}", response.status()).into());
+        return Err(anyhow::anyhow!(
+            "Server returned an error: {}",
+            response.status()
+        ));
     }
 
     let mut destination = File::create(&path)?;
@@ -255,9 +255,7 @@ pub fn download_file<P: AsRef<Path>>(
 }
 
 #[cfg(feature = "test-fixtures")]
-pub fn download_reference_fmus<P: AsRef<Path>>(
-    target_path: P,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn download_reference_fmus<P: AsRef<Path>>(target_path: P) -> anyhow::Result<()> {
     let version = "0.0.39";
     let url = format!(
         "https://github.com/modelica/Reference-FMUs/releases/download/v{version}/Reference-FMUs-{version}.zip"
@@ -265,7 +263,7 @@ pub fn download_reference_fmus<P: AsRef<Path>>(
     let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/resources");
     let archive_path = resources_dir.join(format!("Reference-FMUs-{version}.zip"));
     download_file(&url, &archive_path)?;
-    extract_zip_archive(archive_path, target_path)
+    Ok(extract_zip_archive(archive_path, target_path)?)
 }
 
 #[derive(Template)]

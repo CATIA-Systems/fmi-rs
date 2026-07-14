@@ -8,9 +8,10 @@ license.workspace = true
 [features]
 default = ["zip"]
 zip = ["dep:zip"]
-test-fixtures = ["dep:reqwest"]
+test-fixtures = ["dep:reqwest", "dep:anyhow"]
 
 [dependencies]
+anyhow = {version = "1.0.103", optional = true }
 approx = "0.5.1"
 askama = "0.16.0"
 colored = "3.1.1"
