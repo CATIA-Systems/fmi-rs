@@ -4,7 +4,7 @@ use fmi_rs::fmi3::*;
 use fmi_rs::fmi3::{log::DefaultLogger, types::*};
 use std::{env, path::PathBuf};
 
-use fmi_rs::util::download_reference_fmus;
+use fmi_rs::test_fixtures::download_reference_fmus;
 use fmi_rs::zip::extract_zip_archive;
 
 macro_rules! assert_ok {

@@ -8,7 +8,8 @@ pub mod fmi2;
 pub mod fmi3;
 pub mod model_description;
 pub mod sim;
-pub mod util;
+#[cfg(feature = "test-fixtures")]
+pub mod test_fixtures;
 #[cfg(feature = "zip")]
 pub mod zip;
 

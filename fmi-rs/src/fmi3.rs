@@ -5,6 +5,7 @@
     clippy::too_many_arguments
 )]
 
+pub mod builder;
 pub mod log;
 pub mod types;
 
