@@ -82,10 +82,7 @@ pub fn read_csv<'a, R: Read>(
                 let next_time: f64 = it
                     .next()
                     .ok_or_else(|| {
-                        SimulationError::Parse(format!(
-                            "Missing time value in row {}.",
-                            i + 2
-                        ))
+                        SimulationError::Parse(format!("Missing time value in row {}.", i + 2))
                     })?
                     .parse()
                     .map_err(|e| {
@@ -114,9 +111,7 @@ pub fn read_csv<'a, R: Read>(
                 rows.push(row);
             }
             Err(e) => {
-                return Err(SimulationError::Parse(format!(
-                    "Error reading input. {e}"
-                )));
+                return Err(SimulationError::Parse(format!("Error reading input. {e}")));
             }
         }
     }
@@ -128,9 +123,7 @@ pub fn read_csv<'a, R: Read>(
         rows,
     };
 
-    trajectories
-        .validate()
-        .map_err(SimulationError::Parse)?;
+    trajectories.validate().map_err(SimulationError::Parse)?;
 
     Ok(trajectories)
 }

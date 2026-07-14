@@ -104,7 +104,7 @@ pub fn read_csv<'a, R: Read>(
                         i + 2,
                         j + 2
                     ))
-                })?,                                                            // })?,
+                })?,
             );
         }
 
@@ -118,9 +118,7 @@ pub fn read_csv<'a, R: Read>(
         rows,
     };
 
-    trajectories
-        .validate()
-        .map_err(SimulationError::Parse)?;
+    trajectories.validate().map_err(SimulationError::Parse)?;
 
     Ok(trajectories)
 }

@@ -61,9 +61,8 @@ impl<'a> StaticInput<'a> {
     }
 
     pub fn set_discrete_inputs<I>(&self, time: f64, fmu: &FMU2<I>) -> Result<(), SimulationError> {
-        
         if self.trajectories.time.is_empty() {
-            return Ok(())
+            return Ok(());
         }
 
         let mut index = 0;
@@ -93,10 +92,9 @@ impl<'a> StaticInput<'a> {
         after_event: bool,
         fmu: &FMU2<I>,
     ) -> Result<(), SimulationError> {
-
         if self.trajectories.time.is_empty() {
-            return Ok(())
-        }        
+            return Ok(());
+        }
 
         let mut row_index = 0;
 
