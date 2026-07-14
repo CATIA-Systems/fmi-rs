@@ -52,8 +52,8 @@ pub fn read_csv<'a, R: Read>(
     let headers = match reader.headers() {
         Ok(record) => record,
         Err(e) => {
-            return Err(SimulationError::IllegalParameter(format!(
-                "Failed to read headers. {e}"
+            return Err(SimulationError::Parse(format!(
+                "Failed to read headers: {e}"
             )));
         }
     };
@@ -64,8 +64,8 @@ pub fn read_csv<'a, R: Read>(
         if let Some(variable) = variable_map.get(name) {
             variables.push(variable);
         } else {
-            return Err(SimulationError::IllegalParameter(format!(
-                "Variable {name:?} does not exist in the FMU."
+            return Err(SimulationError::Parse(format!(
+                "Variable {name:?} does not exist in the FMU"
             )));
         }
     }
@@ -74,7 +74,7 @@ pub fn read_csv<'a, R: Read>(
     let mut rows = vec![];
 
     for (i, result) in reader.records().enumerate() {
-        let record = result.map_err(|e| SimulationError::IllegalParameter(e.to_string()))?;
+        let record = result.map_err(|e| SimulationError::Parse(e.to_string()))?;
 
         let mut row = vec![];
         let mut it = record.iter();
@@ -98,13 +98,13 @@ pub fn read_csv<'a, R: Read>(
 
         for (j, literal) in it.enumerate() {
             row.push(
-                parse_variable_value(&variables[j].variableType, literal)?, // .map_err(|e| {
-                                                                            //     format!(
-                                                                            //         "Failed to parse {literal:?} (row {}, column {}). {e}",
-                                                                            //         i + 2,
-                                                                            //         j + 2
-                                                                            //     )
-                                                                            // })?,
+                parse_variable_value(&variables[j].variableType, literal).map_err(|e| {
+                    SimulationError::Parse(format!(
+                        "Failed to parse '{literal:?}' (row {}, column {}): {e}",
+                        i + 2,
+                        j + 2
+                    ))
+                })?,                                                            // })?,
             );
         }
 
@@ -120,7 +120,7 @@ pub fn read_csv<'a, R: Read>(
 
     trajectories
         .validate()
-        .map_err(SimulationError::IllegalParameter)?;
+        .map_err(SimulationError::Parse)?;
 
     Ok(trajectories)
 }

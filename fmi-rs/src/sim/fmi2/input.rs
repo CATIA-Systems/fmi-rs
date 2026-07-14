@@ -27,7 +27,7 @@ impl<'a> StaticInput<'a> {
     }
 
     pub fn next_event_time(&self, time: f64) -> Option<f64> {
-        for i in 0..self.trajectories.time.len() - 1 {
+        for i in 0..self.trajectories.time.len().saturating_sub(1) {
             let t0 = self.trajectories.time[i];
             let t1 = self.trajectories.time[i + 1];
 
@@ -61,6 +61,11 @@ impl<'a> StaticInput<'a> {
     }
 
     pub fn set_discrete_inputs<I>(&self, time: f64, fmu: &FMU2<I>) -> Result<(), SimulationError> {
+        
+        if self.trajectories.time.is_empty() {
+            return Ok(())
+        }
+
         let mut index = 0;
 
         for (i, t) in self.trajectories.time.iter().enumerate() {
@@ -88,6 +93,11 @@ impl<'a> StaticInput<'a> {
         after_event: bool,
         fmu: &FMU2<I>,
     ) -> Result<(), SimulationError> {
+
+        if self.trajectories.time.is_empty() {
+            return Ok(())
+        }        
+
         let mut row_index = 0;
 
         // find the index
@@ -149,7 +159,7 @@ impl<'a> StaticInput<'a> {
 
                 match value {
                     VariableValue::Real(value) => {
-                        fmu.setReal(&[variable.valueReference], &[*value]);
+                        call(fmu.setReal(&[variable.valueReference], &[*value]))?;
                     }
                     _ => panic!("Cannot set {value:?}!"),
                 }

@@ -52,7 +52,7 @@ pub fn read_csv<'a, R: Read>(
     let headers = match reader.headers() {
         Ok(record) => record,
         Err(e) => {
-            return Err(SimulationError::IllegalParameter(format!(
+            return Err(SimulationError::Parse(format!(
                 "Failed to read headers. {e}"
             )));
         }
@@ -64,7 +64,7 @@ pub fn read_csv<'a, R: Read>(
         if let Some(variable) = variable_map.get(name) {
             variables.push(variable);
         } else {
-            return Err(SimulationError::IllegalParameter(format!(
+            return Err(SimulationError::Parse(format!(
                 "Variable {name:?} does not exist in the FMU."
             )));
         }
@@ -82,7 +82,7 @@ pub fn read_csv<'a, R: Read>(
                 let next_time: f64 = it
                     .next()
                     .ok_or_else(|| {
-                        SimulationError::IllegalParameter(format!(
+                        SimulationError::Parse(format!(
                             "Missing time value in row {}.",
                             i + 2
                         ))
@@ -103,7 +103,7 @@ pub fn read_csv<'a, R: Read>(
                     row.push(
                         parse_variable_value(&variables[j].variableType, literal).map_err(|e| {
                             SimulationError::Parse(format!(
-                                "Failed to parse {literal:?} (row {}, column {}). {e}",
+                                "Failed to parse '{literal:?}' (row {}, column {}): {e}",
                                 i + 2,
                                 j + 2
                             ))
@@ -114,7 +114,7 @@ pub fn read_csv<'a, R: Read>(
                 rows.push(row);
             }
             Err(e) => {
-                return Err(SimulationError::IllegalParameter(format!(
+                return Err(SimulationError::Parse(format!(
                     "Error reading input. {e}"
                 )));
             }
@@ -130,7 +130,7 @@ pub fn read_csv<'a, R: Read>(
 
     trajectories
         .validate()
-        .map_err(SimulationError::IllegalParameter)?;
+        .map_err(SimulationError::Parse)?;
 
     Ok(trajectories)
 }

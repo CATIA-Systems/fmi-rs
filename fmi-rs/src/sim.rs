@@ -36,10 +36,10 @@ pub enum SimulationError {
     #[error("Interface type not supported")]
     UnsupportedInterfaceType,
 
-    #[error("Illegal simulation parameters")]
+    #[error("Illegal simulation parameters: {0}")]
     IllegalParameter(String),
 
-    #[error("Failed to parse variable value")]
+    #[error("Failed to parse value: {0}")]
     Parse(String),
 
     #[error("Solver error: {0}")]
