@@ -242,12 +242,11 @@ pub fn download_file<P: AsRef<Path>>(url: &str, target_path: P) -> anyhow::Resul
 
 #[cfg(feature = "test-fixtures")]
 pub fn download_reference_fmus<P: AsRef<Path>>(target_path: P) -> anyhow::Result<()> {
-    let version = "0.0.39";
     let url = format!(
-        "https://github.com/modelica/Reference-FMUs/releases/download/v{version}/Reference-FMUs-{version}.zip"
+        "https://github.com/modelica/Reference-FMUs/releases/latest/download/Reference-FMUs.zip"
     );
     let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/resources");
-    let archive_path = resources_dir.join(format!("Reference-FMUs-{version}.zip"));
+    let archive_path = resources_dir.join(format!("Reference-FMUs.zip"));
     download_file(&url, &archive_path)?;
     Ok(extract_zip_archive(archive_path, target_path)?)
 }
