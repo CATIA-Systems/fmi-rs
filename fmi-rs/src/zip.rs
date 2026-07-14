@@ -1,9 +1,6 @@
 #![cfg(feature = "zip")]
 
-use std::{
-    fs::File,
-    path::Path,
-};
+use std::{fs::File, path::Path};
 use thiserror::Error;
 use zip::ZipArchive;
 
