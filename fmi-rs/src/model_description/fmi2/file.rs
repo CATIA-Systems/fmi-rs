@@ -1,10 +1,10 @@
-use crate::model_description::Category;
 use crate::model_description::file::NodeExt;
+use crate::model_description::{Category, ModelDescriptionError};
 use crate::model_description::{Unit, fmi2::SimpleType};
 use roxmltree::Node;
+use std::path::Path;
 use std::str::FromStr;
 use std::vec;
-use std::{error::Error, path::Path};
 
 use crate::model_description::fmi2::{
     Causality, CoSimulation, DefaultExperiment, DependencyKind, Initial, Item, ModelDescription,
@@ -12,7 +12,7 @@ use crate::model_description::fmi2::{
 };
 
 impl ModelExchange {
-    fn from_node(node: &roxmltree::Node) -> Result<Self, Box<dyn std::error::Error>> {
+    fn from_node(node: &roxmltree::Node) -> Result<Self, ModelDescriptionError> {
         let sourceFiles = node
             .get_child("SourceFiles")
             .map(|n| n.get_children("File"))
@@ -49,7 +49,7 @@ impl ModelExchange {
 }
 
 impl CoSimulation {
-    fn from_node(node: &roxmltree::Node) -> Result<Self, Box<dyn std::error::Error>> {
+    fn from_node(node: &roxmltree::Node) -> Result<Self, ModelDescriptionError> {
         let sourceFiles = node
             .get_child("SourceFiles")
             .map(|n| n.get_children("File"))
@@ -95,30 +95,30 @@ impl CoSimulation {
 }
 
 impl ModelDescription {
-    pub fn from_path(path: &Path) -> Result<ModelDescription, Box<dyn Error>> {
-        let text = match std::fs::read_to_string(path) {
-            Ok(content) => content,
-            Err(e) => return Err(format!("Failed to read XML file: {}", e).into()),
-        };
-        Self::from_string(text.as_str())
+    pub fn from_path(path: &Path) -> Result<ModelDescription, ModelDescriptionError> {
+        let text = std::fs::read_to_string(path)?;
+        Self::from_string(&text)
     }
 
-    pub fn from_string(text: &str) -> Result<ModelDescription, Box<dyn Error>> {
+    pub fn from_string(text: &str) -> Result<ModelDescription, ModelDescriptionError> {
         let opt = roxmltree::ParsingOptions {
             allow_dtd: true,
             ..roxmltree::ParsingOptions::default()
         };
-        let doc = roxmltree::Document::parse_with_options(text, opt)?;
+
+        let doc = roxmltree::Document::parse_with_options(text, opt)
+            .map_err(|e| ModelDescriptionError::Parse(e.to_string()))?;
+
         Self::from_node(&doc.root_element())
+            .map_err(|e| ModelDescriptionError::Parse(format!("{e}")))
     }
 
-    pub fn from_node(root: &Node) -> Result<ModelDescription, Box<dyn Error>> {
-        if let Some(fmi_version) = root.attribute("fmiVersion") {
-            if fmi_version != "2.0" {
-                return Err(format!("Expected FMI version 2.0, but was {fmi_version}").into());
-            }
-        } else {
-            return Err("Missing attribute 'fmiVersion'".into());
+    pub fn from_node(root: &Node) -> Result<ModelDescription, ModelDescriptionError> {
+        let fmi_version = root.required_attribute("fmiVersion")?;
+
+        if fmi_version != "2.0" {
+            let message = format!("Expected FMI version 2.0, but was {fmi_version}");
+            return Err(ModelDescriptionError::Parse(message));
         }
 
         let mut modelVariables = vec![];
@@ -129,7 +129,7 @@ impl ModelDescription {
         {
             let name = child.required_attribute("name")?;
 
-            let valueReference = child.required_attribute("valueReference")?.parse()?;
+            let valueReference = child.required_attribute_as("valueReference")?;
 
             let description = child.attribute_as("description")?;
 
@@ -177,11 +177,11 @@ impl ModelDescription {
                     (Variability::Continuous, Causality::Output) => Some(Initial::Calculated),
                     (Variability::Continuous, Causality::Local) => Some(Initial::Calculated),
                     _ => {
-                        return Err(format!(
+                        let message = format!(
                             "Illegal combination of variability and causality: {:?} {:?}",
                             variability, causality
-                        )
-                        .into());
+                        );
+                        return Err(ModelDescriptionError::Parse(message));
                     }
                 };
             }
@@ -273,7 +273,7 @@ impl ModelDescription {
         Ok(model_description)
     }
 
-    fn get_variable_type(node: &Node) -> Result<VariableType, Box<dyn Error>> {
+    fn get_variable_type(node: &Node) -> Result<VariableType, ModelDescriptionError> {
         for child in node.children() {
             if child.has_tag_name("Real") {
                 return Ok(VariableType::Real {
@@ -325,10 +325,12 @@ impl ModelDescription {
             }
         }
 
-        Err("Missing variable type element".into())
+        Err(ModelDescriptionError::Parse(
+            "Missing variable type element".to_string(),
+        ))
     }
 
-    fn get_unkonwns(root: &Node, name: &str) -> Result<Vec<Unknown>, Box<dyn Error>> {
+    fn get_unkonwns(root: &Node, name: &str) -> Result<Vec<Unknown>, ModelDescriptionError> {
         let modelStructure = if let Some(modelStructure) = root.get_child("ModelStructure") {
             modelStructure
         } else {
@@ -344,14 +346,21 @@ impl ModelDescription {
         let mut unkonwns = vec![];
 
         for child in container.get_children("Unknown") {
-            let index = child.required_attribute("index")?.parse()?;
+            let index = child.required_attribute("index")?.parse().map_err(|e| {
+                let message = format!("{e}");
+                ModelDescriptionError::Parse(message)
+            })?;
 
             let dependencies: Option<Vec<u32>> = match child.attribute("dependencies") {
                 Some(dependencies) => Some(
                     dependencies
                         .split_whitespace()
                         .map(|s| s.parse::<u32>())
-                        .collect::<Result<Vec<_>, _>>()?,
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|e| {
+                            let message = format!("{e}");
+                            ModelDescriptionError::Parse(message)
+                        })?,
                 ),
                 None => None,
             };
@@ -362,7 +371,8 @@ impl ModelDescription {
                         dependenciesKind
                             .split_whitespace()
                             .map(DependencyKind::from_str)
-                            .collect::<Result<Vec<_>, _>>()?,
+                            .collect::<Result<Vec<_>, _>>()
+                            .map_err(|e| ModelDescriptionError::Parse(e.to_string()))?,
                     ),
                     None => None,
                 };
@@ -380,7 +390,7 @@ impl ModelDescription {
 }
 
 impl SimpleType {
-    fn from_node(node: &Node) -> Result<Self, Box<dyn Error>> {
+    fn from_node(node: &Node) -> Result<Self, ModelDescriptionError> {
         let name = node.required_attribute("name")?;
         let description = node.attribute_as("description")?;
 
@@ -437,12 +447,14 @@ impl SimpleType {
             }
         }
 
-        Err("Missing variable type element".into())
+        Err(ModelDescriptionError::Parse(
+            "Missing variable type element".to_string(),
+        ))
     }
 }
 
 impl Item {
-    fn from_node(node: &roxmltree::Node) -> Result<Self, Box<dyn Error>> {
+    fn from_node(node: &roxmltree::Node) -> Result<Self, ModelDescriptionError> {
         Ok(Item {
             name: node.required_attribute("name")?,
             description: node.attribute_as("description")?,

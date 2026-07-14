@@ -5,7 +5,8 @@ pub mod fmi2;
 pub mod fmi3;
 pub mod validation;
 
-use std::{error::Error, ops::Range, path::Path};
+use std::{ops::Range, path::Path};
+use thiserror::Error;
 
 /// Represents a problem found during model description validation.
 #[derive(Debug)]
@@ -18,6 +19,24 @@ pub struct ValidationError {
 pub enum FMIMajorVersion {
     V2 = 2,
     V3 = 3,
+}
+
+#[derive(Error, Debug)]
+pub enum ModelDescriptionError {
+    #[error("Failed to open the file")]
+    Io(#[from] std::io::Error),
+
+    #[error("Failed to parse model description")]
+    Parse(String),
+
+    #[error("Missing attribute")]
+    MissingAttribute(String),
+
+    #[error("Unsupported FMI version")]
+    UnsupportedVersion(String),
+
+    #[error("Unknown FMI version")]
+    UnknownVersion(String),
 }
 
 #[derive(Debug)]
@@ -67,38 +86,38 @@ pub struct DefaultExperiment {
     pub range: Range<usize>,
 }
 
-pub fn peek_fmi_version(path: &Path) -> Result<String, Box<dyn Error>> {
-    let text = match std::fs::read_to_string(path) {
-        Ok(content) => content,
-        Err(e) => return Err(format!("Failed to read XML file: {}", e).into()),
-    };
+pub fn peek_fmi_version(path: &Path) -> Result<String, ModelDescriptionError> {
+    let text = std::fs::read_to_string(path)?;
 
     let opt = roxmltree::ParsingOptions {
         allow_dtd: true,
         ..roxmltree::ParsingOptions::default()
     };
 
-    let doc = roxmltree::Document::parse_with_options(&text, opt)?;
+    let doc = roxmltree::Document::parse_with_options(&text, opt)
+        .map_err(|err| ModelDescriptionError::Parse(err.to_string()))?;
 
     let root = doc.root_element();
 
     if let Some(fmi_version) = root.attribute("fmiVersion") {
         Ok(fmi_version.to_string())
     } else {
-        Err("Attribute fmiVersion is missing.".into())
+        Err(ModelDescriptionError::MissingAttribute(
+            "fmiVersion".to_string(),
+        ))
     }
 }
 
-pub fn peek_fmi_major_version(path: &Path) -> Result<FMIMajorVersion, Box<dyn Error>> {
+pub fn peek_fmi_major_version(path: &Path) -> Result<FMIMajorVersion, ModelDescriptionError> {
     let fmi_version = peek_fmi_version(path)?;
 
     if fmi_version == "1.0" {
-        Err("FMI 1.0 is not supported.".into())
+        Err(ModelDescriptionError::UnsupportedVersion(fmi_version))
     } else if fmi_version == "2.0" {
         Ok(FMIMajorVersion::V2)
     } else if fmi_version.starts_with("3.") {
         Ok(FMIMajorVersion::V3)
     } else {
-        Err(format!("Unknown FMI version: {}", fmi_version).into())
+        Err(ModelDescriptionError::UnknownVersion(fmi_version))
     }
 }

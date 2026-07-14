@@ -1,16 +1,24 @@
-use std::{any::TypeId, error::Error, str::FromStr};
+use std::{any::TypeId, str::FromStr};
 
 use roxmltree::Node;
 
-use crate::model_description::{BaseUnit, Category, DefaultExperiment, DisplayUnit, Unit};
+use crate::model_description::{
+    BaseUnit, Category, DefaultExperiment, DisplayUnit, ModelDescriptionError, Unit,
+};
 
 pub(crate) trait NodeExt<'a, 'input> {
     fn get_child(&self, name: &str) -> Option<Node<'a, 'input>>;
-    fn get_required_child(&self, name: &str) -> Result<Node<'a, 'input>, Box<dyn Error>>;
+    fn get_required_child(&self, name: &str) -> Result<Node<'a, 'input>, ModelDescriptionError>;
     fn get_children(&self, name: &str) -> Vec<Node<'a, 'input>>;
-    fn required_attribute(&self, name: &str) -> Result<String, Box<dyn Error>>;
-    fn attribute_as<T: FromStr + 'static>(&self, name: &str) -> Result<Option<T>, Box<dyn Error>>;
-    fn required_attribute_as<T: FromStr + 'static>(&self, name: &str) -> Result<T, Box<dyn Error>>;
+    fn required_attribute(&self, name: &str) -> Result<String, ModelDescriptionError>;
+    fn attribute_as<T: FromStr + 'static>(
+        &self,
+        name: &str,
+    ) -> Result<Option<T>, ModelDescriptionError>;
+    fn required_attribute_as<T: FromStr + 'static>(
+        &self,
+        name: &str,
+    ) -> Result<T, ModelDescriptionError>;
 }
 
 impl<'a, 'input> NodeExt<'a, 'input> for Node<'a, 'input> {
@@ -18,16 +26,16 @@ impl<'a, 'input> NodeExt<'a, 'input> for Node<'a, 'input> {
         self.children().find(|n| n.has_tag_name(name))
     }
 
-    fn get_required_child(&self, name: &str) -> Result<Node<'a, 'input>, Box<dyn Error>> {
+    fn get_required_child(&self, name: &str) -> Result<Node<'a, 'input>, ModelDescriptionError> {
         self.children()
             .find(|n| n.has_tag_name(name))
             .ok_or_else(|| {
-                format!(
+                let message = format!(
                     "Missing required element <{}> in <{}>",
                     name,
                     self.tag_name().name()
-                )
-                .into()
+                );
+                ModelDescriptionError::Parse(message)
             })
     }
 
@@ -35,13 +43,19 @@ impl<'a, 'input> NodeExt<'a, 'input> for Node<'a, 'input> {
         self.children().filter(|n| n.has_tag_name(name)).collect()
     }
 
-    fn required_attribute(&self, name: &str) -> Result<String, Box<dyn Error>> {
+    fn required_attribute(&self, name: &str) -> Result<String, ModelDescriptionError> {
         self.attribute(name)
-            .ok_or_else(|| format!("Missing required attribute '{}'", name).into())
+            .ok_or_else(|| {
+                let message = format!("Missing required attribute '{}'", name);
+                ModelDescriptionError::Parse(message)
+            })
             .map(|s| s.to_string())
     }
 
-    fn attribute_as<T: FromStr + 'static>(&self, name: &str) -> Result<Option<T>, Box<dyn Error>> {
+    fn attribute_as<T: FromStr + 'static>(
+        &self,
+        name: &str,
+    ) -> Result<Option<T>, ModelDescriptionError> {
         if let Some(literal) = self.attribute(name) {
             let normalized = if TypeId::of::<T>() == TypeId::of::<bool>() {
                 match literal {
@@ -53,12 +67,13 @@ impl<'a, 'input> NodeExt<'a, 'input> for Node<'a, 'input> {
                 literal
             };
             let result = normalized.parse::<T>().map_err(|_| {
-                format!(
+                let message = format!(
                     "Illegal value '{}' for attribute '{}' in <{}>.",
                     literal,
                     name,
                     self.tag_name().name()
-                )
+                );
+                ModelDescriptionError::Parse(message)
             })?;
             Ok(Some(result))
         } else {
@@ -66,7 +81,10 @@ impl<'a, 'input> NodeExt<'a, 'input> for Node<'a, 'input> {
         }
     }
 
-    fn required_attribute_as<T: FromStr + 'static>(&self, name: &str) -> Result<T, Box<dyn Error>> {
+    fn required_attribute_as<T: FromStr + 'static>(
+        &self,
+        name: &str,
+    ) -> Result<T, ModelDescriptionError> {
         if let Some(value) = self.attribute(name) {
             let normalized = if TypeId::of::<T>() == TypeId::of::<bool>() {
                 match value {
@@ -78,27 +96,27 @@ impl<'a, 'input> NodeExt<'a, 'input> for Node<'a, 'input> {
                 value
             };
             normalized.parse::<T>().map_err(|_| {
-                format!(
+                let message = format!(
                     "Illegal value '{}' for attribute '{}' in <{}>.",
                     value,
                     name,
                     self.tag_name().name()
-                )
-                .into()
+                );
+                ModelDescriptionError::Parse(message)
             })
         } else {
-            Err(format!(
+            let message = format!(
                 "Missing required attribute '{}' in <{}>.",
                 name,
                 self.tag_name().name()
-            )
-            .into())
+            );
+            Err(ModelDescriptionError::Parse(message))
         }
     }
 }
 
 impl BaseUnit {
-    pub(crate) fn from_node(node: &roxmltree::Node) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn from_node(node: &roxmltree::Node) -> Result<Self, ModelDescriptionError> {
         Ok(BaseUnit {
             kg: node.attribute_as("kg")?.unwrap_or_default(),
             m: node.attribute_as("m")?.unwrap_or_default(),
@@ -116,7 +134,7 @@ impl BaseUnit {
 }
 
 impl DisplayUnit {
-    pub(crate) fn from_node(node: &roxmltree::Node) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn from_node(node: &roxmltree::Node) -> Result<Self, ModelDescriptionError> {
         Ok(DisplayUnit {
             factor: node.attribute_as("factor")?.unwrap_or(1.0),
             offset: node.attribute_as("offset")?.unwrap_or_default(),
@@ -128,7 +146,7 @@ impl DisplayUnit {
 }
 
 impl Unit {
-    pub(crate) fn from_node(node: &roxmltree::Node) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn from_node(node: &roxmltree::Node) -> Result<Self, ModelDescriptionError> {
         Ok(Unit {
             name: node.required_attribute("name")?,
             baseUnit: node
@@ -146,7 +164,7 @@ impl Unit {
 }
 
 impl Category {
-    pub(crate) fn from_node(node: &roxmltree::Node) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn from_node(node: &roxmltree::Node) -> Result<Self, ModelDescriptionError> {
         Ok(Category {
             name: node.required_attribute("name")?,
             description: node.attribute_as("description")?,
@@ -155,7 +173,7 @@ impl Category {
 }
 
 impl DefaultExperiment {
-    pub(crate) fn from_node(node: &roxmltree::Node) -> Result<Self, Box<dyn std::error::Error>> {
+    pub(crate) fn from_node(node: &roxmltree::Node) -> Result<Self, ModelDescriptionError> {
         Ok(DefaultExperiment {
             startTime: node.attribute_as("startTime")?,
             stopTime: node.attribute_as("stopTime")?,

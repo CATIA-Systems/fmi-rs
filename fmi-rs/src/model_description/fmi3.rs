@@ -6,7 +6,7 @@ use std::{ops::Range, str::FromStr};
 
 use crate::{
     fmi3::types::fmi3ValueReference,
-    model_description::{Category, DefaultExperiment, Unit},
+    model_description::{Category, DefaultExperiment, ModelDescriptionError, Unit},
 };
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -16,13 +16,16 @@ pub enum VariableNamingConvention {
 }
 
 impl FromStr for VariableNamingConvention {
-    type Err = String;
+    type Err = ModelDescriptionError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "flat" => Ok(VariableNamingConvention::Flat),
             "structured" => Ok(VariableNamingConvention::Structured),
-            _ => Err(format!("Unknown variable naming convention: {}", s)),
+            _ => Err(ModelDescriptionError::Parse(format!(
+                "Unknown variable naming convention: {}",
+                s
+            ))),
         }
     }
 }
@@ -46,7 +49,7 @@ pub enum IntervalVariability {
 }
 
 impl FromStr for IntervalVariability {
-    type Err = String;
+    type Err = ModelDescriptionError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -56,7 +59,10 @@ impl FromStr for IntervalVariability {
             "changing" => Ok(IntervalVariability::Changing),
             "countdown" => Ok(IntervalVariability::Countdown),
             "triggered" => Ok(IntervalVariability::Triggered),
-            _ => Err(format!("Unknown interval variability: {}", s)),
+            _ => Err(ModelDescriptionError::Parse(format!(
+                "Unknown interval variability: {}",
+                s
+            ))),
         }
     }
 }
@@ -444,7 +450,7 @@ pub enum Causality {
 }
 
 impl FromStr for Causality {
-    type Err = String;
+    type Err = ModelDescriptionError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -455,7 +461,10 @@ impl FromStr for Causality {
             "output" => Ok(Causality::Output),
             "local" => Ok(Causality::Local),
             "independent" => Ok(Causality::Independent),
-            _ => Err(format!("Unknown causality: {}", s)),
+            _ => Err(ModelDescriptionError::Parse(format!(
+                "Unknown causality: {}",
+                s
+            ))),
         }
     }
 }
@@ -470,7 +479,7 @@ pub enum Variability {
 }
 
 impl FromStr for Variability {
-    type Err = String;
+    type Err = ModelDescriptionError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -479,7 +488,10 @@ impl FromStr for Variability {
             "tunable" => Ok(Variability::Tunable),
             "discrete" => Ok(Variability::Discrete),
             "continuous" => Ok(Variability::Continuous),
-            _ => Err(format!("Unknown variability: {}", s)),
+            _ => Err(ModelDescriptionError::Parse(format!(
+                "Unknown variability: {}",
+                s
+            ))),
         }
     }
 }
@@ -492,14 +504,17 @@ pub enum Initial {
 }
 
 impl FromStr for Initial {
-    type Err = String;
+    type Err = ModelDescriptionError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "exact" => Ok(Initial::Exact),
             "approx" => Ok(Initial::Approx),
             "calculated" => Ok(Initial::Calculated),
-            _ => Err(format!("Unknown initial value: {}", s)),
+            _ => Err(ModelDescriptionError::Parse(format!(
+                "Unknown initial value: {}",
+                s
+            ))),
         }
     }
 }
@@ -514,7 +529,7 @@ pub enum DependencyKind {
 }
 
 impl FromStr for DependencyKind {
-    type Err = String;
+    type Err = ModelDescriptionError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -523,7 +538,10 @@ impl FromStr for DependencyKind {
             "fixed" => Ok(DependencyKind::Fixed),
             "tunable" => Ok(DependencyKind::Tunable),
             "discrete" => Ok(DependencyKind::Discrete),
-            _ => Err(format!("Unknown dependency kind: {}", s)),
+            _ => Err(ModelDescriptionError::Parse(format!(
+                "Unknown dependency kind: {}",
+                s
+            ))),
         }
     }
 }

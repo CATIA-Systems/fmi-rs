@@ -1,9 +1,9 @@
-use std::{error::Error, path::Path, str::FromStr};
+use std::{path::Path, str::FromStr};
 
 use roxmltree::Node;
 
 use crate::model_description::file::NodeExt;
-use crate::model_description::{Category, Unit};
+use crate::model_description::{Category, ModelDescriptionError, Unit};
 
 use crate::model_description::fmi3::VariableNamingConvention;
 use crate::model_description::fmi3::{
@@ -13,19 +13,13 @@ use crate::model_description::fmi3::{
 };
 
 impl ModelDescription {
-    fn get_unknowns(root: &Node, name: &str) -> Result<Vec<Unknown>, Box<dyn Error>> {
-        let modelStructure = root
-            .descendants()
-            .find(|n| n.has_tag_name("ModelStructure"))
-            .ok_or("Missing <ModelStructure> element.")?;
+    fn get_unknowns(root: &Node, name: &str) -> Result<Vec<Unknown>, ModelDescriptionError> {
+        let modelStructure = root.get_required_child("ModelStructure")?;
 
         let mut unknowns = vec![];
 
         for child in modelStructure.children().filter(|n| n.has_tag_name(name)) {
-            let valueReference = child
-                .attribute("valueReference")
-                .ok_or_else(|| format!("Missing valueReference attribute in {}", name))?
-                .parse()?;
+            let valueReference = child.required_attribute_as("valueReference")?;
 
             let dependencies: Option<Vec<u32>> = match child.attribute("dependencies") {
                 Some(dependencies) => {
@@ -36,7 +30,8 @@ impl ModelDescription {
                             dependencies
                                 .split_whitespace()
                                 .map(|s| s.parse::<u32>())
-                                .collect::<Result<Vec<_>, _>>()?,
+                                .collect::<Result<Vec<_>, _>>()
+                                .map_err(|e| ModelDescriptionError::Parse(e.to_string()))?,
                         )
                     }
                 }
@@ -66,7 +61,7 @@ impl ModelDescription {
         Ok(unknowns)
     }
 
-    fn get_variable_type(node: &Node) -> Result<VariableType, Box<dyn Error>> {
+    fn get_variable_type(node: &Node) -> Result<VariableType, ModelDescriptionError> {
         if node.has_tag_name("Float32") {
             return Ok(VariableType::Float32 {
                 intermediateUpdate: node.attribute_as("intermediateUpdate")?.unwrap_or_default(),
@@ -229,7 +224,10 @@ impl ModelDescription {
                     let hex_str = n.required_attribute("value")?;
 
                     if hex_str.len() % 2 != 0 {
-                        return Err(format!("Invalid hex string length: {}", hex_str).into());
+                        return Err(ModelDescriptionError::Parse(format!(
+                            "Invalid hex string length: {}",
+                            hex_str
+                        )));
                     }
 
                     let mut bytes = Vec::new();
@@ -239,16 +237,17 @@ impl ModelDescription {
                         match u8::from_str_radix(byte_str, 16) {
                             Ok(byte) => bytes.push(byte),
                             Err(e) => {
-                                return Err(
-                                    format!("Invalid hex byte '{}': {}", byte_str, e).into()
-                                );
+                                return Err(ModelDescriptionError::Parse(format!(
+                                    "Invalid hex byte '{}': {}",
+                                    byte_str, e
+                                )));
                             }
                         }
                     }
 
                     Ok(bytes)
                 })
-                .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
+                .collect::<Result<Vec<_>, ModelDescriptionError>>()?;
 
             return Ok(VariableType::Binary {
                 start: start_values,
@@ -281,24 +280,24 @@ impl ModelDescription {
             });
         }
 
-        Err("Missing variable type element".into())
+        Err(ModelDescriptionError::Parse(
+            "Missing variable type element".to_string(),
+        ))
     }
 
-    fn get_dimensions(node: &Node) -> Result<Vec<Dimension>, Box<dyn Error>> {
+    fn get_dimensions(node: &Node) -> Result<Vec<Dimension>, ModelDescriptionError> {
         let mut dimensions = vec![];
 
         for child in node.children().filter(|n| n.is_element()) {
             if child.has_tag_name("Dimension") {
-                if let Some(size_str) = child.attribute("start") {
-                    let size = size_str.parse()?;
+                if let Some(size) = child.attribute_as("start")? {
                     dimensions.push(Dimension::Fixed { start: size });
-                } else if let Some(vr_str) = child.attribute("valueReference") {
-                    let vr = vr_str.parse()?;
-                    dimensions.push(Dimension::Variable { valueReference: vr });
+                } else if let Some(valueReference) = child.attribute_as("valueReference")? {
+                    dimensions.push(Dimension::Variable { valueReference });
                 } else {
-                    return Err(
-                        "Dimension must have either size or valueReference attribute".into(),
-                    );
+                    return Err(ModelDescriptionError::Parse(
+                        "Dimension must have either size or valueReference attribute".to_string(),
+                    ));
                 }
             }
         }
@@ -306,35 +305,30 @@ impl ModelDescription {
         Ok(dimensions)
     }
 
-    pub fn from_path(path: &Path) -> Result<ModelDescription, Box<dyn Error>> {
-        let text = std::fs::read_to_string(path)
-            .map_err(|e| format!("Failed to read XML file '{}': {}", path.display(), e))?;
-        Self::from_string(&text).map_err(|e| {
-            format!(
-                "Failed to load model description from '{}': {}",
-                path.display(),
-                e
-            )
-            .into()
-        })
+    pub fn from_path(path: &Path) -> Result<ModelDescription, ModelDescriptionError> {
+        let text = std::fs::read_to_string(path)?;
+        Self::from_string(&text)
     }
 
-    pub fn from_string(text: &str) -> Result<ModelDescription, Box<dyn Error>> {
+    pub fn from_string(text: &str) -> Result<ModelDescription, ModelDescriptionError> {
         let opt = roxmltree::ParsingOptions {
             allow_dtd: true,
             ..roxmltree::ParsingOptions::default()
         };
-        let doc = roxmltree::Document::parse_with_options(text, opt)?;
+
+        let doc = roxmltree::Document::parse_with_options(text, opt)
+            .map_err(|e| ModelDescriptionError::Parse(e.to_string()))?;
+
         Self::from_node(&doc.root_element())
     }
 
-    pub fn from_node(root: &Node) -> Result<ModelDescription, Box<dyn Error>> {
-        if let Some(fmi_version) = root.attribute("fmiVersion") {
-            if !fmi_version.starts_with("3.") {
-                return Err(format!("Expected FMI version 3.*, but was {fmi_version}").into());
-            }
-        } else {
-            return Err("Missing attribute 'fmiVersion'".into());
+    pub fn from_node(root: &Node) -> Result<ModelDescription, ModelDescriptionError> {
+        let fmi_version = root.required_attribute("fmiVersion")?;
+
+        if !fmi_version.starts_with("3.") {
+            return Err(ModelDescriptionError::Parse(format!(
+                "Expected FMI version 3.*, but was {fmi_version}"
+            )));
         }
 
         let modelVariables: Vec<ModelVariable> = root
@@ -396,11 +390,11 @@ impl ModelDescription {
                         (Variability::Continuous, Causality::Output) => Some(Initial::Calculated),
                         (Variability::Continuous, Causality::Local) => Some(Initial::Calculated),
                         _ => {
-                            return Err(format!(
+                            let message = format!(
                                 "Illegal combination of variability and causality: {:?} {:?}",
                                 variability, causality
-                            )
-                            .into());
+                            );
+                            return Err(ModelDescriptionError::Parse(message));
                         }
                     };
                 }
@@ -412,7 +406,7 @@ impl ModelDescription {
                 Ok(ModelVariable {
                     variableType: variable_type,
                     name: child.required_attribute("name")?,
-                    valueReference: child.required_attribute("valueReference")?.parse()?,
+                    valueReference: child.required_attribute_as("valueReference")?,
                     description: child.attribute_as("description")?,
                     causality,
                     variability,
@@ -423,7 +417,7 @@ impl ModelDescription {
                     range: child.range(),
                 })
             })
-            .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
+            .collect::<Result<Vec<_>, ModelDescriptionError>>()?;
 
         let logCategories = root
             .get_child("LogCategories")
@@ -512,7 +506,7 @@ impl ModelDescription {
 }
 
 impl TypeDefinition {
-    fn from_node(node: &Node) -> Result<Self, Box<dyn Error>> {
+    fn from_node(node: &Node) -> Result<Self, ModelDescriptionError> {
         let name = node.required_attribute("name")?;
         let description = node.attribute_as("description")?;
 
@@ -656,13 +650,14 @@ impl TypeDefinition {
                 range: node.range(),
             })
         } else {
-            Err(format!("Unknown type definition: {}", node.tag_name().name()).into())
+            let message = format!("Unknown type definition: {}", node.tag_name().name());
+            Err(ModelDescriptionError::Parse(message))
         }
     }
 }
 
 impl ModelExchange {
-    fn from_node(node: &roxmltree::Node) -> Result<Self, Box<dyn std::error::Error>> {
+    fn from_node(node: &roxmltree::Node) -> Result<Self, ModelDescriptionError> {
         Ok(ModelExchange {
             modelIdentifier: node.required_attribute_as("modelIdentifier")?,
             needsExecutionTool: node.attribute_as("needsExecutionTool")?.unwrap_or_default(),
@@ -696,7 +691,7 @@ impl ModelExchange {
 }
 
 impl CoSimulation {
-    fn from_node(node: &roxmltree::Node) -> Result<Self, Box<dyn std::error::Error>> {
+    fn from_node(node: &roxmltree::Node) -> Result<Self, ModelDescriptionError> {
         Ok(CoSimulation {
             modelIdentifier: node.required_attribute_as("modelIdentifier")?,
             needsExecutionTool: node.attribute_as("needsExecutionTool")?.unwrap_or_default(),
@@ -747,7 +742,7 @@ impl CoSimulation {
 }
 
 impl ScheduledExecution {
-    fn from_node(node: &roxmltree::Node) -> Result<Self, Box<dyn std::error::Error>> {
+    fn from_node(node: &roxmltree::Node) -> Result<Self, ModelDescriptionError> {
         Ok(ScheduledExecution {
             modelIdentifier: node.required_attribute_as("modelIdentifier")?,
             needsExecutionTool: node.attribute_as("needsExecutionTool")?.unwrap_or_default(),
@@ -775,11 +770,11 @@ impl ScheduledExecution {
 }
 
 impl Item {
-    pub(crate) fn from_node(node: &roxmltree::Node) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn from_node(node: &roxmltree::Node) -> Result<Self, ModelDescriptionError> {
         Ok(Item {
             name: node.required_attribute("name")?,
             description: node.attribute_as("description")?,
-            value: node.required_attribute("value")?.parse()?,
+            value: node.required_attribute_as("value")?,
             range: node.range(),
         })
     }

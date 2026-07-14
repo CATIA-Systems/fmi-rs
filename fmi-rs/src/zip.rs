@@ -1,11 +1,39 @@
 #![cfg(feature = "zip")]
 
-use std::{fs::File, path::Path};
-
+use std::{
+    fs::File,
+    path::Path,
+};
+use thiserror::Error;
 use zip::ZipArchive;
 
+#[derive(Error, Debug)]
+pub enum ZipError {
+    #[error("Failed to open the file")]
+    Io(#[from] std::io::Error),
+
+    #[error("Invalid ZIP archive format")]
+    Zip(#[from] zip::result::ZipError),
+
+    #[error("ZIP entry index {index} contains an invalid UTF-8 filename")]
+    InvalidFilename {
+        index: usize,
+        #[source]
+        source: std::string::FromUtf8Error,
+    },
+
+    #[error("The source path is not a directory")]
+    NotADirectory,
+
+    #[error("Failed to strip prefix")]
+    StripPrefix(#[from] std::path::StripPrefixError),
+
+    #[error("Invalid encoding")]
+    InvalidEncoding,
+}
+
 /// Returns all (raw) entries of the ZIP archive
-pub fn get_zip_contents(fmu_path: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+pub fn get_zip_contents(fmu_path: &str) -> Result<Vec<String>, ZipError> {
     // Open the FMU file (which is a ZIP archive)
     let file = File::open(fmu_path)?;
     let mut archive = ZipArchive::new(file)?;
@@ -14,8 +42,12 @@ pub fn get_zip_contents(fmu_path: &str) -> Result<Vec<String>, Box<dyn std::erro
 
     for i in 0..archive.len() {
         let file = archive.by_index(i)?;
-        let entry = String::from_utf8(file.name_raw().to_owned())
-            .map_err(|e| format!("Failed to read ZIP entry: {e}"))?;
+        let entry = String::from_utf8(file.name_raw().to_owned()).map_err(|e| {
+            ZipError::InvalidFilename {
+                index: i,
+                source: e,
+            }
+        })?;
         entries.push(entry);
     }
 
@@ -26,7 +58,7 @@ pub fn get_zip_contents(fmu_path: &str) -> Result<Vec<String>, Box<dyn std::erro
 pub fn extract_zip_archive<P: AsRef<Path>, T: AsRef<Path>>(
     zip_path: P,
     target_path: T,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ZipError> {
     let file = File::open(&zip_path)?;
 
     let mut archive = ZipArchive::new(file)?;
@@ -61,11 +93,26 @@ pub fn extract_zip_archive<P: AsRef<Path>, T: AsRef<Path>>(
     Ok(())
 }
 
+// #[derive(Error, Debug)]
+// pub enum ZipWriteError {
+//     #[error("Failed to open the file")]
+//     Io(#[from] std::io::Error),
+
+//     #[error("Invalid ZIP archive format")]
+//     Zip(#[from] zip::result::ZipError),
+
+//     #[error("Failed to strip prefix")]
+//     StripPrefix(#[from] std::path::StripPrefixError),
+
+//     #[error("Invalid encoding")]
+//     InvalidEncoding,
+// }
+
 /// Creates a ZIP archive from a given directory
 pub fn create_zip_archive<P: AsRef<Path>, T: AsRef<Path>>(
     src_path: P,
     dst_path: T,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ZipError> {
     // 1. Initialize the file writer and the ZipWriter wrapper
     let file = File::create(dst_path)?;
     let buf_writer = std::io::BufWriter::new(file);
@@ -89,9 +136,13 @@ fn compress_folder_recursive(
     current_dir: &Path,
     zip: &mut zip::ZipWriter<std::io::BufWriter<File>>,
     options: zip::write::SimpleFileOptions,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ZipError> {
     use std::fs::{self, File};
     use std::io::Write;
+
+    if !root_dir.is_dir() {
+        return Err(ZipError::NotADirectory);
+    }
 
     // Read the current directory contents
     for entry in fs::read_dir(current_dir)? {
@@ -102,7 +153,7 @@ fn compress_folder_recursive(
         let relative_path = entry_path
             .strip_prefix(root_dir)?
             .to_str()
-            .ok_or("Invalid path encoding")?
+            .ok_or(ZipError::InvalidEncoding)?
             .replace("\\", "/");
 
         if entry_path.is_dir() {

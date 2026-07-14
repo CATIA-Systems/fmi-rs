@@ -3,7 +3,7 @@
 use crate::{
     fmi2, fmi3,
     model_description::{self, peek_fmi_major_version},
-    zip::extract_zip_archive,
+    zip::{ZipError, extract_zip_archive},
 };
 use askama::Template;
 use std::{
@@ -287,23 +287,78 @@ const FMI3_FUNCTIONS_H: &[u8] = include_bytes!("../templates/fmi3Functions.h");
 const FMI3_FUNCTION_TYPES_H: &[u8] = include_bytes!("../templates/fmi3FunctionTypes.h");
 const FMI3_PLATFORM_TYPES_H: &[u8] = include_bytes!("../templates/fmi3PlatformTypes.h");
 
-pub fn create_cmake_project(
-    fmu_path: &Path,
-    project_path: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum CMakeProjectError {
+    #[error("Failed to read the input FMU archive")]
+    Zip(#[from] ZipError),
+
+    #[error("Model description error: {0}")]
+    ModelDescription(#[from] crate::model_description::ModelDescriptionError),
+
+    #[error("IO error occurred while creating project at {path}")]
+    Io {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("{0}")]
+    Message(String),
+
+    #[error("Template rendering error: {0}")]
+    Template(#[from] askama::Error),
+    // #[error("CMake generation failed: {reason}")]
+    // GenerationFailed { reason: String },
+}
+
+impl From<std::io::Error> for CMakeProjectError {
+    fn from(source: std::io::Error) -> Self {
+        Self::Io {
+            path: PathBuf::new(),
+            source,
+        }
+    }
+}
+
+impl From<String> for CMakeProjectError {
+    fn from(message: String) -> Self {
+        Self::Message(message)
+    }
+}
+
+impl From<&str> for CMakeProjectError {
+    fn from(message: &str) -> Self {
+        Self::Message(message.to_string())
+    }
+}
+
+impl CMakeProjectError {
+    /// Helper to cleanly map IO errors associated with a specific path
+    pub fn io_at(path: &std::path::Path) -> impl FnOnce(std::io::Error) -> Self + '_ {
+        move |source| CMakeProjectError::Io {
+            path: path.to_path_buf(),
+            source,
+        }
+    }
+}
+
+pub fn create_cmake_project(fmu_path: &Path, project_path: &Path) -> Result<(), CMakeProjectError> {
     let source_path = project_path.join("src");
-    std::fs::create_dir_all(&source_path)?;
+    std::fs::create_dir_all(&source_path).map_err(CMakeProjectError::io_at(&source_path))?;
 
     extract_zip_archive(fmu_path, &source_path)?;
 
     let include_path = project_path.join("include");
-    std::fs::create_dir_all(&include_path)?;
+    std::fs::create_dir_all(&include_path).map_err(CMakeProjectError::io_at(&source_path))?;
 
     let model_description_path = source_path.join("modelDescription.xml");
 
     let fmi_major_version = peek_fmi_major_version(&model_description_path)?;
 
-    let target_path = path::absolute(fmu_path)?
+    let target_path = path::absolute(fmu_path)
+        .map_err(CMakeProjectError::io_at(fmu_path))?
         .to_string_lossy()
         .replace("\\", "/");
 
