@@ -17,7 +17,8 @@ use crate::{
 };
 use fmi_rs::sim::{
     GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetEventIndicatorsFn,
-    SetContinuousInputsFn, SetContinuousStatesFn, SetTimeFn, Solver, SolverFactory,
+    SetContinuousInputsFn, SetContinuousStatesFn, SetTimeFn, SimulationError, Solver,
+    SolverFactory,
 };
 use fmi_rs::sim::{GetDirectionalDerivativeFn, GetNominalsOfContinuousStatesFn};
 use std::{ffi::c_void, slice::from_raw_parts_mut};
@@ -35,7 +36,10 @@ macro_rules! expect_ok {
 macro_rules! expect_no_error {
     ($flag:expr, $message:expr) => {
         if $flag != 0 {
-            return Err(format!("{}: error code {}", $message, $flag).into());
+            return Err(SimulationError::Solver(format!(
+                "{}: error code {}",
+                $message, $flag
+            )));
         }
     };
 }
@@ -43,7 +47,7 @@ macro_rules! expect_no_error {
 macro_rules! expect_not_null {
     ($ptr:expr, $message:expr) => {
         if $ptr.is_null() {
-            return Err($message.into());
+            return Err(SimulationError::Solver($message.into()));
         }
     };
 }
@@ -93,7 +97,7 @@ impl SolverFactory for CVodeSolverFactory {
         get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
         get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
         set_continuous_states: SetContinuousStatesFn<'a>,
-    ) -> Result<Box<dyn Solver + 'a>, Error> {
+    ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         unsafe {
             let functions = Box::new(Functions {
                 nx,
@@ -200,7 +204,7 @@ impl SolverFactory for CVodeSolverFactory {
 }
 
 impl<'a> Solver for CVodeSolver<'a> {
-    fn reset(&mut self, time: f64) -> Result<(), Error> {
+    fn reset(&mut self, time: f64) -> Result<(), SimulationError> {
         unsafe {
             if self.functions.nx > 0 {
                 (self.functions.get_continuous_states)((*self.x).as_mut())?;
@@ -224,13 +228,13 @@ impl<'a> Solver for CVodeSolver<'a> {
         Ok(())
     }
 
-    fn step(&mut self, next_time: f64) -> Result<(f64, bool), Error> {
+    fn step(&mut self, next_time: f64) -> Result<(f64, bool), SimulationError> {
         let mut tret = 0.0;
 
         let flag = unsafe { CVode(self.cvode_mem, next_time, self.x, &mut tret, CV_NORMAL) };
 
         if flag < 0 {
-            return Err(format!("Solver error: {flag}").into());
+            return Err(SimulationError::Solver(format!("status {flag}")));
         }
 
         (self.functions.set_time)(tret)?;

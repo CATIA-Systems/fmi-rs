@@ -1,19 +1,18 @@
-use std::error::Error;
-
 use crate::{
     fmi3::{FMU3, types::fmi3Status},
     model_description::fmi3::Variability,
     sim::{
+        SimulationError,
         fmi3::{Trajectories, VariableValue, set_variable_value},
         relative_eq,
     },
 };
 
-fn call(status: fmi3Status) -> Result<fmi3Status, Box<dyn Error>> {
+fn call(status: fmi3Status) -> Result<fmi3Status, SimulationError> {
     if matches!(status, fmi3Status::fmi3OK | fmi3Status::fmi3Warning) {
         Ok(status)
     } else {
-        Err(format!("FMI call failed with status: {:?}", status).into())
+        Err(SimulationError::FMICallError)
     }
 }
 
@@ -61,7 +60,7 @@ impl<'a> StaticInput<'a> {
         None
     }
 
-    pub fn set_discrete_inputs(&self, time: f64, fmu: &FMU3) -> Result<(), Box<dyn Error>> {
+    pub fn set_discrete_inputs(&self, time: f64, fmu: &FMU3) -> Result<(), SimulationError> {
         let mut index = 0;
 
         for (i, t) in self.trajectories.time.iter().enumerate() {
@@ -89,7 +88,7 @@ impl<'a> StaticInput<'a> {
         time: f64,
         after_event: bool,
         fmu: &FMU3,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), SimulationError> {
         let mut row_index = 0;
 
         // find the index

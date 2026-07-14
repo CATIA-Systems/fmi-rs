@@ -7,7 +7,7 @@ use std::{fs, ptr};
 
 use crate::fmi3::log::DefaultLogger;
 use crate::model_description::fmi3::{Causality, ModelDescription};
-use crate::sim::validate_simulation_steps;
+use crate::sim::{SimulationError, validate_simulation_steps};
 use crate::{
     fmi3::{FMU3, types::*},
     model_description::fmi3::{ModelVariable, VariableType},
@@ -254,62 +254,84 @@ impl<'a> Trajectories<'a> {
 pub fn parse_variable_value(
     variable_type: &VariableType,
     literal: &str,
-) -> Result<VariableValue, Box<dyn Error>> {
+) -> Result<VariableValue, SimulationError> {
     match variable_type {
         VariableType::Float32 { .. } => {
             let values: Result<Vec<fmi3Float32>, _> =
                 literal.split_whitespace().map(|v| v.parse()).collect();
-            Ok(VariableValue::Float32(values?))
+            Ok(VariableValue::Float32(
+                values.map_err(|e| SimulationError::Parse(e.to_string()))?,
+            ))
         }
         VariableType::Float64 { .. } => {
             let values: Result<Vec<fmi3Float64>, _> =
                 literal.split_whitespace().map(|v| v.parse()).collect();
-            Ok(VariableValue::Float64(values?))
+            Ok(VariableValue::Float64(
+                values.map_err(|e| SimulationError::Parse(e.to_string()))?,
+            ))
         }
         VariableType::Int8 { .. } => {
             let values: Result<Vec<fmi3Int8>, _> =
                 literal.split_whitespace().map(|v| v.parse()).collect();
-            Ok(VariableValue::Int8(values?))
+            Ok(VariableValue::Int8(
+                values.map_err(|e| SimulationError::Parse(e.to_string()))?,
+            ))
         }
         VariableType::UInt8 { .. } => {
             let values: Result<Vec<fmi3UInt8>, _> =
                 literal.split_whitespace().map(|v| v.parse()).collect();
-            Ok(VariableValue::UInt8(values?))
+            Ok(VariableValue::UInt8(
+                values.map_err(|e| SimulationError::Parse(e.to_string()))?,
+            ))
         }
         VariableType::Int16 { .. } => {
             let values: Result<Vec<fmi3Int16>, _> =
                 literal.split_whitespace().map(|v| v.parse()).collect();
-            Ok(VariableValue::Int16(values?))
+            Ok(VariableValue::Int16(
+                values.map_err(|e| SimulationError::Parse(e.to_string()))?,
+            ))
         }
         VariableType::UInt16 { .. } => {
             let values: Result<Vec<fmi3UInt16>, _> =
                 literal.split_whitespace().map(|v| v.parse()).collect();
-            Ok(VariableValue::UInt16(values?))
+            Ok(VariableValue::UInt16(
+                values.map_err(|e| SimulationError::Parse(e.to_string()))?,
+            ))
         }
         VariableType::Int32 { .. } => {
             let values: Result<Vec<fmi3Int32>, _> =
                 literal.split_whitespace().map(|v| v.parse()).collect();
-            Ok(VariableValue::Int32(values?))
+            Ok(VariableValue::Int32(
+                values.map_err(|e| SimulationError::Parse(e.to_string()))?,
+            ))
         }
         VariableType::UInt32 { .. } => {
             let values: Result<Vec<fmi3UInt32>, _> =
                 literal.split_whitespace().map(|v| v.parse()).collect();
-            Ok(VariableValue::UInt32(values?))
+            Ok(VariableValue::UInt32(
+                values.map_err(|e| SimulationError::Parse(e.to_string()))?,
+            ))
         }
         VariableType::Int64 { .. } | VariableType::Enumeration { .. } => {
             let values: Result<Vec<fmi3Int64>, _> =
                 literal.split_whitespace().map(|v| v.parse()).collect();
-            Ok(VariableValue::Int64(values?))
+            Ok(VariableValue::Int64(
+                values.map_err(|e| SimulationError::Parse(e.to_string()))?,
+            ))
         }
         VariableType::UInt64 { .. } => {
             let values: Result<Vec<fmi3UInt64>, _> =
                 literal.split_whitespace().map(|v| v.parse()).collect();
-            Ok(VariableValue::UInt64(values?))
+            Ok(VariableValue::UInt64(
+                values.map_err(|e| SimulationError::Parse(e.to_string()))?,
+            ))
         }
         VariableType::Boolean { .. } | VariableType::Clock { .. } => {
             let values: Result<Vec<fmi3Boolean>, _> =
                 literal.split_whitespace().map(|v| v.parse()).collect();
-            Ok(VariableValue::Boolean(values?))
+            Ok(VariableValue::Boolean(
+                values.map_err(|e| SimulationError::Parse(e.to_string()))?,
+            ))
         }
         VariableType::String { .. } => {
             let values: Vec<String> = literal.split_whitespace().map(|v| v.to_string()).collect();
@@ -340,7 +362,9 @@ pub fn parse_variable_value(
                     Ok(bytes)
                 })
                 .collect();
-            Ok(VariableValue::Binary(values?))
+            Ok(VariableValue::Binary(
+                values.map_err(|e| SimulationError::Parse(e.to_string()))?,
+            ))
         }
     }
 }
@@ -373,11 +397,11 @@ pub fn set_variable_value(
     }
 }
 
-pub fn call(status: fmi3Status) -> Result<fmi3Status, Box<dyn Error>> {
+pub fn call(status: fmi3Status) -> Result<fmi3Status, SimulationError> {
     if matches!(status, fmi3Status::fmi3OK | fmi3Status::fmi3Warning) {
         Ok(status)
     } else {
-        Err(format!("FMI call failed with status: {:?}", status).into())
+        Err(SimulationError::FMICallError)
     }
 }
 
@@ -385,7 +409,7 @@ fn set_start_values(
     start_values: &Vec<(String, String)>,
     model_description: &ModelDescription,
     fmu: &FMU3,
-) -> Result<fmi3Status, Box<dyn Error>> {
+) -> Result<fmi3Status, SimulationError> {
     let mut configuration_mode = false;
 
     let mut non_structural_start_values = vec![];
@@ -407,10 +431,9 @@ fn set_start_values(
                     call(fmu.setUInt64(&value_references, &vals))?;
                 }
                 Err(_) => {
-                    return Err(format!(
+                    return Err(SimulationError::IllegalParameter(format!(
                         "Invalid integer value {value:?} for variable {var_name:?}."
-                    )
-                    .into());
+                    )));
                 }
             }
         } else {
@@ -432,10 +455,9 @@ fn set_start_values(
                     call(set_variable_value(fmu, variable.valueReference, &value))?;
                 }
                 Err(e) => {
-                    return Err(format!(
+                    return Err(SimulationError::IllegalParameter(format!(
                         "Invalid value {literal:?} for variable {var_name:?}. {e}"
-                    )
-                    .into());
+                    )));
                 }
             }
         } else {
@@ -449,24 +471,25 @@ fn set_start_values(
             .map(|(var_name, _)| format!("'{var_name}'"))
             .collect::<Vec<_>>()
             .join(", ");
-        return Err(format!("The start values for the following variables could not be set because they don't exist in the model description: {variable_names}.").into());
+        return Err(SimulationError::IllegalParameter(format!(
+            "The start values for the following variables could not be set because they don't exist in the model description: {variable_names}."
+        )));
     }
 
     Ok(fmi3Status::fmi3OK)
 }
 
-fn read_initial_fmu_state(fmu: &FMU3, path: &Path) -> Result<(), Box<dyn Error>> {
-    let serialized_state =
-        fs::read(path).map_err(|e| format!("Failed to read initial FMU state: {e}"))?;
-
+fn read_initial_fmu_state(fmu: &FMU3, path: &Path) -> Result<(), SimulationError> {
+    let serialized_state = fs::read(path)?;
     let mut fmu_state = ptr::null_mut();
+
     call(fmu.deserializeFMUState(&serialized_state, &mut fmu_state))?;
     call(fmu.setFMUState(fmu_state))?;
 
     Ok(())
 }
 
-fn write_final_fmu_state(fmu: &FMU3, path: &Path) -> Result<(), Box<dyn Error>> {
+fn write_final_fmu_state(fmu: &FMU3, path: &Path) -> Result<(), SimulationError> {
     let mut fmu_state = ptr::null_mut();
     call(fmu.getFMUState(&mut fmu_state))?;
 
@@ -476,8 +499,7 @@ fn write_final_fmu_state(fmu: &FMU3, path: &Path) -> Result<(), Box<dyn Error>> 
     let mut serialized_state = vec![0; size];
     call(fmu.serializeFMUState(fmu_state, &mut serialized_state))?;
 
-    fs::write(path, &serialized_state)
-        .map_err(|e| format!("Failed to write final FMU state: {e}"))?;
+    fs::write(path, &serialized_state)?;
 
     Ok(())
 }
@@ -486,30 +508,29 @@ pub fn simulate_cs(
     settings: &SimulationSettings,
     input: Option<&StaticInput>,
     recorder: &mut Recorder,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), SimulationError> {
     let start_time = settings.start_time;
     let stop_time = settings.stop_time;
     let set_stop_time = settings.set_stop_time;
     let output_interval = settings.output_interval;
     let event_mode_used = settings.event_mode_used;
 
-    validate_simulation_steps(start_time, stop_time, output_interval)?;
+    validate_simulation_steps(start_time, stop_time, output_interval)
+        .map_err(|e| SimulationError::IllegalParameter(e.to_string()))?;
 
     let mut time = start_time;
 
-    let co_simulation = match &settings.model_description.coSimulation {
-        Some(cs) => cs,
-        None => {
-            return Err("The FMU does not support Co-Simulation.".into());
-        }
-    };
+    let co_simulation = settings
+        .model_description
+        .coSimulation
+        .as_ref()
+        .ok_or(SimulationError::UnsupportedInterfaceType)?;
 
     let can_handle_variable_communication_step_size =
         co_simulation.canHandleVariableCommunicationStepSize;
 
     let logger = if let Some(log_file) = &settings.log_file {
-        let stream = std::fs::File::create(log_file)
-            .map_err(|e| format!("Failed to create log file: {}", e))?;
+        let stream = std::fs::File::create(log_file)?;
         DefaultLogger::new(stream)
     } else {
         DefaultLogger::default()
@@ -567,7 +588,9 @@ pub fn simulate_cs(
                 if let Some(nextEventTime) = nextEventTime
                     && relative_le(nextEventTime, time)
                 {
-                    return Err(format!("The next event time ({nextEventTime}) must be greater than the current time ({time}).").into());
+                    return Err(SimulationError::IllegalParameter(format!(
+                        "The next event time ({nextEventTime}) must be greater than the current time ({time})."
+                    )));
                 }
 
                 if terminateSimulation {
@@ -638,9 +661,10 @@ pub fn simulate_cs(
         ))?;
 
         if early_return && !settings.early_return_allowed {
-            return Err(
-                "The FMU returned early from fmi3DoStep() but early return is not allowed.".into(),
-            );
+            return Err(SimulationError::IllegalParameter(
+                "The FMU returned early from fmi3DoStep() but early return is not allowed."
+                    .to_string(),
+            ));
         }
 
         time = if early_return && last_successful_time < next_communication_point {
@@ -692,7 +716,9 @@ pub fn simulate_cs(
                 if let Some(nextEventTime) = nextEventTime
                     && relative_le(nextEventTime, time)
                 {
-                    return Err(format!("The next event time ({nextEventTime}) must be greater than the current time ({time}).").into());
+                    return Err(SimulationError::IllegalParameter(format!(
+                        "The next event time ({nextEventTime}) must be greater than the current time ({time})."
+                    )));
                 }
 
                 if terminateSimulation {
@@ -729,22 +755,22 @@ pub fn simulate_me<S: SolverFactory>(
     solver_factory: &S,
     input: Option<&StaticInput>,
     recorder: &mut Recorder,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), SimulationError> {
     let start_time = settings.start_time;
     let stop_time = settings.stop_time;
     let set_stop_time = settings.set_stop_time;
     let output_interval = settings.output_interval;
 
-    validate_simulation_steps(start_time, stop_time, output_interval)?;
+    validate_simulation_steps(start_time, stop_time, output_interval)
+        .map_err(|e| SimulationError::IllegalParameter(e.to_string()))?;
 
     let mut time = start_time;
 
-    let model_exchange = match &settings.model_description.modelExchange {
-        Some(me) => me,
-        None => {
-            return Err("The FMU does not support Model Exchange.".into());
-        }
-    };
+    let model_exchange = settings
+        .model_description
+        .modelExchange
+        .as_ref()
+        .ok_or(SimulationError::UnsupportedInterfaceType)?;
 
     let needs_completed_integrator_step = model_exchange.needsCompletedIntegratorStep;
 
@@ -861,39 +887,40 @@ pub fn simulate_me<S: SolverFactory>(
         }),
         Box::new(|time| {
             if let Some(input) = &input {
-                input.set_continuous_inputs(time, false, &fmu)?;
+                input.set_continuous_inputs(time, false, &fmu)
+            } else {
+                Ok(())
             }
-            Ok(())
         }),
         Box::new(
             |event_indicators| match fmu.getEventIndicators(event_indicators) {
                 fmi3Status::fmi3OK => Ok(()),
-                _ => Err("Failed to get event indicators".into()),
+                _ => Err(SimulationError::FMICallError),
             },
         ),
         Box::new(
             |continuous_states| match fmu.getContinuousStates(continuous_states) {
                 fmi3Status::fmi3OK => Ok(()),
-                _ => Err("Failed to get contninuous states".into()),
+                _ => Err(SimulationError::FMICallError),
             },
         ),
         Box::new(
             |nominals| match fmu.getNominalsOfContinuousStates(nominals) {
                 fmi3Status::fmi3OK => Ok(()),
-                _ => Err("Failed to get nominals of contninuous states".into()),
+                _ => Err(SimulationError::FMICallError),
             },
         ),
         Box::new(
             |state_derivatives| match fmu.getContinuousStateDerivatives(state_derivatives) {
                 fmi3Status::fmi3OK => Ok(()),
-                _ => Err("Failed to get contninuous state derivatives".into()),
+                _ => Err(SimulationError::FMICallError),
             },
         ),
         if model_exchange.providesDirectionalDerivatives {
             Some(Box::new(|unknowns, knowns, seed, sensitivity| {
                 match fmu.getDirectionalDerivative(unknowns, knowns, seed, sensitivity) {
                     fmi3Status::fmi3OK => Ok(()),
-                    _ => Err("Failed to get directional derivative".into()),
+                    _ => Err(SimulationError::FMICallError),
                 }
             }))
         } else {
@@ -902,7 +929,7 @@ pub fn simulate_me<S: SolverFactory>(
         Box::new(
             |continuous_states| match fmu.setContinuousStates(continuous_states) {
                 fmi3Status::fmi3OK => Ok(()),
-                _ => Err("Failed to set contninuous states".into()),
+                _ => Err(SimulationError::FMICallError),
             },
         ),
     )?;
@@ -1012,7 +1039,9 @@ pub fn simulate_me<S: SolverFactory>(
                 if let Some(next_event_time) = nextEventTime
                     && relative_le(next_event_time, time)
                 {
-                    return Err(format!("The next event time ({next_event_time}) must be greater than the current time ({time}).").into());
+                    return Err(SimulationError::IllegalParameter(format!(
+                        "The next event time ({next_event_time}) must be greater than the current time ({time})."
+                    )));
                 }
 
                 if terminateSimulation {

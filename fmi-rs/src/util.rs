@@ -3,6 +3,7 @@
 use crate::{
     fmi2, fmi3,
     model_description::{self, peek_fmi_major_version},
+    sim::SimulationError,
     zip::{ZipError, extract_zip_archive},
 };
 use askama::Template;
@@ -59,11 +60,10 @@ impl FMU2Builder {
     pub fn instantiate_me(
         &self,
         instanceName: &str,
-    ) -> Result<fmi2::FMU2<fmi2::ME>, Box<dyn std::error::Error>> {
+    ) -> Result<fmi2::FMU2<fmi2::ME>, SimulationError> {
         if let Some(me) = &self.model_description.modelExchange {
             let logger = if let Some(log_file) = &self.logFile {
-                fmi2::log::DefaultLogger::from_path(log_file)
-                    .map_err(|e| format!("Failed to create log file: {e}"))?
+                fmi2::log::DefaultLogger::from_path(log_file)?
             } else {
                 fmi2::log::DefaultLogger::default()
             };
@@ -80,18 +80,17 @@ impl FMU2Builder {
                 !me.canNotUseMemoryManagementFunctions,
             )
         } else {
-            Err("Model Exchange is not supported.".into())
+            Err(SimulationError::UnsupportedInterfaceType)
         }
     }
 
     pub fn instantiate_cs(
         &self,
         instanceName: &str,
-    ) -> Result<fmi2::FMU2<fmi2::CS>, Box<dyn std::error::Error>> {
+    ) -> Result<fmi2::FMU2<fmi2::CS>, SimulationError> {
         if let Some(cs) = &self.model_description.coSimulation {
             let logger = if let Some(log_file) = &self.logFile {
-                fmi2::log::DefaultLogger::from_path(log_file)
-                    .map_err(|e| format!("Failed to create log file: {e}"))?
+                fmi2::log::DefaultLogger::from_path(log_file)?
             } else {
                 fmi2::log::DefaultLogger::default()
             };
@@ -108,7 +107,7 @@ impl FMU2Builder {
                 !cs.canNotUseMemoryManagementFunctions,
             )
         } else {
-            Err("Co-Simulation is not supported.".into())
+            Err(SimulationError::UnsupportedInterfaceType)
         }
     }
 }
@@ -170,14 +169,10 @@ impl FMU3Builder {
         self
     }
 
-    pub fn instantiate_me(
-        &self,
-        instanceName: &str,
-    ) -> Result<fmi3::FMU3, Box<dyn std::error::Error>> {
+    pub fn instantiate_me(&self, instanceName: &str) -> Result<fmi3::FMU3, SimulationError> {
         if let Some(me) = &self.model_description.modelExchange {
             let logger = if let Some(log_file) = &self.logFile {
-                fmi3::log::DefaultLogger::from_path(log_file)
-                    .map_err(|e| format!("Failed to create log file: {e}"))?
+                fmi3::log::DefaultLogger::from_path(log_file)?
             } else {
                 fmi3::log::DefaultLogger::default()
             };
@@ -193,18 +188,14 @@ impl FMU3Builder {
                 self.logCalls,
             )
         } else {
-            Err("Model Exchange is not supported.".into())
+            Err(SimulationError::UnsupportedInterfaceType)
         }
     }
 
-    pub fn instantiate_cs(
-        &self,
-        instanceName: &str,
-    ) -> Result<fmi3::FMU3, Box<dyn std::error::Error>> {
+    pub fn instantiate_cs(&self, instanceName: &str) -> Result<fmi3::FMU3, SimulationError> {
         if let Some(cs) = &self.model_description.coSimulation {
             let logger = if let Some(log_file) = &self.logFile {
-                fmi3::log::DefaultLogger::from_path(log_file)
-                    .map_err(|e| format!("Failed to create log file: {e}"))?
+                fmi3::log::DefaultLogger::from_path(log_file)?
             } else {
                 fmi3::log::DefaultLogger::default()
             };
@@ -223,7 +214,7 @@ impl FMU3Builder {
                 self.logCalls,
             )
         } else {
-            Err("Co-Simulation is not supported.".into())
+            Err(SimulationError::UnsupportedInterfaceType)
         }
     }
 }

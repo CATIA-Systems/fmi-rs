@@ -1,10 +1,9 @@
 use crate::sim::{
     GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn,
     GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, SetContinuousInputsFn,
-    SetContinuousStatesFn, SetTimeFn, Solver, SolverFactory, relative_eq,
+    SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory, relative_eq,
 };
 
-type Error = Box<dyn std::error::Error>;
 pub struct ForwardEuler<'a> {
     start_time: f64,
     fixed_step_size: f64,
@@ -42,7 +41,7 @@ impl SolverFactory for ForwardEulerFactory {
         get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
         _get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
         set_continuous_states: SetContinuousStatesFn<'a>,
-    ) -> Result<Box<dyn Solver + 'a>, Error> {
+    ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         let mut x = vec![0.0; nx];
         let der_x = vec![0.0; nx];
         let z = vec![0.0; nz];
@@ -77,7 +76,7 @@ impl SolverFactory for ForwardEulerFactory {
 }
 
 impl<'a> ForwardEuler<'a> {
-    fn do_fixed_step(&mut self) -> Result<(f64, bool), Error> {
+    fn do_fixed_step(&mut self) -> Result<(f64, bool), SimulationError> {
         if !self.x.is_empty() {
             (self.get_continuous_state_derivatives)(self.der_x.as_mut_slice())?;
 
@@ -117,7 +116,7 @@ impl<'a> ForwardEuler<'a> {
 }
 
 impl<'a> Solver for ForwardEuler<'a> {
-    fn reset(&mut self, time: f64) -> Result<(), Error> {
+    fn reset(&mut self, time: f64) -> Result<(), SimulationError> {
         self.start_time = time;
         self.n_steps = 0;
 
@@ -136,7 +135,7 @@ impl<'a> Solver for ForwardEuler<'a> {
         Ok(())
     }
 
-    fn step(&mut self, next_time: f64) -> Result<(f64, bool), Error> {
+    fn step(&mut self, next_time: f64) -> Result<(f64, bool), SimulationError> {
         let mut time = self.start_time + self.n_steps as f64 * self.fixed_step_size;
 
         if next_time - time < self.fixed_step_size
@@ -146,7 +145,7 @@ impl<'a> Solver for ForwardEuler<'a> {
                 "Next time {next_time} is too close to current time {time}. Minimum step size is {}.",
                 self.fixed_step_size
             );
-            return Err(message.into());
+            return Err(SimulationError::IllegalParameter(message));
         }
 
         while time + self.fixed_step_size < next_time

@@ -9,10 +9,10 @@ pub mod log;
 pub mod types;
 
 use crate::fmi3::log::Logger;
+use crate::sim::SimulationError::{self};
 use crate::{SHARED_LIBRARY_EXTENSION, get_symbol};
 use libloading::{Library, Symbol};
 use std::cell::RefCell;
-use std::error::Error;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_uint, c_void};
 use std::path::Path;
@@ -246,14 +246,16 @@ impl FMU3 {
         modelIdentifier: &str,
         logger: Box<dyn Logger>,
         logCalls: bool,
-    ) -> Result<FMU3, Box<dyn Error>> {
+    ) -> Result<FMU3, SimulationError> {
         let shared_library_path = unzipdir
             .join("binaries")
             .join(PLATFORM_TUPLE)
             .join(format!("{modelIdentifier}{SHARED_LIBRARY_EXTENSION}"));
 
         if !shared_library_path.is_file() {
-            return Err(format!("Missing shared library {shared_library_path:?}.").into());
+            return Err(SimulationError::IllegalParameter(format!(
+                "Missing shared library {shared_library_path:?}."
+            )));
         }
 
         let lib = Box::new(unsafe { Library::new(shared_library_path)? });
@@ -495,7 +497,7 @@ impl FMU3 {
         loggingOn: bool,
         logger: Box<dyn Logger>,
         logCalls: bool,
-    ) -> Result<FMU3, Box<dyn Error>> {
+    ) -> Result<FMU3, SimulationError> {
         let mut fmu = FMU3::new(unzipdir, modelIdentifier, logger, logCalls)?;
 
         let resource_path = unzipdir.join("resources").join("");
@@ -515,7 +517,7 @@ impl FMU3 {
         );
 
         if fmu.instance.is_null() {
-            Err("Failed to instantiate FMU.".into())
+            Err(SimulationError::FMICallError)
         } else {
             Ok(fmu)
         }
@@ -594,7 +596,7 @@ impl FMU3 {
         requiredIntermediateVariables: &[c_uint],
         logger: Box<dyn Logger>,
         logCalls: bool,
-    ) -> Result<FMU3, Box<dyn Error>> {
+    ) -> Result<FMU3, SimulationError> {
         let mut fmu = FMU3::new(unzipdir, modelIdentifier, logger, logCalls)?;
 
         let resource_path = unzipdir.join("resources").join("");
@@ -617,7 +619,7 @@ impl FMU3 {
         );
 
         if fmu.instance.is_null() {
-            Err("Failed to instantiate FMU.".into())
+            Err(SimulationError::FMICallError)
         } else {
             Ok(fmu)
         }

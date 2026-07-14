@@ -3,7 +3,10 @@ use std::vec;
 use crate::{
     fmi3::FMU3,
     model_description::fmi3::{Dimension, VariableType},
-    sim::fmi3::{Trajectories, VariableValue},
+    sim::{
+        SimulationError,
+        fmi3::{Trajectories, VariableValue},
+    },
 };
 
 pub struct Recorder<'res, 'md> {
@@ -39,7 +42,7 @@ impl<'res, 'md> Recorder<'res, 'md> {
         }
     }
 
-    pub fn sample(&mut self, time: f64, fmu: &FMU3) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn sample(&mut self, time: f64, fmu: &FMU3) -> Result<(), SimulationError> {
         if self.sizes.is_empty() {
             self.update_sizes(fmu);
         }

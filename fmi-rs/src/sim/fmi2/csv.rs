@@ -1,6 +1,9 @@
 use crate::{
     model_description::fmi2::{ModelDescription, ScalarVariable},
-    sim::fmi2::{Trajectories, parse_variable_value},
+    sim::{
+        SimulationError,
+        fmi2::{Trajectories, parse_variable_value},
+    },
 };
 use std::{collections::HashMap, io::Read, path::Path};
 
@@ -36,7 +39,7 @@ pub fn write_csv<P: AsRef<Path>>(
 pub fn read_csv<'a, R: Read>(
     reader: R,
     model_description: &'a ModelDescription,
-) -> Result<Trajectories<'a>, Box<dyn std::error::Error>> {
+) -> Result<Trajectories<'a>, SimulationError> {
     // Create a map for quick lookup of variables by name
     let variable_map: HashMap<&str, &ScalarVariable> = model_description
         .modelVariables
@@ -49,7 +52,9 @@ pub fn read_csv<'a, R: Read>(
     let headers = match reader.headers() {
         Ok(record) => record,
         Err(e) => {
-            return Err(format!("Failed to read headers. {e}").into());
+            return Err(SimulationError::IllegalParameter(format!(
+                "Failed to read headers. {e}"
+            )));
         }
     };
 
@@ -59,7 +64,9 @@ pub fn read_csv<'a, R: Read>(
         if let Some(variable) = variable_map.get(name) {
             variables.push(variable);
         } else {
-            return Err(format!("Variable {name:?} does not exist in the FMU.").into());
+            return Err(SimulationError::IllegalParameter(format!(
+                "Variable {name:?} does not exist in the FMU."
+            )));
         }
     }
 
@@ -74,15 +81,20 @@ pub fn read_csv<'a, R: Read>(
 
                 let next_time: f64 = it
                     .next()
-                    .ok_or_else(|| format!("Missing time value in row {}.", i + 2))?
+                    .ok_or_else(|| {
+                        SimulationError::IllegalParameter(format!(
+                            "Missing time value in row {}.",
+                            i + 2
+                        ))
+                    })?
                     .parse()
                     .map_err(|e| {
-                        format!(
+                        SimulationError::Parse(format!(
                             "Failed to parse time value '{}' in row {}: {}",
                             record.get(0).unwrap_or(""),
                             i + 2,
                             e
-                        )
+                        ))
                     })?;
 
                 time.push(next_time);
@@ -90,11 +102,11 @@ pub fn read_csv<'a, R: Read>(
                 for (j, literal) in it.enumerate() {
                     row.push(
                         parse_variable_value(&variables[j].variableType, literal).map_err(|e| {
-                            format!(
+                            SimulationError::Parse(format!(
                                 "Failed to parse {literal:?} (row {}, column {}). {e}",
                                 i + 2,
                                 j + 2
-                            )
+                            ))
                         })?,
                     );
                 }
@@ -102,7 +114,9 @@ pub fn read_csv<'a, R: Read>(
                 rows.push(row);
             }
             Err(e) => {
-                return Err(format!("Error reading input. {e}").into());
+                return Err(SimulationError::IllegalParameter(format!(
+                    "Error reading input. {e}"
+                )));
             }
         }
     }
@@ -114,7 +128,9 @@ pub fn read_csv<'a, R: Read>(
         rows,
     };
 
-    trajectories.validate()?;
+    trajectories
+        .validate()
+        .map_err(SimulationError::IllegalParameter)?;
 
     Ok(trajectories)
 }

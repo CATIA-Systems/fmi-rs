@@ -10,22 +10,52 @@ pub mod fmi2;
 pub mod fmi3;
 
 use approx::relative_eq;
+use thiserror::Error;
 
-type Error = Box<dyn std::error::Error>;
+use crate::model_description::ModelDescriptionError;
 
-pub type SetTimeFn<'a> = Box<dyn Fn(f64) -> Result<(), Error> + 'a>;
-pub type SetContinuousInputsFn<'a> = Box<dyn Fn(f64) -> Result<(), Error> + 'a>;
-pub type GetEventIndicatorsFn<'a> = Box<dyn Fn(&mut [f64]) -> Result<(), Error> + 'a>;
-pub type GetContinuousStatesFn<'a> = Box<dyn Fn(&mut [f64]) -> Result<(), Error> + 'a>;
-pub type GetNominalsOfContinuousStatesFn<'a> = Box<dyn Fn(&mut [f64]) -> Result<(), Error> + 'a>;
-pub type GetContinuousStateDerivativesFn<'a> = Box<dyn Fn(&mut [f64]) -> Result<(), Error> + 'a>;
+#[derive(Debug, Error)]
+pub enum SimulationError {
+    #[error("Failed to load model description")]
+    ModelDescription(#[from] ModelDescriptionError),
+
+    #[error("Failed to load the shared library")]
+    Library(#[from] libloading::Error),
+
+    #[error("Failed to open the file")]
+    Io(#[from] std::io::Error),
+
+    #[error("FMI call failed")]
+    FMICallError,
+
+    #[error("Interface type not supported")]
+    UnsupportedInterfaceType,
+
+    #[error("Illegal simulation parameters")]
+    IllegalParameter(String),
+
+    #[error("Failed to parse variable value")]
+    Parse(String),
+
+    #[error("Solver error: {0}")]
+    Solver(String),
+}
+
+pub type SetTimeFn<'a> = Box<dyn Fn(f64) -> Result<(), SimulationError> + 'a>;
+pub type SetContinuousInputsFn<'a> = Box<dyn Fn(f64) -> Result<(), SimulationError> + 'a>;
+pub type GetEventIndicatorsFn<'a> = Box<dyn Fn(&mut [f64]) -> Result<(), SimulationError> + 'a>;
+pub type GetContinuousStatesFn<'a> = Box<dyn Fn(&mut [f64]) -> Result<(), SimulationError> + 'a>;
+pub type GetNominalsOfContinuousStatesFn<'a> =
+    Box<dyn Fn(&mut [f64]) -> Result<(), SimulationError> + 'a>;
+pub type GetContinuousStateDerivativesFn<'a> =
+    Box<dyn Fn(&mut [f64]) -> Result<(), SimulationError> + 'a>;
 pub type GetDirectionalDerivativeFn<'a> =
-    Box<dyn Fn(&[u32], &[u32], &[f64], &mut [f64]) -> Result<(), Error> + 'a>;
-pub type SetContinuousStatesFn<'a> = Box<dyn Fn(&[f64]) -> Result<(), Error> + 'a>;
+    Box<dyn Fn(&[u32], &[u32], &[f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
+pub type SetContinuousStatesFn<'a> = Box<dyn Fn(&[f64]) -> Result<(), SimulationError> + 'a>;
 
 pub trait Solver {
-    fn reset(&mut self, time: f64) -> Result<(), Error>;
-    fn step(&mut self, next_time: f64) -> Result<(f64, bool), Error>;
+    fn reset(&mut self, time: f64) -> Result<(), SimulationError>;
+    fn step(&mut self, next_time: f64) -> Result<(f64, bool), SimulationError>;
 }
 pub trait SolverFactory {
     fn create<'a>(
@@ -44,7 +74,7 @@ pub trait SolverFactory {
         get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
         get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
         set_continuous_states: SetContinuousStatesFn<'a>,
-    ) -> Result<Box<dyn Solver + 'a>, Error>;
+    ) -> Result<Box<dyn Solver + 'a>, SimulationError>;
 }
 
 /// Approximate equality using both the absolute difference and relative based comparisons.

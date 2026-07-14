@@ -9,10 +9,10 @@ pub mod log;
 pub mod types;
 
 use crate::fmi2::log::Logger;
+use crate::sim::SimulationError;
 use crate::{SHARED_LIBRARY_EXTENSION, get_symbol};
 use libloading::{Library, Symbol};
 use std::cell::RefCell;
-use std::error::Error;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_void;
 use std::path::Path;
@@ -237,7 +237,7 @@ impl<T> FMU2<T> {
         logCalls: bool,
         interfaceType: T,
         provideMemoryManagementFunctions: bool,
-    ) -> Result<FMU2<T>, Box<dyn Error>> {
+    ) -> Result<FMU2<T>, SimulationError> {
         let fmi2GetVersion = get_symbol(&library, b"fmi2GetVersion")?;
         let fmi2GetTypesPlatform = get_symbol(&library, b"fmi2GetTypesPlatform")?;
         let fmi2SetDebugLogging = get_symbol(&library, b"fmi2SetDebugLogging")?;
@@ -323,15 +323,11 @@ impl<T> FMU2<T> {
     fn load_library(
         unzipdir: &Path,
         model_identifier: &str,
-    ) -> Result<Box<Library>, Box<dyn Error>> {
+    ) -> Result<Box<Library>, SimulationError> {
         let shared_library_path = unzipdir
             .join("binaries")
             .join(PLATFORM)
             .join(format!("{model_identifier}{SHARED_LIBRARY_EXTENSION}"));
-
-        if !shared_library_path.is_file() {
-            return Err(format!("Missing shared library {shared_library_path:?}.").into());
-        }
 
         Ok(Box::new(unsafe { Library::new(shared_library_path)? }))
     }
@@ -373,27 +369,34 @@ impl<T> FMU2<T> {
         visible: bool,
         loggingOn: bool,
         provideMemoryManagementFunctions: bool,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), SimulationError> {
         let instance_name_cstr = match CString::new(instanceName) {
             Ok(cstr) => cstr,
             Err(e) => {
-                return Err(
-                    format!("Failed to convert argument instanceName to C string: {}", e).into(),
-                );
+                return Err(SimulationError::IllegalParameter(format!(
+                    "Failed to convert argument instanceName to C string: {}",
+                    e
+                )));
             }
         };
 
         let fmu_guid_cstr = match CString::new(guid) {
             Ok(cstr) => cstr,
             Err(e) => {
-                return Err(format!("Failed to convert argument guid to C string: {}", e).into());
+                return Err(SimulationError::IllegalParameter(format!(
+                    "Failed to convert argument guid to C string: {}",
+                    e
+                )));
             }
         };
 
         let url_cstr = resourceUrl
             .map(|url| {
                 CString::new(url.to_string()).map_err(|e| {
-                    format!("Failed to convert argument resourceUrl to C string: {}", e)
+                    SimulationError::IllegalParameter(format!(
+                        "Failed to convert argument resourceUrl to C string: {}",
+                        e
+                    ))
                 })
             })
             .transpose()?;
@@ -814,7 +817,7 @@ impl FMU2<ME> {
         logCalls: bool,
         logger: Box<dyn Logger>,
         provideMemoryManagementFunctions: bool,
-    ) -> Result<FMU2<ME>, Box<dyn Error>> {
+    ) -> Result<FMU2<ME>, SimulationError> {
         let library = FMU2::<ME>::load_library(unzipdir, modelIdentifier)?;
 
         let fmi2EnterEventMode = get_symbol(&library, b"fmi2EnterEventMode")?;
@@ -1049,7 +1052,7 @@ impl FMU2<CS> {
         logCalls: bool,
         logger: Box<dyn Logger>,
         provideMemoryManagementFunctions: bool,
-    ) -> Result<FMU2<CS>, Box<dyn Error>> {
+    ) -> Result<FMU2<CS>, SimulationError> {
         let library = FMU2::<ME>::load_library(unzipdir, modelIdentifier)?;
 
         let fmi2SetRealInputDerivatives = get_symbol(&library, b"fmi2SetRealInputDerivatives")?;
