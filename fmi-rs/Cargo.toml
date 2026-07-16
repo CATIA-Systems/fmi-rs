@@ -7,8 +7,9 @@ license.workspace = true
 
 [features]
 default = ["zip"]
-zip = ["dep:zip"]
+schema = []
 test-fixtures = ["dep:reqwest", "dep:anyhow"]
+zip = ["dep:zip"]
 
 [dependencies]
 anyhow = {version = "1.0.103", optional = true }

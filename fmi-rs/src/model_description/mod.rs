@@ -26,16 +26,16 @@ pub enum ModelDescriptionError {
     #[error("Failed to open the file")]
     Io(#[from] std::io::Error),
 
-    #[error("Failed to parse model description")]
+    #[error("{0}")]
     Parse(String),
 
-    #[error("Missing attribute")]
+    #[error("Missing attribute '{0}'")]
     MissingAttribute(String),
 
-    #[error("Unsupported FMI version")]
+    #[error("Unsupported FMI version '{0}'")]
     UnsupportedVersion(String),
 
-    #[error("Unknown FMI version")]
+    #[error("Unknown FMI version '{0}'")]
     UnknownVersion(String),
 }
 

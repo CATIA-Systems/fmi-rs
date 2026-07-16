@@ -2,7 +2,7 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn main() {
+pub fn build_libxml2() {
     let out_dir = PathBuf::from(&env::var("OUT_DIR").unwrap());
     let target = env::var("TARGET").unwrap();
 
@@ -13,7 +13,7 @@ fn main() {
     }
 
     cc::Build::new()
-        .file("src/c/src/fmi_rs_xsd.c")
+        .file("src/c/schema/fmi_rs_xsd.c")
         .include("src/c/include")
         .include(format!(
             "{}",

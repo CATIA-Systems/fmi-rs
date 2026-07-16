@@ -1,4 +1,10 @@
+mod build {
+    pub mod schema;
+}
+
 use std::env;
+
+use crate::build::schema::build_libxml2;
 
 fn main() {
     println!("cargo:rerun-if-changed=src/c/src/logger_proxy.c");
@@ -29,4 +35,7 @@ fn main() {
     }
 
     builder.compile("variable_name_validator");
+
+    #[cfg(feature = "schema")]
+    build_libxml2();
 }

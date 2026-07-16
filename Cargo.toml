@@ -2,7 +2,6 @@
 members = [
     "fmi-rs", 
     "fmi-rs-sundials", 
-    "fmi-rs-libxml2", 
 ]
 resolver = "3"
 

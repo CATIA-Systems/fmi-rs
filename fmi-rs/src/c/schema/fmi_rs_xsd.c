@@ -3,9 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "fmi2schema.h"
-#include "fmi3schema.h"
-
+#include <libxml/parser.h>
 #include <libxml/xmlschemas.h>
 
 
@@ -56,12 +54,25 @@ void free_messages(int len, char** messages) {
     free(messages);
 }
 
-
 int validate_model_description(const char* model_description_path, int fmi_major_version, char*** messages) {
+    return 0;
+}
 
+int validate_xml_document(
+    const char* document_buffer, 
+    int document_buffer_size, 
+    const char* schema_buffer, 
+    int schema_buffer_size, 
+    char*** messages,
+    xmlExternalEntityLoader external_entity_loader
+) {
     Messages msg = { .len = 0, .messages = NULL };
-    
-    xmlDocPtr doc = xmlParseFile(model_description_path);
+
+    if (external_entity_loader) {
+        xmlSetExternalEntityLoader(external_entity_loader);
+    }
+
+    xmlDocPtr doc = xmlParseMemory(document_buffer, document_buffer_size);
 
     if (!doc) {
         log_error(&msg, "Failed to parse document.");
@@ -75,16 +86,10 @@ int validate_model_description(const char* model_description_path, int fmi_major
         goto TERMINATE;
     }
 
-    xmlSchemaParserCtxtPtr pctxt = NULL;
+    xmlSchemaParserCtxtPtr pctxt = xmlSchemaNewMemParserCtxt(schema_buffer, schema_buffer_size);
 
-    if (fmi_major_version == 2) {
-        pctxt = xmlSchemaNewMemParserCtxt((char*)fmi2Merged_xsd, fmi2Merged_xsd_len);
-    }
-    else if (fmi_major_version == 3) {
-        pctxt = xmlSchemaNewMemParserCtxt((char*)fmi3Merged_xsd, fmi3Merged_xsd_len);
-    }
-    else {
-        log_error(&msg, "Unsupported FMI major version: %d.", fmi_major_version);
+    if (pctxt == NULL) {
+        log_error(&msg, "Empty schema.");
         goto TERMINATE;
     }
 
@@ -107,9 +112,9 @@ int validate_model_description(const char* model_description_path, int fmi_major
     if (xmlSchemaValidateDoc(vctxt, doc)) {
         goto TERMINATE;
     }
-    
+
 TERMINATE:
-    
+
     *messages = msg.messages;
 
     return msg.len;
