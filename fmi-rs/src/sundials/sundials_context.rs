@@ -1,4 +1,4 @@
-use crate::sundials_types::{SUNComm, SUNContext, SUNErrCode};
+use crate::sundials::sundials_types::{SUNComm, SUNContext, SUNErrCode};
 
 unsafe extern "C" {
 // /* -----------------------------------------------------------------

@@ -1,6 +1,6 @@
 #![allow(non_camel_case_types, non_snake_case)]
 
-use crate::{sundials_nvector::N_Vector, sundials_types::*};
+use crate::sundials::{sundials_nvector::N_Vector, sundials_types::*};
 
 // /* -----------------------------------------------------------------
 //  * Programmer(s): Scott D. Cohen, Alan C. Hindmarsh, Radu Serban,

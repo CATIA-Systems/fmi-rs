@@ -1,10 +1,12 @@
 mod build {
     pub mod schema;
+    pub mod sundials;
 }
 
 use std::env;
 
 use crate::build::schema::build_libxml2;
+use crate::build::sundials::build_sundials;
 
 fn main() {
     println!("cargo:rerun-if-changed=src/c/src/logger_proxy.c");
@@ -38,4 +40,7 @@ fn main() {
 
     #[cfg(feature = "schema")]
     build_libxml2();
+
+    #[cfg(feature = "sundials")]
+    build_sundials();
 }

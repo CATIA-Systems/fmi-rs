@@ -10,6 +10,8 @@ pub mod model_description;
 #[cfg(feature = "schema")]
 pub mod schema;
 pub mod sim;
+#[cfg(feature = "sundials")]
+pub mod sundials;
 #[cfg(feature = "test-fixtures")]
 pub mod test_fixtures;
 #[cfg(feature = "zip")]

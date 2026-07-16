@@ -1,9 +1,0 @@
-[package]
-name = "fmi-rs-sundials"
-description = "A SUNDIALS interface for Rust"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-
-[dependencies]
-fmi-rs = { workspace = true }

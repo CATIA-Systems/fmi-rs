@@ -8,6 +8,7 @@ license.workspace = true
 [features]
 default = ["zip"]
 schema = []
+sundials = []
 test-fixtures = ["dep:reqwest", "dep:anyhow"]
 zip = ["dep:zip"]
 

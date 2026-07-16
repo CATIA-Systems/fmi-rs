@@ -2,7 +2,7 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn main() {
+pub fn build_sundials() {
     let out_dir = PathBuf::from(&env::var("OUT_DIR").unwrap());
     let target = env::var("TARGET").unwrap();
 

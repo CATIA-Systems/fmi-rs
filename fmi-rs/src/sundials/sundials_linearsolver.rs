@@ -1,5 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case)]
 
+use crate::sundials::sundials_types::SUNErrCode;
+
 // /* -----------------------------------------------------------------
 //  * Programmer(s): Daniel Reynolds @ UMBC
 //  *                David Gardner, Carol Woodward,
@@ -119,8 +121,6 @@
 
 // /* Forward reference for pointer to SUNLinearSolver_Ops object */
 // typedef _SUNDIALS_STRUCT_ _generic_SUNLinearSolver_Ops* SUNLinearSolver_Ops;
-
-use crate::sundials_types::SUNErrCode;
 
 // /* Forward reference for pointer to SUNLinearSolver object */
 // typedef _SUNDIALS_STRUCT_ _generic_SUNLinearSolver* SUNLinearSolver;

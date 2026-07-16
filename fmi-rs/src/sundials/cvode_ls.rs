@@ -1,6 +1,6 @@
 #![allow(non_camel_case_types, non_snake_case)]
 
-use crate::{sundials_linearsolver::SUNLinearSolver, sundials_matrix::SUNMatrix, sundials_nvector::N_Vector, sundials_types::sunrealtype};
+use crate::sundials::{sundials_linearsolver::SUNLinearSolver, sundials_matrix::SUNMatrix, sundials_nvector::N_Vector, sundials_types::sunrealtype};
 
 // /* ----------------------------------------------------------------
 //  * Programmer(s): Daniel R. Reynolds @ UMBC

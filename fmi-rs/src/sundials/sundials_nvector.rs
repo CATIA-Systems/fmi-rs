@@ -1,6 +1,6 @@
 #![allow(non_camel_case_types, non_snake_case)]
 
-use crate::sundials_types::SUNContext;
+use crate::sundials::sundials_types::SUNContext;
 
 // /* -----------------------------------------------------------------
 //  * Programmer(s): Radu Serban and Aaron Collier @ LLNL
@@ -221,12 +221,12 @@ pub struct _generic_N_Vector {
     pub sunctx: SUNContext,
 }
 
-impl AsMut<[f64]> for crate::sundials_nvector::_generic_N_Vector {
+impl AsMut<[f64]> for crate::sundials::sundials_nvector::_generic_N_Vector {
     fn as_mut(&mut self) -> &mut [f64] {
         unsafe { 
             std::slice::from_raw_parts_mut(
-                crate::nvector_serial::NV_DATA_S(self), 
-                crate::nvector_serial::NV_LENGTH_S(self) as usize
+                crate::sundials::nvector_serial::NV_DATA_S(self), 
+                crate::sundials::nvector_serial::NV_LENGTH_S(self) as usize
             ) 
         }
     }

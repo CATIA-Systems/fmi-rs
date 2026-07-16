@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case)]
 
 use std::ffi::c_void;
-use crate::sundials_types::SUNContext;
+use crate::sundials::sundials_types::SUNContext;
 
 // /* -----------------------------------------------------------------
 //  * Programmer(s): Daniel Reynolds @ UMBC

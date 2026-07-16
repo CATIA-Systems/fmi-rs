@@ -1,6 +1,11 @@
-use crate::cvode::CV_BDF;
-use crate::nvector_serial::{NV_DATA_S, NV_LENGTH_S};
-use crate::{
+use crate::sim::{
+    GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn,
+    GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, SetContinuousInputsFn,
+    SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory,
+};
+use crate::sundials::cvode::CV_BDF;
+use crate::sundials::nvector_serial::{NV_DATA_S, NV_LENGTH_S};
+use crate::sundials::{
     cvode::{
         CV_NORMAL, CV_ROOT_RETURN, CVode, CVodeCreate, CVodeFree, CVodeInit, CVodeReInit,
         CVodeRootInit, CVodeSVtolerances, CVodeSetUserData,
@@ -15,12 +20,6 @@ use crate::{
     sunlinsol_dense::SUNLinSol_Dense,
     sunmatrix_dense::{SM_COLUMN_D, SUNDenseMatrix},
 };
-use fmi_rs::sim::{
-    GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetEventIndicatorsFn,
-    SetContinuousInputsFn, SetContinuousStatesFn, SetTimeFn, SimulationError, Solver,
-    SolverFactory,
-};
-use fmi_rs::sim::{GetDirectionalDerivativeFn, GetNominalsOfContinuousStatesFn};
 use std::{ffi::c_void, slice::from_raw_parts_mut};
 
 type Error = Box<dyn std::error::Error>;

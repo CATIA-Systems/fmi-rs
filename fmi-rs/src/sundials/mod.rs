@@ -13,14 +13,14 @@
 
 pub mod solver;
 
-use crate::cvode::*;
-use crate::cvode_ls::*;
-use crate::nvector_serial::*;
-use crate::sundials_context::*;
-use crate::sundials_nvector::*;
-use crate::sundials_types::*;
-use crate::sunlinsol_dense::*;
-use crate::sunmatrix_dense::*;
+use crate::sundials::cvode::*;
+use crate::sundials::cvode_ls::*;
+use crate::sundials::nvector_serial::*;
+use crate::sundials::sundials_context::*;
+use crate::sundials::sundials_nvector::*;
+use crate::sundials::sundials_types::*;
+use crate::sundials::sunlinsol_dense::*;
+use crate::sundials::sunmatrix_dense::*;
 
 use std::ffi::c_void;
 use std::slice::from_raw_parts_mut;

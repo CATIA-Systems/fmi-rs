@@ -1,7 +1,6 @@
 [workspace]
 members = [
     "fmi-rs", 
-    "fmi-rs-sundials", 
 ]
 resolver = "3"
 
