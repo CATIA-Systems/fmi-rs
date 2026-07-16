@@ -7,9 +7,9 @@ pub mod cmake;
 pub mod fmi2;
 pub mod fmi3;
 pub mod model_description;
-pub mod sim;
 #[cfg(feature = "schema")]
 pub mod schema;
+pub mod sim;
 #[cfg(feature = "test-fixtures")]
 pub mod test_fixtures;
 #[cfg(feature = "zip")]
