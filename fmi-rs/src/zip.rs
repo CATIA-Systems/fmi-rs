@@ -1,5 +1,3 @@
-#![cfg(feature = "zip")]
-
 use std::{fs::File, path::Path};
 use thiserror::Error;
 use zip::ZipArchive;
@@ -89,21 +87,6 @@ pub fn extract_zip_archive<P: AsRef<Path>, T: AsRef<Path>>(
 
     Ok(())
 }
-
-// #[derive(Error, Debug)]
-// pub enum ZipWriteError {
-//     #[error("Failed to open the file")]
-//     Io(#[from] std::io::Error),
-
-//     #[error("Invalid ZIP archive format")]
-//     Zip(#[from] zip::result::ZipError),
-
-//     #[error("Failed to strip prefix")]
-//     StripPrefix(#[from] std::path::StripPrefixError),
-
-//     #[error("Invalid encoding")]
-//     InvalidEncoding,
-// }
 
 /// Creates a ZIP archive from a given directory
 pub fn create_zip_archive<P: AsRef<Path>, T: AsRef<Path>>(
