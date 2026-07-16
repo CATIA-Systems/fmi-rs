@@ -74,6 +74,7 @@ pub type SUNMatrixContent_Dense = *mut _SUNMatrixContent_Dense;
 //  * ------------------------------------ */
 
 // #define SM_CONTENT_D(A) ((SUNMatrixContent_Dense)(A->content))
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn SM_CONTENT_D(A: SUNMatrix) -> SUNMatrixContent_Dense {
     unsafe { (*A).content as SUNMatrixContent_Dense }
 }

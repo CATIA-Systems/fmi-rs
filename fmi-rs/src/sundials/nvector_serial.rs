@@ -81,6 +81,7 @@ pub struct _N_VectorContent_Serial {
 //  */
 
 // #define NV_CONTENT_S(v) ((N_VectorContent_Serial)(v->content))
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn NV_CONTENT_S(v: N_Vector) -> *mut _N_VectorContent_Serial {
     unsafe {
         (*v).content as *mut _N_VectorContent_Serial

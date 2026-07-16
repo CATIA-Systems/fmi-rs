@@ -2,7 +2,6 @@
 
 use std::ffi::CStr;
 use std::os::raw::c_char;
-use std::path::Path;
 
 unsafe extern "C" {
     fn xmlInitParser();
@@ -163,7 +162,7 @@ pub fn validate_fmi3_model_description(document: &[u8]) -> Vec<String> {
     validate_xml_document_against_schema(document, schema_buffer, Some(custom_entity_loader))
 }
 
-pub fn validate_build_description<P: AsRef<Path>>(document: &[u8]) -> Vec<String> {
+pub fn validate_build_description(document: &[u8]) -> Vec<String> {
     let schema_buffer = FMI3_BUILD_DESCRIPTION_XSD.as_bytes();
     validate_xml_document_against_schema(document, schema_buffer, Some(custom_entity_loader))
 }

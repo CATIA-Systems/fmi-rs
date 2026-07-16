@@ -1,8 +1,8 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-use std::{fs::File, io::BufReader, path::Path};
-
 use serde::{Deserialize, Serialize};
+use std::{fs::File, io::BufReader, path::Path};
+use thiserror::Error;
 
 /// Fallback type for `<xs:element ref="Annotations" />`.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Default)]
@@ -132,7 +132,7 @@ pub struct Library {
     #[serde(rename = "@version")]
     pub version: Option<String>,
 
-    #[serde(rename = "@external", default = "default_false")]
+    #[serde(rename = "@external", default = "bool::default")]
     pub external: bool,
 
     #[serde(rename = "@description")]
@@ -142,16 +142,21 @@ pub struct Library {
     pub annotations: Option<Annotations>,
 }
 
-// Helper to provide defaults for optional boolean attributes
-fn default_false() -> bool {
-    false
+#[derive(Error, Debug)]
+pub enum BuildDescriptionError {
+    #[error("Failed to open the file")]
+    Io(#[from] std::io::Error),
+
+    #[error("Failed to parse the file: {0}")]
+    Parse(String),
 }
 
 impl BuildDescription {
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, BuildDescriptionError> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
-        let build_description: BuildDescription = quick_xml::de::from_reader(reader)?;
+        let build_description: BuildDescription = quick_xml::de::from_reader(reader)
+            .map_err(|e| BuildDescriptionError::Parse(e.to_string()))?;
         Ok(build_description)
     }
 }
