@@ -20,6 +20,16 @@ impl ModelDescription {
         let mut value_references: HashMap<u32, &ModelVariable> = HashMap::new();
         let mut variable_names: HashMap<&String, &ModelVariable> = HashMap::new();
 
+        if self.modelExchange.is_none()
+            && self.coSimulation.is_none()
+            && self.scheduledExecution.is_none()
+        {
+            problems.push(ValidationError {
+                range: vec![],
+                message: "No interface type defined.".to_string(),
+            });
+        }
+
         // validate model variables
         for variable in &self.modelVariables {
             // validate variable name

@@ -18,6 +18,13 @@ impl ModelDescription {
 
         let mut variable_names: HashMap<&String, &ScalarVariable> = HashMap::new();
 
+        if self.modelExchange.is_none() && self.coSimulation.is_none() {
+            problems.push(ValidationError {
+                range: vec![],
+                message: "No interface type defined.".to_string(),
+            });
+        }
+
         for variable in &self.modelVariables {
             // check variable name
             if variable.name.is_empty() {
