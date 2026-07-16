@@ -29,16 +29,10 @@ pub const SHARED_LIBRARY_EXTENSION: &str = ".dll";
 #[allow(clippy::missing_transmute_annotations)]
 fn get_symbol<T>(lib: &Library, symbol_name: &[u8]) -> Result<Symbol<'static, T>, SimulationError> {
     unsafe {
-        let symbol: Result<Symbol<T>, libloading::Error> = lib.get(symbol_name);
-
-        Ok(std::mem::transmute(symbol?))
-        // match symbol {
-        //     Ok(s) => Ok(std::mem::transmute(s)),
-        //     Err(error) => {
-        //         let symbol_name = str::from_utf8(symbol_name).unwrap_or("<invalid symbol name>");
-        //         let message = format!("Failed to load symbol {symbol_name}: {error:?}");
-        //         Err(message)
-        //     }
-        // }
+        let symbol: Symbol<T> = lib.get(symbol_name).map_err(|source| {
+            let name = str::from_utf8_unchecked(symbol_name).to_owned();
+            SimulationError::Symbol { name, source }
+        })?;
+        Ok(std::mem::transmute(symbol))
     }
 }

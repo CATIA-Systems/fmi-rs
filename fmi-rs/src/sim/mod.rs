@@ -24,6 +24,12 @@ pub enum SimulationError {
     #[error("Failed to load the shared library")]
     Library(#[from] libloading::Error),
 
+    #[error("Failed to load symbol '{name}' from shared library: {source}")]
+    Symbol {
+        name: String,
+        source: libloading::Error,
+    },
+
     #[error("Failed to open {path}: {source}")]
     Io {
         source: std::io::Error,
