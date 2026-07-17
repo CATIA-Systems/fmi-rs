@@ -18,8 +18,8 @@ pub struct FMU3Builder {
 }
 
 impl FMU3Builder {
-    pub fn new<P: AsRef<Path>>(fmu_path: &P) -> Result<Self, Box<dyn std::error::Error>> {
-        let unzipdir = TempDir::new()?;
+    pub fn new<P: AsRef<Path>>(fmu_path: &P) -> Result<Self, SimulationError> {
+        let unzipdir = TempDir::new().map_err(SimulationError::io(fmu_path.as_ref()))?;
 
         extract_zip_archive(fmu_path, &unzipdir)?;
 

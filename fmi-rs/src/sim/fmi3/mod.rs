@@ -2,7 +2,7 @@ pub mod csv;
 pub mod input;
 pub mod recorder;
 
-use std::{collections::HashMap, error::Error};
+use std::collections::HashMap;
 use std::{fs, ptr};
 
 use crate::fmi3::log::DefaultLogger;
@@ -338,11 +338,13 @@ pub fn parse_variable_value(
             Ok(VariableValue::String(values))
         }
         VariableType::Binary { .. } => {
-            let values: Result<Vec<Vec<fmi3Byte>>, Box<dyn Error>> = literal
+            let values: Result<Vec<Vec<fmi3Byte>>, SimulationError> = literal
                 .split_whitespace()
                 .map(|hex_str| {
                     if hex_str.len() % 2 != 0 {
-                        return Err(format!("Invalid hex string length: {}", hex_str).into());
+                        return Err(SimulationError::Parse(
+                            format!("Invalid hex string length: {}", hex_str),
+                        ));
                     }
 
                     let mut bytes = Vec::new();
@@ -352,9 +354,10 @@ pub fn parse_variable_value(
                         match u8::from_str_radix(byte_str, 16) {
                             Ok(byte) => bytes.push(byte),
                             Err(e) => {
-                                return Err(
-                                    format!("Invalid hex byte '{}': {}", byte_str, e).into()
-                                );
+                                return Err(SimulationError::Parse(format!(
+                                    "Invalid hex byte '{}': {}",
+                                    byte_str, e
+                                )));
                             }
                         }
                     }

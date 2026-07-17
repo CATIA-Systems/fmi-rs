@@ -14,7 +14,8 @@ use std::path::PathBuf;
 use approx::relative_eq;
 use thiserror::Error;
 
-use crate::model_description::ModelDescriptionError;
+#[cfg(feature = "zip")]
+use crate::{model_description::ModelDescriptionError, zip::ZipError};
 
 #[derive(Debug, Error)]
 pub enum SimulationError {
@@ -50,6 +51,10 @@ pub enum SimulationError {
 
     #[error("Solver error: {0}")]
     Solver(String),
+
+    #[cfg(feature = "zip")]
+    #[error("Failed to extract Zip archive: {0}")]
+    Zip(#[from] ZipError),
 }
 
 impl SimulationError {

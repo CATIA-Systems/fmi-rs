@@ -22,8 +22,6 @@ use crate::sundials::{
 };
 use std::{ffi::c_void, slice::from_raw_parts_mut};
 
-type Error = Box<dyn std::error::Error>;
-
 macro_rules! expect_ok {
     ($result:expr) => {
         if let Err(_) = $result {
