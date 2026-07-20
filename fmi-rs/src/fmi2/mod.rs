@@ -11,7 +11,7 @@ pub mod types;
 
 use crate::fmi2::log::Logger;
 use crate::sim::SimulationError;
-use crate::{SHARED_LIBRARY_EXTENSION, get_symbol};
+use crate::{get_symbol, load_platform_binary};
 use libloading::{Library, Symbol};
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
@@ -319,18 +319,6 @@ impl<T> FMU2<T> {
             Err(e) => Err(e),
             Ok(_) => Ok(fmu),
         }
-    }
-
-    fn load_library(
-        unzipdir: &Path,
-        model_identifier: &str,
-    ) -> Result<Box<Library>, SimulationError> {
-        let shared_library_path = unzipdir
-            .join("binaries")
-            .join(PLATFORM)
-            .join(format!("{model_identifier}{SHARED_LIBRARY_EXTENSION}"));
-
-        Ok(Box::new(unsafe { Library::new(shared_library_path)? }))
     }
 
     fn log_call(&self, status: fmi2Status, message: &str) {
@@ -819,7 +807,7 @@ impl FMU2<ME> {
         logger: Box<dyn Logger>,
         provideMemoryManagementFunctions: bool,
     ) -> Result<FMU2<ME>, SimulationError> {
-        let library = FMU2::<ME>::load_library(unzipdir, modelIdentifier)?;
+        let library = load_platform_binary(unzipdir, PLATFORM, modelIdentifier)?;
 
         let fmi2EnterEventMode = get_symbol(&library, b"fmi2EnterEventMode")?;
         let fmi2NewDiscreteStates = get_symbol(&library, b"fmi2NewDiscreteStates")?;
@@ -1054,7 +1042,7 @@ impl FMU2<CS> {
         logger: Box<dyn Logger>,
         provideMemoryManagementFunctions: bool,
     ) -> Result<FMU2<CS>, SimulationError> {
-        let library = FMU2::<ME>::load_library(unzipdir, modelIdentifier)?;
+        let library = load_platform_binary(unzipdir, PLATFORM, modelIdentifier)?;
 
         let fmi2SetRealInputDerivatives = get_symbol(&library, b"fmi2SetRealInputDerivatives")?;
         let fmi2GetRealOutputDerivatives = get_symbol(&library, b"fmi2GetRealOutputDerivatives")?;

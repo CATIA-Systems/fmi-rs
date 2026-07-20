@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use libloading::{Library, Symbol};
 
 use crate::sim::SimulationError;
@@ -35,4 +37,49 @@ fn get_symbol<T>(lib: &Library, symbol_name: &[u8]) -> Result<Symbol<'static, T>
         })?;
         Ok(std::mem::transmute(symbol))
     }
+}
+
+fn load_platform_binary(unzipdir: &Path, platform: &str, model_identifier: &str) -> Result<Box<Library>, SimulationError> {
+    
+    let library_directory = unzipdir
+        .join("binaries")
+        .join(platform);
+
+    let shared_library_path = library_directory
+        .join(format!("{model_identifier}{SHARED_LIBRARY_EXTENSION}"));
+
+    #[cfg(target_os = "windows")]
+    let lib = {
+        use libloading::os::windows::Library as WinLibrary;
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::System::LibraryLoader::{
+            AddDllDirectory, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS, RemoveDllDirectory,
+        };
+
+        unsafe {
+            let libary_directory_wide: Vec<u16> = library_directory
+                .as_os_str()
+                .encode_wide()
+                .chain(std::iter::once(0))
+                .collect();
+
+            let cookie = AddDllDirectory(libary_directory_wide.as_ptr());
+
+            let library = libloading::Library::from(WinLibrary::load_with_flags(
+                shared_library_path,
+                LOAD_LIBRARY_SEARCH_DEFAULT_DIRS,
+            )?);
+
+            if !cookie.is_null() {
+                RemoveDllDirectory(cookie);
+            }
+
+            library
+        }
+    };
+
+    #[cfg(not(target_os = "windows"))]
+    let lib = unsafe { libloading::Library::new(shared_library_path)? };
+
+    Ok(Box::new(lib))
 }

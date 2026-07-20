@@ -31,6 +31,9 @@ zip = { version = "8.6", optional = true }
 [build-dependencies]
 cc = "1.2"
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_LibraryLoader"] }
+
 [dev-dependencies]
 fmi-rs = { path = ".", features = ["test-fixtures"] }
 rstest = "0.26.1"

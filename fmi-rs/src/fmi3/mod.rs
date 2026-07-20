@@ -11,7 +11,7 @@ pub mod types;
 
 use crate::fmi3::log::Logger;
 use crate::sim::SimulationError::{self};
-use crate::{SHARED_LIBRARY_EXTENSION, get_symbol};
+use crate::{get_symbol, load_platform_binary};
 use libloading::{Library, Symbol};
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
@@ -248,18 +248,7 @@ impl FMU3 {
         logger: Box<dyn Logger>,
         logCalls: bool,
     ) -> Result<FMU3, SimulationError> {
-        let shared_library_path = unzipdir
-            .join("binaries")
-            .join(PLATFORM_TUPLE)
-            .join(format!("{modelIdentifier}{SHARED_LIBRARY_EXTENSION}"));
-
-        if !shared_library_path.is_file() {
-            return Err(SimulationError::IllegalParameter(format!(
-                "Missing shared library {shared_library_path:?}."
-            )));
-        }
-
-        let lib = Box::new(unsafe { Library::new(shared_library_path)? });
+        let lib = load_platform_binary(unzipdir, PLATFORM_TUPLE, modelIdentifier)?;
 
         /***************************************************
         Common Functions

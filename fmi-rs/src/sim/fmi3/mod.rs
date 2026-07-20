@@ -342,9 +342,10 @@ pub fn parse_variable_value(
                 .split_whitespace()
                 .map(|hex_str| {
                     if hex_str.len() % 2 != 0 {
-                        return Err(SimulationError::Parse(
-                            format!("Invalid hex string length: {}", hex_str),
-                        ));
+                        return Err(SimulationError::Parse(format!(
+                            "Invalid hex string length: {}",
+                            hex_str
+                        )));
                     }
 
                     let mut bytes = Vec::new();
