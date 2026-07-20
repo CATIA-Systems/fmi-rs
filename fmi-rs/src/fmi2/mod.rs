@@ -12,7 +12,7 @@ pub mod types;
 use crate::fmi2::log::Logger;
 use crate::sim::SimulationError;
 use crate::{get_symbol, load_platform_binary};
-use libloading::{Library, Symbol};
+use libloading::Library;
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_void;
@@ -109,28 +109,28 @@ unsafe extern "C" {
 }
 
 pub struct ME {
-    fmi2EnterEventMode: Symbol<'static, fmi2EnterEventModeTYPE>,
-    fmi2NewDiscreteStates: Symbol<'static, fmi2NewDiscreteStatesTYPE>,
-    fmi2EnterContinuousTimeMode: Symbol<'static, fmi2EnterContinuousTimeModeTYPE>,
-    fmi2CompletedIntegratorStep: Symbol<'static, fmi2CompletedIntegratorStepTYPE>,
-    fmi2SetTime: Symbol<'static, fmi2SetTimeTYPE>,
-    fmi2SetContinuousStates: Symbol<'static, fmi2SetContinuousStatesTYPE>,
-    fmi2GetDerivatives: Symbol<'static, fmi2GetDerivativesTYPE>,
-    fmi2GetEventIndicators: Symbol<'static, fmi2GetEventIndicatorsTYPE>,
-    fmi2GetContinuousStates: Symbol<'static, fmi2GetContinuousStatesTYPE>,
-    fmi2GetNominalsOfContinuousStates: Symbol<'static, fmi2GetNominalsOfContinuousStatesTYPE>,
+    fmi2EnterEventMode: fmi2EnterEventModeTYPE,
+    fmi2NewDiscreteStates: fmi2NewDiscreteStatesTYPE,
+    fmi2EnterContinuousTimeMode: fmi2EnterContinuousTimeModeTYPE,
+    fmi2CompletedIntegratorStep: fmi2CompletedIntegratorStepTYPE,
+    fmi2SetTime: fmi2SetTimeTYPE,
+    fmi2SetContinuousStates: fmi2SetContinuousStatesTYPE,
+    fmi2GetDerivatives: fmi2GetDerivativesTYPE,
+    fmi2GetEventIndicators: fmi2GetEventIndicatorsTYPE,
+    fmi2GetContinuousStates: fmi2GetContinuousStatesTYPE,
+    fmi2GetNominalsOfContinuousStates: fmi2GetNominalsOfContinuousStatesTYPE,
 }
 
 pub struct CS {
-    fmi2SetRealInputDerivatives: Symbol<'static, fmi2SetRealInputDerivativesTYPE>,
-    fmi2GetRealOutputDerivatives: Symbol<'static, fmi2GetRealOutputDerivativesTYPE>,
-    fmi2DoStep: Symbol<'static, fmi2DoStepTYPE>,
-    fmi2CancelStep: Symbol<'static, fmi2CancelStepTYPE>,
-    fmi2GetStatus: Symbol<'static, fmi2GetStatusTYPE>,
-    fmi2GetRealStatus: Symbol<'static, fmi2GetRealStatusTYPE>,
-    fmi2GetIntegerStatus: Symbol<'static, fmi2GetIntegerStatusTYPE>,
-    fmi2GetBooleanStatus: Symbol<'static, fmi2GetBooleanStatusTYPE>,
-    fmi2GetStringStatus: Symbol<'static, fmi2GetStringStatusTYPE>,
+    fmi2SetRealInputDerivatives: fmi2SetRealInputDerivativesTYPE,
+    fmi2GetRealOutputDerivatives: fmi2GetRealOutputDerivativesTYPE,
+    fmi2DoStep: fmi2DoStepTYPE,
+    fmi2CancelStep: fmi2CancelStepTYPE,
+    fmi2GetStatus: fmi2GetStatusTYPE,
+    fmi2GetRealStatus: fmi2GetRealStatusTYPE,
+    fmi2GetIntegerStatus: fmi2GetIntegerStatusTYPE,
+    fmi2GetBooleanStatus: fmi2GetBooleanStatusTYPE,
+    fmi2GetStringStatus: fmi2GetStringStatusTYPE,
 }
 
 impl<T> Drop for FMU2<T> {
@@ -165,31 +165,31 @@ pub struct FMU2<T> {
 
     library: Box<Library>,
 
-    fmi2GetVersion: Symbol<'static, fmi2GetVersionTYPE>,
-    fmi2GetTypesPlatform: Symbol<'static, fmi2GetTypesPlatformTYPE>,
-    fmi2SetDebugLogging: Symbol<'static, fmi2SetDebugLoggingTYPE>,
-    fmi2Instantiate: Symbol<'static, fmi2InstantiateTYPE>,
-    fmi2FreeInstance: Symbol<'static, fmi2FreeInstanceTYPE>,
-    fmi2SetupExperiment: Symbol<'static, fmi2SetupExperimentTYPE>,
-    fmi2EnterInitializationMode: Symbol<'static, fmi2EnterInitializationModeTYPE>,
-    fmi2ExitInitializationMode: Symbol<'static, fmi2ExitInitializationModeTYPE>,
-    fmi2Terminate: Symbol<'static, fmi2TerminateTYPE>,
-    fmi2Reset: Symbol<'static, fmi2ResetTYPE>,
-    fmi2GetReal: Symbol<'static, fmi2GetRealTYPE>,
-    fmi2GetInteger: Symbol<'static, fmi2GetIntegerTYPE>,
-    fmi2GetBoolean: Symbol<'static, fmi2GetBooleanTYPE>,
-    fmi2GetString: Symbol<'static, fmi2GetStringTYPE>,
-    fmi2SetReal: Symbol<'static, fmi2SetRealTYPE>,
-    fmi2SetInteger: Symbol<'static, fmi2SetIntegerTYPE>,
-    fmi2SetBoolean: Symbol<'static, fmi2SetBooleanTYPE>,
-    fmi2SetString: Symbol<'static, fmi2SetStringTYPE>,
-    fmi2GetFMUstate: Symbol<'static, fmi2GetFMUstateTYPE>,
-    fmi2SetFMUstate: Symbol<'static, fmi2SetFMUstateTYPE>,
-    fmi2FreeFMUstate: Symbol<'static, fmi2FreeFMUstateTYPE>,
-    fmi2SerializedFMUstateSize: Symbol<'static, fmi2SerializedFMUstateSizeTYPE>,
-    fmi2SerializeFMUstate: Symbol<'static, fmi2SerializeFMUstateTYPE>,
-    fmi2DeSerializeFMUstate: Symbol<'static, fmi2DeSerializeFMUstateTYPE>,
-    fmi2GetDirectionalDerivative: Symbol<'static, fmi2GetDirectionalDerivativeTYPE>,
+    fmi2GetVersion: fmi2GetVersionTYPE,
+    fmi2GetTypesPlatform: fmi2GetTypesPlatformTYPE,
+    fmi2SetDebugLogging: fmi2SetDebugLoggingTYPE,
+    fmi2Instantiate: fmi2InstantiateTYPE,
+    fmi2FreeInstance: fmi2FreeInstanceTYPE,
+    fmi2SetupExperiment: fmi2SetupExperimentTYPE,
+    fmi2EnterInitializationMode: fmi2EnterInitializationModeTYPE,
+    fmi2ExitInitializationMode: fmi2ExitInitializationModeTYPE,
+    fmi2Terminate: fmi2TerminateTYPE,
+    fmi2Reset: fmi2ResetTYPE,
+    fmi2GetReal: fmi2GetRealTYPE,
+    fmi2GetInteger: fmi2GetIntegerTYPE,
+    fmi2GetBoolean: fmi2GetBooleanTYPE,
+    fmi2GetString: fmi2GetStringTYPE,
+    fmi2SetReal: fmi2SetRealTYPE,
+    fmi2SetInteger: fmi2SetIntegerTYPE,
+    fmi2SetBoolean: fmi2SetBooleanTYPE,
+    fmi2SetString: fmi2SetStringTYPE,
+    fmi2GetFMUstate: fmi2GetFMUstateTYPE,
+    fmi2SetFMUstate: fmi2SetFMUstateTYPE,
+    fmi2FreeFMUstate: fmi2FreeFMUstateTYPE,
+    fmi2SerializedFMUstateSize: fmi2SerializedFMUstateSizeTYPE,
+    fmi2SerializeFMUstate: fmi2SerializeFMUstateTYPE,
+    fmi2DeSerializeFMUstate: fmi2DeSerializeFMUstateTYPE,
+    fmi2GetDirectionalDerivative: fmi2GetDirectionalDerivativeTYPE,
 
     component: fmi2Component,
 
@@ -239,31 +239,31 @@ impl<T> FMU2<T> {
         interfaceType: T,
         provideMemoryManagementFunctions: bool,
     ) -> Result<FMU2<T>, SimulationError> {
-        let fmi2GetVersion = get_symbol(&library, b"fmi2GetVersion")?;
-        let fmi2GetTypesPlatform = get_symbol(&library, b"fmi2GetTypesPlatform")?;
-        let fmi2SetDebugLogging = get_symbol(&library, b"fmi2SetDebugLogging")?;
-        let fmi2Instantiate = get_symbol(&library, b"fmi2Instantiate")?;
-        let fmi2FreeInstance = get_symbol(&library, b"fmi2FreeInstance")?;
-        let fmi2SetupExperiment = get_symbol(&library, b"fmi2SetupExperiment")?;
-        let fmi2EnterInitializationMode = get_symbol(&library, b"fmi2EnterInitializationMode")?;
-        let fmi2ExitInitializationMode = get_symbol(&library, b"fmi2ExitInitializationMode")?;
-        let fmi2Terminate = get_symbol(&library, b"fmi2Terminate")?;
-        let fmi2Reset = get_symbol(&library, b"fmi2Reset")?;
-        let fmi2GetReal = get_symbol(&library, b"fmi2GetReal")?;
-        let fmi2GetInteger = get_symbol(&library, b"fmi2GetInteger")?;
-        let fmi2GetBoolean = get_symbol(&library, b"fmi2GetBoolean")?;
-        let fmi2GetString = get_symbol(&library, b"fmi2GetString")?;
-        let fmi2SetReal = get_symbol(&library, b"fmi2SetReal")?;
-        let fmi2SetInteger = get_symbol(&library, b"fmi2SetInteger")?;
-        let fmi2SetBoolean = get_symbol(&library, b"fmi2SetBoolean")?;
-        let fmi2SetString = get_symbol(&library, b"fmi2SetString")?;
-        let fmi2GetFMUstate = get_symbol(&library, b"fmi2GetFMUstate")?;
-        let fmi2SetFMUstate = get_symbol(&library, b"fmi2SetFMUstate")?;
-        let fmi2FreeFMUstate = get_symbol(&library, b"fmi2FreeFMUstate")?;
-        let fmi2SerializedFMUstateSize = get_symbol(&library, b"fmi2SerializedFMUstateSize")?;
-        let fmi2SerializeFMUstate = get_symbol(&library, b"fmi2SerializeFMUstate")?;
-        let fmi2DeSerializeFMUstate = get_symbol(&library, b"fmi2DeSerializeFMUstate")?;
-        let fmi2GetDirectionalDerivative = get_symbol(&library, b"fmi2GetDirectionalDerivative")?;
+        let fmi2GetVersion = *get_symbol(&library, b"fmi2GetVersion")?;
+        let fmi2GetTypesPlatform = *get_symbol(&library, b"fmi2GetTypesPlatform")?;
+        let fmi2SetDebugLogging = *get_symbol(&library, b"fmi2SetDebugLogging")?;
+        let fmi2Instantiate = *get_symbol(&library, b"fmi2Instantiate")?;
+        let fmi2FreeInstance = *get_symbol(&library, b"fmi2FreeInstance")?;
+        let fmi2SetupExperiment = *get_symbol(&library, b"fmi2SetupExperiment")?;
+        let fmi2EnterInitializationMode = *get_symbol(&library, b"fmi2EnterInitializationMode")?;
+        let fmi2ExitInitializationMode = *get_symbol(&library, b"fmi2ExitInitializationMode")?;
+        let fmi2Terminate = *get_symbol(&library, b"fmi2Terminate")?;
+        let fmi2Reset = *get_symbol(&library, b"fmi2Reset")?;
+        let fmi2GetReal = *get_symbol(&library, b"fmi2GetReal")?;
+        let fmi2GetInteger = *get_symbol(&library, b"fmi2GetInteger")?;
+        let fmi2GetBoolean = *get_symbol(&library, b"fmi2GetBoolean")?;
+        let fmi2GetString = *get_symbol(&library, b"fmi2GetString")?;
+        let fmi2SetReal = *get_symbol(&library, b"fmi2SetReal")?;
+        let fmi2SetInteger = *get_symbol(&library, b"fmi2SetInteger")?;
+        let fmi2SetBoolean = *get_symbol(&library, b"fmi2SetBoolean")?;
+        let fmi2SetString = *get_symbol(&library, b"fmi2SetString")?;
+        let fmi2GetFMUstate = *get_symbol(&library, b"fmi2GetFMUstate")?;
+        let fmi2SetFMUstate = *get_symbol(&library, b"fmi2SetFMUstate")?;
+        let fmi2FreeFMUstate = *get_symbol(&library, b"fmi2FreeFMUstate")?;
+        let fmi2SerializedFMUstateSize = *get_symbol(&library, b"fmi2SerializedFMUstateSize")?;
+        let fmi2SerializeFMUstate = *get_symbol(&library, b"fmi2SerializeFMUstate")?;
+        let fmi2DeSerializeFMUstate = *get_symbol(&library, b"fmi2DeSerializeFMUstate")?;
+        let fmi2GetDirectionalDerivative = *get_symbol(&library, b"fmi2GetDirectionalDerivative")?;
 
         let mut fmu = FMU2 {
             instanceName: String::from(instanceName),
@@ -660,6 +660,7 @@ impl<T> FMU2<T> {
         status
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn getFMUstate(&self, FMUstate: *mut fmi2FMUstate) -> fmi2Status {
         let status = unsafe { (self.fmi2GetFMUstate)(self.component, FMUstate) };
 
@@ -671,6 +672,7 @@ impl<T> FMU2<T> {
         status
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn setFMUstate(&self, FMUstate: fmi2FMUstate) -> fmi2Status {
         let status = unsafe { (self.fmi2SetFMUstate)(self.component, FMUstate) };
 
@@ -682,6 +684,7 @@ impl<T> FMU2<T> {
         status
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn freeFMUstate(&self, FMUstate: *mut fmi2FMUstate) -> fmi2Status {
         let status = unsafe { (self.fmi2FreeFMUstate)(self.component, FMUstate) };
 
@@ -693,6 +696,7 @@ impl<T> FMU2<T> {
         status
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn serializedFMUstateSize(&self, FMUstate: fmi2FMUstate, size: &mut usize) -> fmi2Status {
         let status = unsafe { (self.fmi2SerializedFMUstateSize)(self.component, FMUstate, size) };
         if self.logCalls {
@@ -704,6 +708,7 @@ impl<T> FMU2<T> {
         status
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn serializeFMUstate(
         &self,
         FMUstate: fmi2FMUstate,
@@ -726,6 +731,7 @@ impl<T> FMU2<T> {
         status
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn deSerializeFMUstate(
         &self,
         serializedState: &[fmi2Byte],
@@ -809,17 +815,17 @@ impl FMU2<ME> {
     ) -> Result<FMU2<ME>, SimulationError> {
         let library = load_platform_binary(unzipdir, PLATFORM, modelIdentifier)?;
 
-        let fmi2EnterEventMode = get_symbol(&library, b"fmi2EnterEventMode")?;
-        let fmi2NewDiscreteStates = get_symbol(&library, b"fmi2NewDiscreteStates")?;
-        let fmi2EnterContinuousTimeMode = get_symbol(&library, b"fmi2EnterContinuousTimeMode")?;
-        let fmi2CompletedIntegratorStep = get_symbol(&library, b"fmi2CompletedIntegratorStep")?;
-        let fmi2SetTime = get_symbol(&library, b"fmi2SetTime")?;
-        let fmi2SetContinuousStates = get_symbol(&library, b"fmi2SetContinuousStates")?;
-        let fmi2GetDerivatives = get_symbol(&library, b"fmi2GetDerivatives")?;
-        let fmi2GetEventIndicators = get_symbol(&library, b"fmi2GetEventIndicators")?;
-        let fmi2GetContinuousStates = get_symbol(&library, b"fmi2GetContinuousStates")?;
+        let fmi2EnterEventMode = *get_symbol(&library, b"fmi2EnterEventMode")?;
+        let fmi2NewDiscreteStates = *get_symbol(&library, b"fmi2NewDiscreteStates")?;
+        let fmi2EnterContinuousTimeMode = *get_symbol(&library, b"fmi2EnterContinuousTimeMode")?;
+        let fmi2CompletedIntegratorStep = *get_symbol(&library, b"fmi2CompletedIntegratorStep")?;
+        let fmi2SetTime = *get_symbol(&library, b"fmi2SetTime")?;
+        let fmi2SetContinuousStates = *get_symbol(&library, b"fmi2SetContinuousStates")?;
+        let fmi2GetDerivatives = *get_symbol(&library, b"fmi2GetDerivatives")?;
+        let fmi2GetEventIndicators = *get_symbol(&library, b"fmi2GetEventIndicators")?;
+        let fmi2GetContinuousStates = *get_symbol(&library, b"fmi2GetContinuousStates")?;
         let fmi2GetNominalsOfContinuousStates =
-            get_symbol(&library, b"fmi2GetNominalsOfContinuousStates")?;
+            *get_symbol(&library, b"fmi2GetNominalsOfContinuousStates")?;
 
         let interfaceType = ME {
             fmi2EnterEventMode,
@@ -1044,15 +1050,15 @@ impl FMU2<CS> {
     ) -> Result<FMU2<CS>, SimulationError> {
         let library = load_platform_binary(unzipdir, PLATFORM, modelIdentifier)?;
 
-        let fmi2SetRealInputDerivatives = get_symbol(&library, b"fmi2SetRealInputDerivatives")?;
-        let fmi2GetRealOutputDerivatives = get_symbol(&library, b"fmi2GetRealOutputDerivatives")?;
-        let fmi2DoStep = get_symbol(&library, b"fmi2DoStep")?;
-        let fmi2CancelStep = get_symbol(&library, b"fmi2CancelStep")?;
-        let fmi2GetStatus = get_symbol(&library, b"fmi2GetStatus")?;
-        let fmi2GetRealStatus = get_symbol(&library, b"fmi2GetRealStatus")?;
-        let fmi2GetIntegerStatus = get_symbol(&library, b"fmi2GetIntegerStatus")?;
-        let fmi2GetBooleanStatus = get_symbol(&library, b"fmi2GetBooleanStatus")?;
-        let fmi2GetStringStatus = get_symbol(&library, b"fmi2GetStringStatus")?;
+        let fmi2SetRealInputDerivatives = *get_symbol(&library, b"fmi2SetRealInputDerivatives")?;
+        let fmi2GetRealOutputDerivatives = *get_symbol(&library, b"fmi2GetRealOutputDerivatives")?;
+        let fmi2DoStep = *get_symbol(&library, b"fmi2DoStep")?;
+        let fmi2CancelStep = *get_symbol(&library, b"fmi2CancelStep")?;
+        let fmi2GetStatus = *get_symbol(&library, b"fmi2GetStatus")?;
+        let fmi2GetRealStatus = *get_symbol(&library, b"fmi2GetRealStatus")?;
+        let fmi2GetIntegerStatus = *get_symbol(&library, b"fmi2GetIntegerStatus")?;
+        let fmi2GetBooleanStatus = *get_symbol(&library, b"fmi2GetBooleanStatus")?;
+        let fmi2GetStringStatus = *get_symbol(&library, b"fmi2GetStringStatus")?;
 
         let interfaceType = CS {
             fmi2SetRealInputDerivatives,

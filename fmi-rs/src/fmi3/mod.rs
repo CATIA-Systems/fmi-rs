@@ -12,7 +12,7 @@ pub mod types;
 use crate::fmi3::log::Logger;
 use crate::sim::SimulationError::{self};
 use crate::{get_symbol, load_platform_binary};
-use libloading::{Library, Symbol};
+use libloading::Library;
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_uint, c_void};
@@ -134,81 +134,81 @@ pub struct FMU3 {
 
     _lib: Box<Library>,
 
-    fmi3GetVersion: Symbol<'static, fmi3GetVersionTYPE>,
-    fmi3SetDebugLogging: Symbol<'static, fmi3SetDebugLoggingTYPE>,
-    fmi3InstantiateModelExchange: Symbol<'static, fmi3InstantiateModelExchangeTYPE>,
-    fmi3InstantiateCoSimulation: Symbol<'static, fmi3InstantiateCoSimulationTYPE>,
-    fmi3InstantiateScheduledExecution: Symbol<'static, fmi3InstantiateScheduledExecutionTYPE>,
-    fmi3FreeInstance: Symbol<'static, fmi3FreeInstanceTYPE>,
-    fmi3EnterInitializationMode: Symbol<'static, fmi3EnterInitializationModeTYPE>,
-    fmi3ExitInitializationMode: Symbol<'static, fmi3ExitInitializationModeTYPE>,
-    fmi3EnterEventMode: Symbol<'static, fmi3EnterEventModeTYPE>,
-    fmi3Terminate: Symbol<'static, fmi3TerminateTYPE>,
-    fmi3Reset: Symbol<'static, fmi3ResetTYPE>,
-    fmi3GetFloat32: Symbol<'static, fmi3GetFloat32TYPE>,
-    fmi3GetFloat64: Symbol<'static, fmi3GetFloat64TYPE>,
-    fmi3GetInt8: Symbol<'static, fmi3GetInt8TYPE>,
-    fmi3GetUInt8: Symbol<'static, fmi3GetUInt8TYPE>,
-    fmi3GetInt16: Symbol<'static, fmi3GetInt16TYPE>,
-    fmi3GetUInt16: Symbol<'static, fmi3GetUInt16TYPE>,
-    fmi3GetInt32: Symbol<'static, fmi3GetInt32TYPE>,
-    fmi3GetUInt32: Symbol<'static, fmi3GetUInt32TYPE>,
-    fmi3GetInt64: Symbol<'static, fmi3GetInt64TYPE>,
-    fmi3GetUInt64: Symbol<'static, fmi3GetUInt64TYPE>,
-    fmi3GetBoolean: Symbol<'static, fmi3GetBooleanTYPE>,
-    fmi3GetString: Symbol<'static, fmi3GetStringTYPE>,
-    fmi3GetBinary: Symbol<'static, fmi3GetBinaryTYPE>,
-    fmi3GetClock: Symbol<'static, fmi3GetClockTYPE>,
-    fmi3SetFloat32: Symbol<'static, fmi3SetFloat32TYPE>,
-    fmi3SetFloat64: Symbol<'static, fmi3SetFloat64TYPE>,
-    fmi3SetInt8: Symbol<'static, fmi3SetInt8TYPE>,
-    fmi3SetUInt8: Symbol<'static, fmi3SetUInt8TYPE>,
-    fmi3SetInt16: Symbol<'static, fmi3SetInt16TYPE>,
-    fmi3SetUInt16: Symbol<'static, fmi3SetUInt16TYPE>,
-    fmi3SetInt32: Symbol<'static, fmi3SetInt32TYPE>,
-    fmi3SetUInt32: Symbol<'static, fmi3SetUInt32TYPE>,
-    fmi3SetInt64: Symbol<'static, fmi3SetInt64TYPE>,
-    fmi3SetUInt64: Symbol<'static, fmi3SetUInt64TYPE>,
-    fmi3SetBoolean: Symbol<'static, fmi3SetBooleanTYPE>,
-    fmi3SetString: Symbol<'static, fmi3SetStringTYPE>,
-    fmi3SetBinary: Symbol<'static, fmi3SetBinaryTYPE>,
-    fmi3SetClock: Symbol<'static, fmi3SetClockTYPE>,
-    fmi3GetNumberOfVariableDependencies: Symbol<'static, fmi3GetNumberOfVariableDependenciesTYPE>,
-    fmi3GetVariableDependencies: Symbol<'static, fmi3GetVariableDependenciesTYPE>,
-    fmi3GetFMUState: Symbol<'static, fmi3GetFMUStateTYPE>,
-    fmi3SetFMUState: Symbol<'static, fmi3SetFMUStateTYPE>,
-    fmi3FreeFMUState: Symbol<'static, fmi3FreeFMUStateTYPE>,
-    fmi3SerializedFMUStateSize: Symbol<'static, fmi3SerializedFMUStateSizeTYPE>,
-    fmi3SerializeFMUState: Symbol<'static, fmi3SerializeFMUStateTYPE>,
-    fmi3DeserializeFMUState: Symbol<'static, fmi3DeserializeFMUStateTYPE>,
-    fmi3GetDirectionalDerivative: Symbol<'static, fmi3GetDirectionalDerivativeTYPE>,
-    fmi3GetAdjointDerivative: Symbol<'static, fmi3GetAdjointDerivativeTYPE>,
-    fmi3EnterConfigurationMode: Symbol<'static, fmi3EnterConfigurationModeTYPE>,
-    fmi3ExitConfigurationMode: Symbol<'static, fmi3ExitConfigurationModeTYPE>,
-    fmi3GetIntervalDecimal: Symbol<'static, fmi3GetIntervalDecimalTYPE>,
-    fmi3GetIntervalFraction: Symbol<'static, fmi3GetIntervalFractionTYPE>,
-    fmi3GetShiftDecimal: Symbol<'static, fmi3GetShiftDecimalTYPE>,
-    fmi3GetShiftFraction: Symbol<'static, fmi3GetShiftFractionTYPE>,
-    fmi3SetIntervalDecimal: Symbol<'static, fmi3SetIntervalDecimalTYPE>,
-    fmi3SetIntervalFraction: Symbol<'static, fmi3SetIntervalFractionTYPE>,
-    fmi3SetShiftDecimal: Symbol<'static, fmi3SetShiftDecimalTYPE>,
-    fmi3SetShiftFraction: Symbol<'static, fmi3SetShiftFractionTYPE>,
-    fmi3EvaluateDiscreteStates: Symbol<'static, fmi3EvaluateDiscreteStatesTYPE>,
-    fmi3UpdateDiscreteStates: Symbol<'static, fmi3UpdateDiscreteStatesTYPE>,
-    fmi3EnterContinuousTimeMode: Symbol<'static, fmi3EnterContinuousTimeModeTYPE>,
-    fmi3CompletedIntegratorStep: Symbol<'static, fmi3CompletedIntegratorStepTYPE>,
-    fmi3SetTime: Symbol<'static, fmi3SetTimeTYPE>,
-    fmi3SetContinuousStates: Symbol<'static, fmi3SetContinuousStatesTYPE>,
-    fmi3GetContinuousStateDerivatives: Symbol<'static, fmi3GetContinuousStateDerivativesTYPE>,
-    fmi3GetEventIndicators: Symbol<'static, fmi3GetEventIndicatorsTYPE>,
-    fmi3GetContinuousStates: Symbol<'static, fmi3GetContinuousStatesTYPE>,
-    fmi3GetNominalsOfContinuousStates: Symbol<'static, fmi3GetNominalsOfContinuousStatesTYPE>,
-    fmi3GetNumberOfEventIndicators: Symbol<'static, fmi3GetNumberOfEventIndicatorsTYPE>,
-    fmi3GetNumberOfContinuousStates: Symbol<'static, fmi3GetNumberOfContinuousStatesTYPE>,
-    fmi3EnterStepMode: Symbol<'static, fmi3EnterStepModeTYPE>,
-    fmi3GetOutputDerivatives: Symbol<'static, fmi3GetOutputDerivativesTYPE>,
-    fmi3DoStep: Symbol<'static, fmi3DoStepTYPE>,
-    fmi3ActivateModelPartition: Symbol<'static, fmi3ActivateModelPartitionTYPE>,
+    fmi3GetVersion: fmi3GetVersionTYPE,
+    fmi3SetDebugLogging: fmi3SetDebugLoggingTYPE,
+    fmi3InstantiateModelExchange: fmi3InstantiateModelExchangeTYPE,
+    fmi3InstantiateCoSimulation: fmi3InstantiateCoSimulationTYPE,
+    fmi3InstantiateScheduledExecution: fmi3InstantiateScheduledExecutionTYPE,
+    fmi3FreeInstance: fmi3FreeInstanceTYPE,
+    fmi3EnterInitializationMode: fmi3EnterInitializationModeTYPE,
+    fmi3ExitInitializationMode: fmi3ExitInitializationModeTYPE,
+    fmi3EnterEventMode: fmi3EnterEventModeTYPE,
+    fmi3Terminate: fmi3TerminateTYPE,
+    fmi3Reset: fmi3ResetTYPE,
+    fmi3GetFloat32: fmi3GetFloat32TYPE,
+    fmi3GetFloat64: fmi3GetFloat64TYPE,
+    fmi3GetInt8: fmi3GetInt8TYPE,
+    fmi3GetUInt8: fmi3GetUInt8TYPE,
+    fmi3GetInt16: fmi3GetInt16TYPE,
+    fmi3GetUInt16: fmi3GetUInt16TYPE,
+    fmi3GetInt32: fmi3GetInt32TYPE,
+    fmi3GetUInt32: fmi3GetUInt32TYPE,
+    fmi3GetInt64: fmi3GetInt64TYPE,
+    fmi3GetUInt64: fmi3GetUInt64TYPE,
+    fmi3GetBoolean: fmi3GetBooleanTYPE,
+    fmi3GetString: fmi3GetStringTYPE,
+    fmi3GetBinary: fmi3GetBinaryTYPE,
+    fmi3GetClock: fmi3GetClockTYPE,
+    fmi3SetFloat32: fmi3SetFloat32TYPE,
+    fmi3SetFloat64: fmi3SetFloat64TYPE,
+    fmi3SetInt8: fmi3SetInt8TYPE,
+    fmi3SetUInt8: fmi3SetUInt8TYPE,
+    fmi3SetInt16: fmi3SetInt16TYPE,
+    fmi3SetUInt16: fmi3SetUInt16TYPE,
+    fmi3SetInt32: fmi3SetInt32TYPE,
+    fmi3SetUInt32: fmi3SetUInt32TYPE,
+    fmi3SetInt64: fmi3SetInt64TYPE,
+    fmi3SetUInt64: fmi3SetUInt64TYPE,
+    fmi3SetBoolean: fmi3SetBooleanTYPE,
+    fmi3SetString: fmi3SetStringTYPE,
+    fmi3SetBinary: fmi3SetBinaryTYPE,
+    fmi3SetClock: fmi3SetClockTYPE,
+    fmi3GetNumberOfVariableDependencies: fmi3GetNumberOfVariableDependenciesTYPE,
+    fmi3GetVariableDependencies: fmi3GetVariableDependenciesTYPE,
+    fmi3GetFMUState: fmi3GetFMUStateTYPE,
+    fmi3SetFMUState: fmi3SetFMUStateTYPE,
+    fmi3FreeFMUState: fmi3FreeFMUStateTYPE,
+    fmi3SerializedFMUStateSize: fmi3SerializedFMUStateSizeTYPE,
+    fmi3SerializeFMUState: fmi3SerializeFMUStateTYPE,
+    fmi3DeserializeFMUState: fmi3DeserializeFMUStateTYPE,
+    fmi3GetDirectionalDerivative: fmi3GetDirectionalDerivativeTYPE,
+    fmi3GetAdjointDerivative: fmi3GetAdjointDerivativeTYPE,
+    fmi3EnterConfigurationMode: fmi3EnterConfigurationModeTYPE,
+    fmi3ExitConfigurationMode: fmi3ExitConfigurationModeTYPE,
+    fmi3GetIntervalDecimal: fmi3GetIntervalDecimalTYPE,
+    fmi3GetIntervalFraction: fmi3GetIntervalFractionTYPE,
+    fmi3GetShiftDecimal: fmi3GetShiftDecimalTYPE,
+    fmi3GetShiftFraction: fmi3GetShiftFractionTYPE,
+    fmi3SetIntervalDecimal: fmi3SetIntervalDecimalTYPE,
+    fmi3SetIntervalFraction: fmi3SetIntervalFractionTYPE,
+    fmi3SetShiftDecimal: fmi3SetShiftDecimalTYPE,
+    fmi3SetShiftFraction: fmi3SetShiftFractionTYPE,
+    fmi3EvaluateDiscreteStates: fmi3EvaluateDiscreteStatesTYPE,
+    fmi3UpdateDiscreteStates: fmi3UpdateDiscreteStatesTYPE,
+    fmi3EnterContinuousTimeMode: fmi3EnterContinuousTimeModeTYPE,
+    fmi3CompletedIntegratorStep: fmi3CompletedIntegratorStepTYPE,
+    fmi3SetTime: fmi3SetTimeTYPE,
+    fmi3SetContinuousStates: fmi3SetContinuousStatesTYPE,
+    fmi3GetContinuousStateDerivatives: fmi3GetContinuousStateDerivativesTYPE,
+    fmi3GetEventIndicators: fmi3GetEventIndicatorsTYPE,
+    fmi3GetContinuousStates: fmi3GetContinuousStatesTYPE,
+    fmi3GetNominalsOfContinuousStates: fmi3GetNominalsOfContinuousStatesTYPE,
+    fmi3GetNumberOfEventIndicators: fmi3GetNumberOfEventIndicatorsTYPE,
+    fmi3GetNumberOfContinuousStates: fmi3GetNumberOfContinuousStatesTYPE,
+    fmi3EnterStepMode: fmi3EnterStepModeTYPE,
+    fmi3GetOutputDerivatives: fmi3GetOutputDerivativesTYPE,
+    fmi3DoStep: fmi3DoStepTYPE,
+    fmi3ActivateModelPartition: fmi3ActivateModelPartitionTYPE,
 
     instance: fmi3Instance,
 }
@@ -248,141 +248,157 @@ impl FMU3 {
         logger: Box<dyn Logger>,
         logCalls: bool,
     ) -> Result<FMU3, SimulationError> {
-        let lib = load_platform_binary(unzipdir, PLATFORM_TUPLE, modelIdentifier)?;
+        let library = load_platform_binary(unzipdir, PLATFORM_TUPLE, modelIdentifier)?;
 
         /***************************************************
         Common Functions
         ****************************************************/
 
-        let fmi3GetVersion = get_symbol::<fmi3GetVersionTYPE>(&lib, b"fmi3GetVersion")?;
+        let fmi3GetVersion = *get_symbol::<fmi3GetVersionTYPE>(&library, b"fmi3GetVersion")?;
         let fmi3SetDebugLogging =
-            get_symbol::<fmi3SetDebugLoggingTYPE>(&lib, b"fmi3SetDebugLogging")?;
-        let fmi3InstantiateModelExchange =
-            get_symbol::<fmi3InstantiateModelExchangeTYPE>(&lib, b"fmi3InstantiateModelExchange")?;
-        let fmi3InstantiateCoSimulation =
-            get_symbol::<fmi3InstantiateCoSimulationTYPE>(&lib, b"fmi3InstantiateCoSimulation")?;
-        let fmi3InstantiateScheduledExecution = get_symbol::<fmi3InstantiateScheduledExecutionTYPE>(
-            &lib,
+            *get_symbol::<fmi3SetDebugLoggingTYPE>(&library, b"fmi3SetDebugLogging")?;
+        let fmi3InstantiateModelExchange = *get_symbol::<fmi3InstantiateModelExchangeTYPE>(
+            &library,
+            b"fmi3InstantiateModelExchange",
+        )?;
+        let fmi3InstantiateCoSimulation = *get_symbol::<fmi3InstantiateCoSimulationTYPE>(
+            &library,
+            b"fmi3InstantiateCoSimulation",
+        )?;
+        let fmi3InstantiateScheduledExecution = *get_symbol::<fmi3InstantiateScheduledExecutionTYPE>(
+            &library,
             b"fmi3InstantiateScheduledExecution",
         )?;
-        let fmi3FreeInstance = get_symbol::<fmi3FreeInstanceTYPE>(&lib, b"fmi3FreeInstance")?;
-        let fmi3EnterInitializationMode =
-            get_symbol::<fmi3EnterInitializationModeTYPE>(&lib, b"fmi3EnterInitializationMode")?;
-        let fmi3ExitInitializationMode =
-            get_symbol::<fmi3ExitInitializationModeTYPE>(&lib, b"fmi3ExitInitializationMode")?;
-        let fmi3EnterEventMode = get_symbol::<fmi3EnterEventModeTYPE>(&lib, b"fmi3EnterEventMode")?;
-        let fmi3Terminate = get_symbol::<fmi3TerminateTYPE>(&lib, b"fmi3Terminate")?;
-        let fmi3Reset = get_symbol::<fmi3ResetTYPE>(&lib, b"fmi3Reset")?;
-        let fmi3GetFloat32 = get_symbol::<fmi3GetFloat32TYPE>(&lib, b"fmi3GetFloat32")?;
-        let fmi3GetFloat64 = get_symbol::<fmi3GetFloat64TYPE>(&lib, b"fmi3GetFloat64")?;
-        let fmi3GetInt8 = get_symbol::<fmi3GetInt8TYPE>(&lib, b"fmi3GetInt8")?;
-        let fmi3GetUInt8 = get_symbol::<fmi3GetUInt8TYPE>(&lib, b"fmi3GetUInt8")?;
-        let fmi3GetInt16 = get_symbol::<fmi3GetInt16TYPE>(&lib, b"fmi3GetInt16")?;
-        let fmi3GetUInt16 = get_symbol::<fmi3GetUInt16TYPE>(&lib, b"fmi3GetUInt16")?;
-        let fmi3GetInt32 = get_symbol::<fmi3GetInt32TYPE>(&lib, b"fmi3GetInt32")?;
-        let fmi3GetUInt32 = get_symbol::<fmi3GetUInt32TYPE>(&lib, b"fmi3GetUInt32")?;
-        let fmi3GetInt64 = get_symbol::<fmi3GetInt64TYPE>(&lib, b"fmi3GetInt64")?;
-        let fmi3GetUInt64 = get_symbol::<fmi3GetUInt64TYPE>(&lib, b"fmi3GetUInt64")?;
-        let fmi3GetBoolean = get_symbol::<fmi3GetBooleanTYPE>(&lib, b"fmi3GetBoolean")?;
-        let fmi3GetString = get_symbol::<fmi3GetStringTYPE>(&lib, b"fmi3GetString")?;
-        let fmi3GetBinary = get_symbol::<fmi3GetBinaryTYPE>(&lib, b"fmi3GetBinary")?;
-        let fmi3GetClock = get_symbol::<fmi3GetClockTYPE>(&lib, b"fmi3GetClock")?;
-        let fmi3SetFloat32 = get_symbol::<fmi3SetFloat32TYPE>(&lib, b"fmi3SetFloat32")?;
-        let fmi3SetFloat64 = get_symbol::<fmi3SetFloat64TYPE>(&lib, b"fmi3SetFloat64")?;
-        let fmi3SetInt8 = get_symbol::<fmi3SetInt8TYPE>(&lib, b"fmi3SetInt8")?;
-        let fmi3SetUInt8 = get_symbol::<fmi3SetUInt8TYPE>(&lib, b"fmi3SetUInt8")?;
-        let fmi3SetInt16 = get_symbol::<fmi3SetInt16TYPE>(&lib, b"fmi3SetInt16")?;
-        let fmi3SetUInt16 = get_symbol::<fmi3SetUInt16TYPE>(&lib, b"fmi3SetUInt16")?;
-        let fmi3SetInt32 = get_symbol::<fmi3SetInt32TYPE>(&lib, b"fmi3SetInt32")?;
-        let fmi3SetUInt32 = get_symbol::<fmi3SetUInt32TYPE>(&lib, b"fmi3SetUInt32")?;
-        let fmi3SetInt64 = get_symbol::<fmi3SetInt64TYPE>(&lib, b"fmi3SetInt64")?;
-        let fmi3SetUInt64 = get_symbol::<fmi3SetUInt64TYPE>(&lib, b"fmi3SetUInt64")?;
-        let fmi3SetBoolean = get_symbol::<fmi3SetBooleanTYPE>(&lib, b"fmi3SetBoolean")?;
-        let fmi3SetString = get_symbol::<fmi3SetStringTYPE>(&lib, b"fmi3SetString")?;
-        let fmi3SetBinary = get_symbol::<fmi3SetBinaryTYPE>(&lib, b"fmi3SetBinary")?;
-        let fmi3SetClock = get_symbol::<fmi3SetClockTYPE>(&lib, b"fmi3SetClock")?;
-        let fmi3GetNumberOfVariableDependencies = get_symbol::<
-            fmi3GetNumberOfVariableDependenciesTYPE,
-        >(
-            &lib, b"fmi3GetNumberOfVariableDependencies"
+        let fmi3FreeInstance = *get_symbol::<fmi3FreeInstanceTYPE>(&library, b"fmi3FreeInstance")?;
+        let fmi3EnterInitializationMode = *get_symbol::<fmi3EnterInitializationModeTYPE>(
+            &library,
+            b"fmi3EnterInitializationMode",
         )?;
-        let fmi3GetVariableDependencies =
-            get_symbol::<fmi3GetVariableDependenciesTYPE>(&lib, b"fmi3GetVariableDependencies")?;
-        let fmi3GetFMUState = get_symbol::<fmi3GetFMUStateTYPE>(&lib, b"fmi3GetFMUState")?;
-        let fmi3SetFMUState = get_symbol::<fmi3SetFMUStateTYPE>(&lib, b"fmi3SetFMUState")?;
-        let fmi3FreeFMUState = get_symbol::<fmi3FreeFMUStateTYPE>(&lib, b"fmi3FreeFMUState")?;
+        let fmi3ExitInitializationMode =
+            *get_symbol::<fmi3ExitInitializationModeTYPE>(&library, b"fmi3ExitInitializationMode")?;
+        let fmi3EnterEventMode =
+            *get_symbol::<fmi3EnterEventModeTYPE>(&library, b"fmi3EnterEventMode")?;
+        let fmi3Terminate = *get_symbol::<fmi3TerminateTYPE>(&library, b"fmi3Terminate")?;
+        let fmi3Reset = *get_symbol::<fmi3ResetTYPE>(&library, b"fmi3Reset")?;
+        let fmi3GetFloat32 = *get_symbol::<fmi3GetFloat32TYPE>(&library, b"fmi3GetFloat32")?;
+        let fmi3GetFloat64 = *get_symbol::<fmi3GetFloat64TYPE>(&library, b"fmi3GetFloat64")?;
+        let fmi3GetInt8 = *get_symbol::<fmi3GetInt8TYPE>(&library, b"fmi3GetInt8")?;
+        let fmi3GetUInt8 = *get_symbol::<fmi3GetUInt8TYPE>(&library, b"fmi3GetUInt8")?;
+        let fmi3GetInt16 = *get_symbol::<fmi3GetInt16TYPE>(&library, b"fmi3GetInt16")?;
+        let fmi3GetUInt16 = *get_symbol::<fmi3GetUInt16TYPE>(&library, b"fmi3GetUInt16")?;
+        let fmi3GetInt32 = *get_symbol::<fmi3GetInt32TYPE>(&library, b"fmi3GetInt32")?;
+        let fmi3GetUInt32 = *get_symbol::<fmi3GetUInt32TYPE>(&library, b"fmi3GetUInt32")?;
+        let fmi3GetInt64 = *get_symbol::<fmi3GetInt64TYPE>(&library, b"fmi3GetInt64")?;
+        let fmi3GetUInt64 = *get_symbol::<fmi3GetUInt64TYPE>(&library, b"fmi3GetUInt64")?;
+        let fmi3GetBoolean = *get_symbol::<fmi3GetBooleanTYPE>(&library, b"fmi3GetBoolean")?;
+        let fmi3GetString = *get_symbol::<fmi3GetStringTYPE>(&library, b"fmi3GetString")?;
+        let fmi3GetBinary = *get_symbol::<fmi3GetBinaryTYPE>(&library, b"fmi3GetBinary")?;
+        let fmi3GetClock = *get_symbol::<fmi3GetClockTYPE>(&library, b"fmi3GetClock")?;
+        let fmi3SetFloat32 = *get_symbol::<fmi3SetFloat32TYPE>(&library, b"fmi3SetFloat32")?;
+        let fmi3SetFloat64 = *get_symbol::<fmi3SetFloat64TYPE>(&library, b"fmi3SetFloat64")?;
+        let fmi3SetInt8 = *get_symbol::<fmi3SetInt8TYPE>(&library, b"fmi3SetInt8")?;
+        let fmi3SetUInt8 = *get_symbol::<fmi3SetUInt8TYPE>(&library, b"fmi3SetUInt8")?;
+        let fmi3SetInt16 = *get_symbol::<fmi3SetInt16TYPE>(&library, b"fmi3SetInt16")?;
+        let fmi3SetUInt16 = *get_symbol::<fmi3SetUInt16TYPE>(&library, b"fmi3SetUInt16")?;
+        let fmi3SetInt32 = *get_symbol::<fmi3SetInt32TYPE>(&library, b"fmi3SetInt32")?;
+        let fmi3SetUInt32 = *get_symbol::<fmi3SetUInt32TYPE>(&library, b"fmi3SetUInt32")?;
+        let fmi3SetInt64 = *get_symbol::<fmi3SetInt64TYPE>(&library, b"fmi3SetInt64")?;
+        let fmi3SetUInt64 = *get_symbol::<fmi3SetUInt64TYPE>(&library, b"fmi3SetUInt64")?;
+        let fmi3SetBoolean = *get_symbol::<fmi3SetBooleanTYPE>(&library, b"fmi3SetBoolean")?;
+        let fmi3SetString = *get_symbol::<fmi3SetStringTYPE>(&library, b"fmi3SetString")?;
+        let fmi3SetBinary = *get_symbol::<fmi3SetBinaryTYPE>(&library, b"fmi3SetBinary")?;
+        let fmi3SetClock = *get_symbol::<fmi3SetClockTYPE>(&library, b"fmi3SetClock")?;
+        let fmi3GetNumberOfVariableDependencies =
+            *get_symbol::<fmi3GetNumberOfVariableDependenciesTYPE>(
+                &library,
+                b"fmi3GetNumberOfVariableDependencies",
+            )?;
+        let fmi3GetVariableDependencies = *get_symbol::<fmi3GetVariableDependenciesTYPE>(
+            &library,
+            b"fmi3GetVariableDependencies",
+        )?;
+        let fmi3GetFMUState = *get_symbol::<fmi3GetFMUStateTYPE>(&library, b"fmi3GetFMUState")?;
+        let fmi3SetFMUState = *get_symbol::<fmi3SetFMUStateTYPE>(&library, b"fmi3SetFMUState")?;
+        let fmi3FreeFMUState = *get_symbol::<fmi3FreeFMUStateTYPE>(&library, b"fmi3FreeFMUState")?;
         let fmi3SerializedFMUStateSize =
-            get_symbol::<fmi3SerializedFMUStateSizeTYPE>(&lib, b"fmi3SerializedFMUStateSize")?;
+            *get_symbol::<fmi3SerializedFMUStateSizeTYPE>(&library, b"fmi3SerializedFMUStateSize")?;
         let fmi3SerializeFMUState =
-            get_symbol::<fmi3SerializeFMUStateTYPE>(&lib, b"fmi3SerializeFMUState")?;
+            *get_symbol::<fmi3SerializeFMUStateTYPE>(&library, b"fmi3SerializeFMUState")?;
         let fmi3DeserializeFMUState =
-            get_symbol::<fmi3DeserializeFMUStateTYPE>(&lib, b"fmi3DeserializeFMUState")?;
-        let fmi3GetDirectionalDerivative =
-            get_symbol::<fmi3GetDirectionalDerivativeTYPE>(&lib, b"fmi3GetDirectionalDerivative")?;
+            *get_symbol::<fmi3DeserializeFMUStateTYPE>(&library, b"fmi3DeserializeFMUState")?;
+        let fmi3GetDirectionalDerivative = *get_symbol::<fmi3GetDirectionalDerivativeTYPE>(
+            &library,
+            b"fmi3GetDirectionalDerivative",
+        )?;
         let fmi3GetAdjointDerivative =
-            get_symbol::<fmi3GetAdjointDerivativeTYPE>(&lib, b"fmi3GetAdjointDerivative")?;
+            *get_symbol::<fmi3GetAdjointDerivativeTYPE>(&library, b"fmi3GetAdjointDerivative")?;
         let fmi3EnterConfigurationMode =
-            get_symbol::<fmi3EnterConfigurationModeTYPE>(&lib, b"fmi3EnterConfigurationMode")?;
+            *get_symbol::<fmi3EnterConfigurationModeTYPE>(&library, b"fmi3EnterConfigurationMode")?;
         let fmi3ExitConfigurationMode =
-            get_symbol::<fmi3ExitConfigurationModeTYPE>(&lib, b"fmi3ExitConfigurationMode")?;
+            *get_symbol::<fmi3ExitConfigurationModeTYPE>(&library, b"fmi3ExitConfigurationMode")?;
         let fmi3GetIntervalDecimal =
-            get_symbol::<fmi3GetIntervalDecimalTYPE>(&lib, b"fmi3GetIntervalDecimal")?;
+            *get_symbol::<fmi3GetIntervalDecimalTYPE>(&library, b"fmi3GetIntervalDecimal")?;
         let fmi3GetIntervalFraction =
-            get_symbol::<fmi3GetIntervalFractionTYPE>(&lib, b"fmi3GetIntervalFraction")?;
+            *get_symbol::<fmi3GetIntervalFractionTYPE>(&library, b"fmi3GetIntervalFraction")?;
         let fmi3GetShiftDecimal =
-            get_symbol::<fmi3GetShiftDecimalTYPE>(&lib, b"fmi3GetShiftDecimal")?;
+            *get_symbol::<fmi3GetShiftDecimalTYPE>(&library, b"fmi3GetShiftDecimal")?;
         let fmi3GetShiftFraction =
-            get_symbol::<fmi3GetShiftFractionTYPE>(&lib, b"fmi3GetShiftFraction")?;
+            *get_symbol::<fmi3GetShiftFractionTYPE>(&library, b"fmi3GetShiftFraction")?;
         let fmi3SetIntervalDecimal =
-            get_symbol::<fmi3SetIntervalDecimalTYPE>(&lib, b"fmi3SetIntervalDecimal")?;
+            *get_symbol::<fmi3SetIntervalDecimalTYPE>(&library, b"fmi3SetIntervalDecimal")?;
         let fmi3SetIntervalFraction =
-            get_symbol::<fmi3SetIntervalFractionTYPE>(&lib, b"fmi3SetIntervalFraction")?;
+            *get_symbol::<fmi3SetIntervalFractionTYPE>(&library, b"fmi3SetIntervalFraction")?;
         let fmi3SetShiftDecimal =
-            get_symbol::<fmi3SetShiftDecimalTYPE>(&lib, b"fmi3SetShiftDecimal")?;
+            *get_symbol::<fmi3SetShiftDecimalTYPE>(&library, b"fmi3SetShiftDecimal")?;
         let fmi3SetShiftFraction =
-            get_symbol::<fmi3SetShiftFractionTYPE>(&lib, b"fmi3SetShiftFraction")?;
+            *get_symbol::<fmi3SetShiftFractionTYPE>(&library, b"fmi3SetShiftFraction")?;
         let fmi3EvaluateDiscreteStates =
-            get_symbol::<fmi3EvaluateDiscreteStatesTYPE>(&lib, b"fmi3EvaluateDiscreteStates")?;
+            *get_symbol::<fmi3EvaluateDiscreteStatesTYPE>(&library, b"fmi3EvaluateDiscreteStates")?;
         let fmi3UpdateDiscreteStates =
-            get_symbol::<fmi3UpdateDiscreteStatesTYPE>(&lib, b"fmi3UpdateDiscreteStates")?;
-        let fmi3EnterContinuousTimeMode =
-            get_symbol::<fmi3EnterContinuousTimeModeTYPE>(&lib, b"fmi3EnterContinuousTimeMode")?;
-        let fmi3CompletedIntegratorStep =
-            get_symbol::<fmi3CompletedIntegratorStepTYPE>(&lib, b"fmi3CompletedIntegratorStep")?;
-        let fmi3SetTime = get_symbol::<fmi3SetTimeTYPE>(&lib, b"fmi3SetTime")?;
+            *get_symbol::<fmi3UpdateDiscreteStatesTYPE>(&library, b"fmi3UpdateDiscreteStates")?;
+        let fmi3EnterContinuousTimeMode = *get_symbol::<fmi3EnterContinuousTimeModeTYPE>(
+            &library,
+            b"fmi3EnterContinuousTimeMode",
+        )?;
+        let fmi3CompletedIntegratorStep = *get_symbol::<fmi3CompletedIntegratorStepTYPE>(
+            &library,
+            b"fmi3CompletedIntegratorStep",
+        )?;
+        let fmi3SetTime = *get_symbol::<fmi3SetTimeTYPE>(&library, b"fmi3SetTime")?;
         let fmi3SetContinuousStates =
-            get_symbol::<fmi3SetContinuousStatesTYPE>(&lib, b"fmi3SetContinuousStates")?;
-        let fmi3GetContinuousStateDerivatives = get_symbol::<fmi3GetContinuousStateDerivativesTYPE>(
-            &lib,
+            *get_symbol::<fmi3SetContinuousStatesTYPE>(&library, b"fmi3SetContinuousStates")?;
+        let fmi3GetContinuousStateDerivatives = *get_symbol::<fmi3GetContinuousStateDerivativesTYPE>(
+            &library,
             b"fmi3GetContinuousStateDerivatives",
         )?;
         let fmi3GetEventIndicators =
-            get_symbol::<fmi3GetEventIndicatorsTYPE>(&lib, b"fmi3GetEventIndicators")?;
+            *get_symbol::<fmi3GetEventIndicatorsTYPE>(&library, b"fmi3GetEventIndicators")?;
         let fmi3GetContinuousStates =
-            get_symbol::<fmi3GetContinuousStatesTYPE>(&lib, b"fmi3GetContinuousStates")?;
-        let fmi3GetNominalsOfContinuousStates = get_symbol::<fmi3GetNominalsOfContinuousStatesTYPE>(
-            &lib,
+            *get_symbol::<fmi3GetContinuousStatesTYPE>(&library, b"fmi3GetContinuousStates")?;
+        let fmi3GetNominalsOfContinuousStates = *get_symbol::<fmi3GetNominalsOfContinuousStatesTYPE>(
+            &library,
             b"fmi3GetNominalsOfContinuousStates",
         )?;
-        let fmi3GetNumberOfEventIndicators = get_symbol::<fmi3GetNumberOfEventIndicatorsTYPE>(
-            &lib,
+        let fmi3GetNumberOfEventIndicators = *get_symbol::<fmi3GetNumberOfEventIndicatorsTYPE>(
+            &library,
             b"fmi3GetNumberOfEventIndicators",
         )?;
-        let fmi3GetNumberOfContinuousStates = get_symbol::<fmi3GetNumberOfContinuousStatesTYPE>(
-            &lib,
+        let fmi3GetNumberOfContinuousStates = *get_symbol::<fmi3GetNumberOfContinuousStatesTYPE>(
+            &library,
             b"fmi3GetNumberOfContinuousStates",
         )?;
-        let fmi3EnterStepMode = get_symbol::<fmi3EnterStepModeTYPE>(&lib, b"fmi3EnterStepMode")?;
+        let fmi3EnterStepMode =
+            *get_symbol::<fmi3EnterStepModeTYPE>(&library, b"fmi3EnterStepMode")?;
         let fmi3GetOutputDerivatives =
-            get_symbol::<fmi3GetOutputDerivativesTYPE>(&lib, b"fmi3GetOutputDerivatives")?;
-        let fmi3DoStep = get_symbol::<fmi3DoStepTYPE>(&lib, b"fmi3DoStep")?;
+            *get_symbol::<fmi3GetOutputDerivativesTYPE>(&library, b"fmi3GetOutputDerivatives")?;
+        let fmi3DoStep = *get_symbol::<fmi3DoStepTYPE>(&library, b"fmi3DoStep")?;
         let fmi3ActivateModelPartition =
-            get_symbol::<fmi3ActivateModelPartitionTYPE>(&lib, b"fmi3ActivateModelPartition")?;
+            *get_symbol::<fmi3ActivateModelPartitionTYPE>(&library, b"fmi3ActivateModelPartition")?;
 
         Ok(FMU3 {
             logger: Box::new(RefCell::new(logger)),
             logCalls,
-            _lib: lib,
+            _lib: library,
             fmi3GetVersion,
             fmi3SetDebugLogging,
             fmi3InstantiateModelExchange,
@@ -1238,6 +1254,7 @@ impl FMU3 {
         status
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn getFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status {
         let status = unsafe { (self.fmi3GetFMUState)(self.instance, FMUState) };
         if self.logCalls {
@@ -1247,6 +1264,7 @@ impl FMU3 {
         status
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn setFMUState(&self, FMUState: fmi3FMUState) -> fmi3Status {
         let status = unsafe { (self.fmi3SetFMUState)(self.instance, FMUState) };
         if self.logCalls {
@@ -1256,6 +1274,7 @@ impl FMU3 {
         status
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn freeFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status {
         let status = unsafe { (self.fmi3FreeFMUState)(self.instance, FMUState) };
         if self.logCalls {
@@ -1265,6 +1284,7 @@ impl FMU3 {
         status
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn serializedFMUStateSize(&self, FMUState: fmi3FMUState, size: &mut usize) -> fmi3Status {
         let status = unsafe { (self.fmi3SerializedFMUStateSize)(self.instance, FMUState, size) };
         if self.logCalls {
@@ -1277,6 +1297,7 @@ impl FMU3 {
         status
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn serializeFMUState(
         &self,
         fmuState: fmi3FMUState,
@@ -1301,6 +1322,7 @@ impl FMU3 {
         status
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn deserializeFMUState(
         &self,
         serializedState: &[fmi3Byte],

@@ -39,14 +39,15 @@ fn get_symbol<T>(lib: &Library, symbol_name: &[u8]) -> Result<Symbol<'static, T>
     }
 }
 
-fn load_platform_binary(unzipdir: &Path, platform: &str, model_identifier: &str) -> Result<Box<Library>, SimulationError> {
-    
-    let library_directory = unzipdir
-        .join("binaries")
-        .join(platform);
+fn load_platform_binary(
+    unzipdir: &Path,
+    platform: &str,
+    model_identifier: &str,
+) -> Result<Box<Library>, SimulationError> {
+    let library_directory = unzipdir.join("binaries").join(platform);
 
-    let shared_library_path = library_directory
-        .join(format!("{model_identifier}{SHARED_LIBRARY_EXTENSION}"));
+    let shared_library_path =
+        library_directory.join(format!("{model_identifier}{SHARED_LIBRARY_EXTENSION}"));
 
     #[cfg(target_os = "windows")]
     let lib = {
