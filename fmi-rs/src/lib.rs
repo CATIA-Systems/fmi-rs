@@ -29,9 +29,12 @@ pub const SHARED_LIBRARY_EXTENSION: &str = ".dylib";
 pub const SHARED_LIBRARY_EXTENSION: &str = ".dll";
 
 #[allow(clippy::missing_transmute_annotations)]
-fn get_symbol<T>(lib: &Library, symbol_name: &[u8]) -> Result<Symbol<'static, T>, SimulationError> {
+fn get_symbol<T>(
+    library: &Library,
+    symbol_name: &[u8],
+) -> Result<Symbol<'static, T>, SimulationError> {
     unsafe {
-        let symbol: Symbol<T> = lib.get(symbol_name).map_err(|source| {
+        let symbol: Symbol<T> = library.get(symbol_name).map_err(|source| {
             let name = str::from_utf8_unchecked(symbol_name).to_owned();
             SimulationError::Symbol { name, source }
         })?;
@@ -50,7 +53,7 @@ fn load_platform_binary(
         library_directory.join(format!("{model_identifier}{SHARED_LIBRARY_EXTENSION}"));
 
     #[cfg(target_os = "windows")]
-    let lib = {
+    let library = {
         use libloading::os::windows::Library as WinLibrary;
         use std::os::windows::ffi::OsStrExt;
         use windows_sys::Win32::System::LibraryLoader::{
@@ -66,21 +69,28 @@ fn load_platform_binary(
 
             let cookie = AddDllDirectory(libary_directory_wide.as_ptr());
 
-            let library = libloading::Library::from(WinLibrary::load_with_flags(
-                shared_library_path,
-                LOAD_LIBRARY_SEARCH_DEFAULT_DIRS,
-            )?);
+            let library =
+                WinLibrary::load_with_flags(&shared_library_path, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS)
+                    .map_err(|e| SimulationError::Library {
+                        path: shared_library_path,
+                        source: e,
+                    })?;
 
             if !cookie.is_null() {
                 RemoveDllDirectory(cookie);
             }
 
-            library
+            libloading::Library::from(library)
         }
     };
 
     #[cfg(not(target_os = "windows"))]
-    let lib = unsafe { libloading::Library::new(shared_library_path)? };
+    let library = unsafe {
+        libloading::Library::new(&shared_library_path).map_err(|e| SimulationError::Library {
+            path: shared_library_path,
+            source: e,
+        })?
+    };
 
-    Ok(Box::new(lib))
+    Ok(Box::new(library))
 }

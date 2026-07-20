@@ -236,7 +236,7 @@ impl<'a> Solver for CVodeSolver<'a> {
 
         (self.functions.set_time)(tret)?;
         (self.functions.set_continuous_inputs)(tret)?;
-        (self.functions.set_continuous_states)(unsafe {(*self.x).as_mut() })?;
+        (self.functions.set_continuous_states)(unsafe { (*self.x).as_mut() })?;
 
         Ok((tret, flag == CV_ROOT_RETURN))
     }

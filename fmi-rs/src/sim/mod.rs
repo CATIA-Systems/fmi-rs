@@ -19,22 +19,25 @@ use crate::{model_description::ModelDescriptionError, zip::ZipError};
 
 #[derive(Debug, Error)]
 pub enum SimulationError {
-    #[error("Failed to load model description")]
+    #[error("Failed to load model description: {0}")]
     ModelDescription(#[from] ModelDescriptionError),
 
-    #[error("Failed to load the shared library")]
-    Library(#[from] libloading::Error),
+    #[error("Failed to load platform binary '{path}': {source}")]
+    Library {
+        path: PathBuf,
+        source: libloading::Error,
+    },
 
-    #[error("Failed to load symbol '{name}' from shared library: {source}")]
+    #[error("Failed to load symbol '{name}' from platform binary: {source}")]
     Symbol {
         name: String,
         source: libloading::Error,
     },
 
-    #[error("Failed to open {path}: {source}")]
+    #[error("Failed to open '{path}': {source}")]
     Io {
-        source: std::io::Error,
         path: PathBuf,
+        source: std::io::Error,
     },
 
     #[error("FMI call failed")]
