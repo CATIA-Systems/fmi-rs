@@ -81,7 +81,7 @@ impl FMU3Builder {
                 self.logCalls,
             )
         } else {
-            Err(SimulationError::UnsupportedInterfaceType)
+            Err(SimulationError::InterfaceType)
         }
     }
 
@@ -108,7 +108,7 @@ impl FMU3Builder {
                 self.logCalls,
             )
         } else {
-            Err(SimulationError::UnsupportedInterfaceType)
+            Err(SimulationError::InterfaceType)
         }
     }
 }

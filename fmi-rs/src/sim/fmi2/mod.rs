@@ -150,7 +150,7 @@ fn call(status: fmi2Status) -> Result<fmi2Status, SimulationError> {
     if matches!(status, fmi2Status::fmi2OK | fmi2Status::fmi2Warning) {
         Ok(status)
     } else {
-        Err(SimulationError::FMICallError)
+        Err(SimulationError::FMICall)
     }
 }
 
@@ -234,7 +234,7 @@ fn set_start_values<T>(
         let message = format!(
             "The start values for the following variables could not be set because they don't exist in the model description: {variable_names}."
         );
-        return Err(SimulationError::IllegalParameter(message));
+        return Err(SimulationError::Parameter(message));
     }
 
     Ok(fmi2Status::fmi2OK)
@@ -276,7 +276,7 @@ pub fn simulate_cs(
     let output_interval = settings.output_interval;
 
     validate_simulation_steps(start_time, stop_time, output_interval)
-        .map_err(SimulationError::IllegalParameter)?;
+        .map_err(SimulationError::Parameter)?;
 
     let mut time = start_time;
 
@@ -284,7 +284,7 @@ pub fn simulate_cs(
         .model_description
         .coSimulation
         .as_ref()
-        .ok_or(SimulationError::UnsupportedInterfaceType)?;
+        .ok_or(SimulationError::InterfaceType)?;
 
     let can_handle_variable_communication_step_size =
         co_simulation.canHandleVariableCommunicationStepSize;
@@ -411,7 +411,7 @@ pub fn simulate_me<S: SolverFactory>(
     let output_interval = settings.output_interval;
 
     validate_simulation_steps(start_time, stop_time, output_interval)
-        .map_err(|e| SimulationError::IllegalParameter(e.to_string()))?;
+        .map_err(|e| SimulationError::Parameter(e.to_string()))?;
 
     let mut time = start_time;
 
@@ -419,7 +419,7 @@ pub fn simulate_me<S: SolverFactory>(
         .model_description
         .modelExchange
         .as_ref()
-        .ok_or(SimulationError::UnsupportedInterfaceType)?;
+        .ok_or(SimulationError::InterfaceType)?;
 
     let needs_completed_integrator_step = !model_exchange.completedIntegratorStepNotNeeded;
 
@@ -481,9 +481,10 @@ pub fn simulate_me<S: SolverFactory>(
             if let Some(next_event_time) = nextEventTime
                 && relative_le(next_event_time, time)
             {
-                return Err(SimulationError::IllegalParameter(format!(
-                    "The next event time ({next_event_time}) must be greater than the current time ({time})."
-                )));
+                return Err(SimulationError::NextEventTime {
+                    time,
+                    next_event_time,
+                });
             }
 
             if terminateSimulation {
@@ -548,32 +549,32 @@ pub fn simulate_me<S: SolverFactory>(
         Box::new(
             |event_indicators| match fmu.getEventIndicators(event_indicators) {
                 fmi2Status::fmi2OK => Ok(()),
-                _ => Err(SimulationError::FMICallError),
+                _ => Err(SimulationError::FMICall),
             },
         ),
         Box::new(
             |continuous_states| match fmu.getContinuousStates(continuous_states) {
                 fmi2Status::fmi2OK => Ok(()),
-                _ => Err(SimulationError::FMICallError),
+                _ => Err(SimulationError::FMICall),
             },
         ),
         Box::new(
             |nominals| match fmu.getNominalsOfContinuousStates(nominals) {
                 fmi2Status::fmi2OK => Ok(()),
-                _ => Err(SimulationError::FMICallError),
+                _ => Err(SimulationError::FMICall),
             },
         ),
         Box::new(
             |state_derivatives| match fmu.getDerivatives(state_derivatives) {
                 fmi2Status::fmi2OK => Ok(()),
-                _ => Err(SimulationError::FMICallError),
+                _ => Err(SimulationError::FMICall),
             },
         ),
         if model_exchange.providesDirectionalDerivative {
             Some(Box::new(|unknowns, knowns, seed, sensitivity| {
                 match fmu.getDirectionalDerivative(unknowns, knowns, seed, sensitivity) {
                     fmi2Status::fmi2OK => Ok(()),
-                    _ => Err(SimulationError::FMICallError),
+                    _ => Err(SimulationError::FMICall),
                 }
             }))
         } else {
@@ -582,7 +583,7 @@ pub fn simulate_me<S: SolverFactory>(
         Box::new(
             |continuous_states| match fmu.setContinuousStates(continuous_states) {
                 fmi2Status::fmi2OK => Ok(()),
-                _ => Err(SimulationError::FMICallError),
+                _ => Err(SimulationError::FMICall),
             },
         ),
     )?;
@@ -689,9 +690,10 @@ pub fn simulate_me<S: SolverFactory>(
                 if let Some(next_event_time) = nextEventTime
                     && relative_le(next_event_time, time)
                 {
-                    return Err(SimulationError::IllegalParameter(format!(
-                        "The next event time ({next_event_time}) must be greater than the current time ({time})."
-                    )));
+                    return Err(SimulationError::NextEventTime {
+                        time,
+                        next_event_time,
+                    });
                 }
 
                 if terminateSimulation {

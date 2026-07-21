@@ -12,7 +12,7 @@ fn call(status: fmi2Status) -> Result<fmi2Status, SimulationError> {
     if matches!(status, fmi2Status::fmi2OK | fmi2Status::fmi2Warning) {
         Ok(status)
     } else {
-        Err(SimulationError::FMICallError)
+        Err(SimulationError::FMICall)
     }
 }
 

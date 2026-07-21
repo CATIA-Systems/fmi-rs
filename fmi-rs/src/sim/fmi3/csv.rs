@@ -82,7 +82,7 @@ pub fn read_csv<'a, R: Read>(
         let next_time: f64 = it
             .next()
             .ok_or_else(|| {
-                SimulationError::IllegalParameter(format!("Missing time value in row {}.", i + 2))
+                SimulationError::Parameter(format!("Missing time value in row {}", i + 2))
             })?
             .parse()
             .map_err(|e| {

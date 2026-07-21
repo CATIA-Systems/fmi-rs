@@ -72,7 +72,7 @@ impl FMU2Builder {
                 !me.canNotUseMemoryManagementFunctions,
             )
         } else {
-            Err(SimulationError::UnsupportedInterfaceType)
+            Err(SimulationError::InterfaceType)
         }
     }
 
@@ -100,7 +100,7 @@ impl FMU2Builder {
                 !cs.canNotUseMemoryManagementFunctions,
             )
         } else {
-            Err(SimulationError::UnsupportedInterfaceType)
+            Err(SimulationError::InterfaceType)
         }
     }
 }

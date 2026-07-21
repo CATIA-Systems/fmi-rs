@@ -362,7 +362,7 @@ impl<T> FMU2<T> {
         let instance_name_cstr = match CString::new(instanceName) {
             Ok(cstr) => cstr,
             Err(e) => {
-                return Err(SimulationError::IllegalParameter(format!(
+                return Err(SimulationError::Parameter(format!(
                     "Failed to convert argument instanceName to C string: {}",
                     e
                 )));
@@ -372,7 +372,7 @@ impl<T> FMU2<T> {
         let fmu_guid_cstr = match CString::new(guid) {
             Ok(cstr) => cstr,
             Err(e) => {
-                return Err(SimulationError::IllegalParameter(format!(
+                return Err(SimulationError::Parameter(format!(
                     "Failed to convert argument guid to C string: {}",
                     e
                 )));
@@ -382,7 +382,7 @@ impl<T> FMU2<T> {
         let url_cstr = resourceUrl
             .map(|url| {
                 CString::new(url.to_string()).map_err(|e| {
-                    SimulationError::IllegalParameter(format!(
+                    SimulationError::Parameter(format!(
                         "Failed to convert argument resourceUrl to C string: {}",
                         e
                     ))

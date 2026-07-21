@@ -141,11 +141,9 @@ impl<'a> Solver for ForwardEuler<'a> {
         if next_time - time < self.fixed_step_size
             && !relative_eq(next_time, time + self.fixed_step_size)
         {
-            let message = format!(
-                "Next time {next_time} is too close to current time {time}. Minimum step size is {}.",
-                self.fixed_step_size
-            );
-            return Err(SimulationError::IllegalParameter(message));
+            return Err(SimulationError::Parameter(format!(
+                "Next time ({next_time}) is too close to current time ({time})"
+            )));
         }
 
         while time + self.fixed_step_size < next_time

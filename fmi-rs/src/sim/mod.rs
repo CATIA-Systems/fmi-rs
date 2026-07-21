@@ -41,13 +41,18 @@ pub enum SimulationError {
     },
 
     #[error("FMI call failed")]
-    FMICallError,
+    FMICall,
 
     #[error("Interface type not supported")]
-    UnsupportedInterfaceType,
+    InterfaceType,
 
-    #[error("Illegal simulation parameters: {0}")]
-    IllegalParameter(String),
+    #[error("Illegal simulation parameter: {0}")]
+    Parameter(String),
+
+    #[error(
+        "The next event time ({next_event_time}) must be greater than the current time ({time})"
+    )]
+    NextEventTime { time: f64, next_event_time: f64 },
 
     #[error("Failed to parse value: {0}")]
     Parse(String),

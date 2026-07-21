@@ -523,7 +523,7 @@ impl FMU3 {
         );
 
         if fmu.instance.is_null() {
-            Err(SimulationError::FMICallError)
+            Err(SimulationError::FMICall)
         } else {
             Ok(fmu)
         }
@@ -625,7 +625,7 @@ impl FMU3 {
         );
 
         if fmu.instance.is_null() {
-            Err(SimulationError::FMICallError)
+            Err(SimulationError::FMICall)
         } else {
             Ok(fmu)
         }
