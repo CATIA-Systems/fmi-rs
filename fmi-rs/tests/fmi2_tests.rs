@@ -5,7 +5,7 @@ use fmi_rs::fmi2::*;
 use fmi_rs::model_description::fmi2::{Causality, ModelDescription};
 use fmi_rs::sim::fmi2::recorder::Recorder;
 use fmi_rs::sim::fmi2::{SimulationSettings, Trajectories};
-use fmi_rs::{fmi2::types::*, sim::fmi2::simulate_cs};
+use fmi_rs::{fmi2::types::*, sim::fmi2::cs::simulate};
 use std::vec;
 use std::{env, path::PathBuf};
 
@@ -102,7 +102,7 @@ fn test_csv_input() {
 
     let mut recorder = Recorder::new(&mut output);
 
-    simulate_cs(&settings, None, &mut recorder).unwrap();
+    simulate(&settings, None, &mut recorder).unwrap();
 }
 
 #[test]
