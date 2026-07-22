@@ -24,9 +24,3 @@ use crate::sundials::sunmatrix_dense::*;
 
 use std::ffi::c_void;
 use std::slice::from_raw_parts_mut;
-
-pub fn as_slice_mut<'a>(v: N_Vector) -> &'a [f64] {
-    let len = NV_LENGTH_S(v);
-    let data = NV_DATA_S(v);
-    unsafe { std::slice::from_raw_parts(data, len as usize) }
-}

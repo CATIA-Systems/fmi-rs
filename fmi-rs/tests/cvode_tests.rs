@@ -2,7 +2,19 @@
 
 use std::{ffi::c_void, slice::from_raw_parts_mut};
 
-use fmi_rs::sundials::{as_slice_mut, cvode::{CV_BDF, CV_NORMAL, CV_ROOT_RETURN, CV_SUCCESS, CVode, CVodeCreate, CVodeGetRootInfo, CVodeInit, CVodeReInit, CVodeRootInit, CVodeSVtolerances}, cvode_ls::CVodeSetLinearSolver, nvector_serial::{N_VNew_Serial, NV_DATA_S, NV_LENGTH_S}, sundials_context::{SUNContext_Create, SUNContext_Free}, sundials_nvector::N_Vector, sundials_types::{SUN_COMM_NULL, sunrealtype}, sunlinsol_dense::SUNLinSol_Dense, sunmatrix_dense::SUNDenseMatrix};
+use fmi_rs::sundials::{
+    cvode::{
+        CV_BDF, CV_NORMAL, CV_ROOT_RETURN, CV_SUCCESS, CVode, CVodeCreate, CVodeGetRootInfo,
+        CVodeInit, CVodeReInit, CVodeRootInit, CVodeSVtolerances,
+    },
+    cvode_ls::CVodeSetLinearSolver,
+    nvector_serial::{N_VNew_Serial, NV_DATA_S, NV_LENGTH_S},
+    sundials_context::{SUNContext_Create, SUNContext_Free},
+    sundials_nvector::N_Vector,
+    sundials_types::{SUN_COMM_NULL, sunrealtype},
+    sunlinsol_dense::SUNLinSol_Dense,
+    sunmatrix_dense::SUNDenseMatrix,
+};
 use rstest::*;
 
 extern "C" fn f(_t: sunrealtype, y: N_Vector, ydot: N_Vector, _user_data: *mut c_void) -> i32 {
@@ -22,7 +34,7 @@ extern "C" fn g(
     _user_data: *mut c_void,
 ) -> i32 {
     unsafe {
-        let x = as_slice_mut(y);
+        let x = (&mut *y).as_mut();
         *gout = x[0];
     }
     0
