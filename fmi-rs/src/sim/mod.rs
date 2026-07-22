@@ -168,3 +168,31 @@ pub fn validate_simulation_steps(
 
     Ok(())
 }
+
+/// Calculates the next communication point
+pub fn next_communication_point(
+    next_regular_point: f64,
+    next_input_event_time: Option<f64>,
+    next_event_time: Option<f64>,
+    stop_time: f64,
+) -> f64 {
+    let mut next_communication_point = next_regular_point;
+
+    if let Some(next_input_event_time) = next_input_event_time
+        && relative_gt(next_regular_point, next_input_event_time)
+    {
+        next_communication_point = next_input_event_time;
+    }
+
+    if let Some(next_event_time) = next_event_time
+        && relative_gt(next_communication_point, next_event_time)
+    {
+        next_communication_point = next_event_time;
+    }
+
+    if relative_gt(next_communication_point, stop_time) {
+        next_communication_point = stop_time;
+    }
+
+    next_communication_point
+}

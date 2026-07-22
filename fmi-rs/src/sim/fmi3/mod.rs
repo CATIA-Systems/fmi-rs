@@ -7,14 +7,14 @@ use std::{fs, ptr};
 
 use crate::fmi3::log::DefaultLogger;
 use crate::model_description::fmi3::{Causality, ModelDescription};
-use crate::sim::{SimulationError, validate_simulation_steps};
+use crate::sim::{SimulationError, next_communication_point, validate_simulation_steps};
 use crate::{
     fmi3::{FMU3, types::*},
     model_description::fmi3::{ModelVariable, VariableType},
     sim::{
         SolverFactory,
         fmi3::{input::StaticInput, recorder::Recorder},
-        relative_eq, relative_ge, relative_gt, relative_le, relative_lt,
+        relative_eq, relative_ge, relative_le, relative_lt,
     },
 };
 
@@ -520,7 +520,7 @@ pub fn simulate_cs(
     let event_mode_used = settings.event_mode_used;
 
     validate_simulation_steps(start_time, stop_time, output_interval)
-        .map_err(|e| SimulationError::Parameter(e))?;
+        .map_err(SimulationError::Parameter)?;
 
     let mut time = start_time;
 
@@ -620,29 +620,13 @@ pub fn simulate_cs(
 
     while relative_lt(time, stop_time) {
         let next_regular_point = start_time + (n_steps + 1) as f64 * output_interval;
+        let next_input_event_time = input.and_then(|i| i.next_event_time(time));
 
-        let mut next_communication_point = next_regular_point;
-
-        let next_input_event_time = if let Some(input) = &input {
-            input.next_event_time(time)
+        let next_communication_point = if can_handle_variable_communication_step_size {
+            next_communication_point(next_regular_point, next_input_event_time, None, stop_time)
         } else {
-            None
+            next_regular_point
         };
-
-        if let Some(next_input_event_time) = next_input_event_time
-            && can_handle_variable_communication_step_size
-            && relative_gt(next_regular_point, next_input_event_time)
-        {
-            next_communication_point = next_input_event_time;
-        }
-
-        if relative_gt(next_communication_point, stop_time) {
-            if can_handle_variable_communication_step_size {
-                next_communication_point = stop_time;
-            } else {
-                break;
-            }
-        }
 
         if !input_applied && let Some(input) = &input {
             input.set_discrete_inputs(time, &fmu)?;
@@ -768,7 +752,7 @@ pub fn simulate_me<S: SolverFactory>(
     let output_interval = settings.output_interval;
 
     validate_simulation_steps(start_time, stop_time, output_interval)
-        .map_err(|e| SimulationError::Parameter(e))?;
+        .map_err(SimulationError::Parameter)?;
 
     let mut time = start_time;
 
@@ -806,7 +790,7 @@ pub fn simulate_me<S: SolverFactory>(
 
     call(fmu.exitInitializationMode())?;
 
-    let mut nextEventTime = None;
+    let mut next_event_time = None;
 
     // initial event iteration
     loop {
@@ -820,7 +804,7 @@ pub fn simulate_me<S: SolverFactory>(
             &mut terminateSimulation,
             &mut nominalsOfContinuousStatesChanged,
             &mut valuesOfContinuousStatesChanged,
-            &mut nextEventTime,
+            &mut next_event_time,
         ))?;
 
         if terminateSimulation {
@@ -950,30 +934,14 @@ pub fn simulate_me<S: SolverFactory>(
         }
 
         let next_regular_point = start_time + (n_steps + 1) as f64 * output_interval;
+        let next_input_event_time = input.and_then(|i| i.next_event_time(time));
 
-        let mut next_communication_point = next_regular_point;
-
-        let next_input_event_time = if let Some(input) = &input {
-            input.next_event_time(time)
-        } else {
-            None
-        };
-
-        if let Some(next_input_event_time) = next_input_event_time
-            && relative_gt(next_regular_point, next_input_event_time)
-        {
-            next_communication_point = next_input_event_time;
-        }
-
-        if let Some(next_event_time) = nextEventTime
-            && relative_gt(next_communication_point, next_event_time)
-        {
-            next_communication_point = next_event_time;
-        }
-
-        if relative_gt(next_communication_point, stop_time) {
-            next_communication_point = stop_time;
-        }
+        let next_communication_point = next_communication_point(
+            next_regular_point,
+            next_input_event_time,
+            next_event_time,
+            stop_time,
+        );
 
         let is_input_event = if let Some(input_event_time) = next_input_event_time {
             relative_eq(input_event_time, next_communication_point)
@@ -981,7 +949,7 @@ pub fn simulate_me<S: SolverFactory>(
             false
         };
 
-        let is_time_event = if let Some(next_event_time) = nextEventTime
+        let is_time_event = if let Some(next_event_time) = next_event_time
             && relative_eq(next_event_time, next_communication_point)
         {
             true
@@ -1039,10 +1007,10 @@ pub fn simulate_me<S: SolverFactory>(
                     &mut terminateSimulation,
                     &mut nominalsOfContinuousStatesChanged,
                     &mut valuesOfContinuousStatesChanged,
-                    &mut nextEventTime,
+                    &mut next_event_time,
                 ))?;
 
-                if let Some(next_event_time) = nextEventTime
+                if let Some(next_event_time) = next_event_time
                     && relative_le(next_event_time, time)
                 {
                     return Err(SimulationError::NextEventTime {

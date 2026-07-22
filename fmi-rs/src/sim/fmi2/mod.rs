@@ -15,7 +15,8 @@ use crate::{
     sim::{
         SimulationError, SolverFactory,
         fmi2::{input::StaticInput, recorder::Recorder},
-        relative_eq, relative_ge, relative_gt, relative_le, relative_lt, validate_simulation_steps,
+        next_communication_point, relative_eq, relative_ge, relative_le, relative_lt,
+        validate_simulation_steps,
     },
 };
 
@@ -335,24 +336,13 @@ pub fn simulate_cs(
 
     while relative_lt(time, stop_time) {
         let next_regular_point = start_time + (n_steps + 1) as f64 * output_interval;
+        let next_input_event_time = input.and_then(|i| i.next_event_time(time));
 
-        let mut next_communication_point = next_regular_point;
-
-        if can_handle_variable_communication_step_size
-            && let Some(input) = &input
-            && let Some(next_input_event_time) = input.next_event_time(time)
-            && relative_gt(next_regular_point, next_input_event_time)
-        {
-            next_communication_point = next_input_event_time;
+        let next_communication_point = if can_handle_variable_communication_step_size {
+            next_communication_point(next_regular_point, next_input_event_time, None, stop_time)
+        } else {
+            next_regular_point
         };
-
-        if relative_gt(next_communication_point, stop_time) {
-            if can_handle_variable_communication_step_size {
-                next_communication_point = stop_time;
-            } else {
-                break;
-            }
-        }
 
         let communication_step_size = next_communication_point - time;
 
@@ -441,7 +431,7 @@ pub fn simulate_me<S: SolverFactory>(
         !model_exchange.canNotUseMemoryManagementFunctions,
     )?;
 
-    let mut nextEventTime: Option<fmi2Real> = None;
+    let mut next_event_time: Option<fmi2Real> = None;
 
     if let Some(path) = &settings.initial_fmu_state_file {
         read_initial_fmu_state(&fmu, path)?;
@@ -475,10 +465,10 @@ pub fn simulate_me<S: SolverFactory>(
                 &mut terminateSimulation,
                 &mut _nominalsOfContinuousStatesChanged,
                 &mut _valuesOfContinuousStatesChanged,
-                &mut nextEventTime,
+                &mut next_event_time,
             ))?;
 
-            if let Some(next_event_time) = nextEventTime
+            if let Some(next_event_time) = next_event_time
                 && relative_le(next_event_time, time)
             {
                 return Err(SimulationError::NextEventTime {
@@ -598,30 +588,14 @@ pub fn simulate_me<S: SolverFactory>(
         }
 
         let next_regular_point = start_time + (n_steps + 1) as f64 * output_interval;
+        let next_input_event_time = input.and_then(|i| i.next_event_time(time));
 
-        let mut next_communication_point = next_regular_point;
-
-        let next_input_event_time = if let Some(input) = &input {
-            input.next_event_time(time)
-        } else {
-            None
-        };
-
-        if let Some(next_input_event_time) = next_input_event_time
-            && relative_gt(next_regular_point, next_input_event_time)
-        {
-            next_communication_point = next_input_event_time;
-        }
-
-        if let Some(next_event_time) = nextEventTime
-            && relative_gt(next_communication_point, next_event_time)
-        {
-            next_communication_point = next_event_time;
-        }
-
-        if relative_gt(next_communication_point, stop_time) {
-            next_communication_point = stop_time;
-        }
+        let next_communication_point = next_communication_point(
+            next_regular_point,
+            next_input_event_time,
+            next_event_time,
+            stop_time,
+        );
 
         let is_input_event = if let Some(input_event_time) = next_input_event_time {
             relative_eq(input_event_time, next_communication_point)
@@ -629,7 +603,8 @@ pub fn simulate_me<S: SolverFactory>(
             false
         };
 
-        let is_time_event = nextEventTime.is_some_and(|t| relative_eq(t, next_communication_point));
+        let is_time_event =
+            next_event_time.is_some_and(|t| relative_eq(t, next_communication_point));
 
         let (time_reached, is_state_event) = solver.step(next_communication_point)?;
 
@@ -684,10 +659,10 @@ pub fn simulate_me<S: SolverFactory>(
                     &mut terminateSimulation,
                     &mut _nominalsOfContinuousStatesChanged,
                     &mut _valuesOfContinuousStatesChanged,
-                    &mut nextEventTime,
+                    &mut next_event_time,
                 ))?;
 
-                if let Some(next_event_time) = nextEventTime
+                if let Some(next_event_time) = next_event_time
                     && relative_le(next_event_time, time)
                 {
                     return Err(SimulationError::NextEventTime {
