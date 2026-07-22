@@ -35,5 +35,5 @@ cc = "1.2"
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_LibraryLoader"] }
 
 [dev-dependencies]
-fmi-rs = { path = ".", features = ["test-fixtures"] }
+fmi-rs = { path = ".", features = ["test-fixtures", "sundials"] }
 rstest = "0.26.1"
