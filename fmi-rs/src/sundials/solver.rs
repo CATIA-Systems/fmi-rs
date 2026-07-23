@@ -205,12 +205,8 @@ impl<'a> Solver for CVodeSolver<'a> {
         unsafe {
             if self.functions.nx > 0 {
                 (self.functions.get_continuous_states)((*self.x).as_mut())?;
-
-                let abstol_slice = (*self.abstol).as_mut();
-
-                (self.functions.get_nominals_of_continuous_states)(abstol_slice)?;
-
-                for value in abstol_slice.iter_mut() {
+                (self.functions.get_nominals_of_continuous_states)((*self.abstol).as_mut())?;
+                for value in (*self.abstol).as_mut().iter_mut() {
                     *value *= self.functions.rtol;
                 }
             } else {
@@ -236,7 +232,10 @@ impl<'a> Solver for CVodeSolver<'a> {
 
         (self.functions.set_time)(tret)?;
         (self.functions.set_continuous_inputs)(tret)?;
-        (self.functions.set_continuous_states)(unsafe { (*self.x).as_mut() })?;
+
+        if self.functions.nx > 0 {
+            (self.functions.set_continuous_states)(unsafe { (*self.x).as_mut() })?;
+        }
 
         Ok((tret, flag == CV_ROOT_RETURN))
     }
@@ -272,7 +271,6 @@ extern "C" fn f(t: sunrealtype, y: N_Vector, ydot: N_Vector, user_data: *mut c_v
             ydot_slice.fill(0.0); // Dummy derivative for discrete systems
         }
     }
-
     0
 }
 
@@ -288,12 +286,14 @@ extern "C" fn g(
 
         expect_ok!((functions.set_time)(t));
         expect_ok!((functions.set_continuous_inputs)(t));
-        expect_ok!((functions.set_continuous_states)((*y).as_mut()));
+
+        if functions.nx > 0 {
+            expect_ok!((functions.set_continuous_states)((*y).as_mut()));
+        }
 
         let z = from_raw_parts_mut(gout, functions.nz);
         expect_ok!((functions.get_event_indicators)(z));
     }
-
     0
 }
 
