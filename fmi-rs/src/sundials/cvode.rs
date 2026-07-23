@@ -1,5 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case)]
 
+use std::ffi::c_void;
+
 use crate::sundials::{sundials_nvector::N_Vector, sundials_types::{SUNContext, sunrealtype}};
 
 // /* -----------------------------------------------------------------
@@ -102,11 +104,11 @@ pub const CV_ROOT_RETURN: i32 = 2;
 //  * ------------------------------ */
 
 // typedef int (*CVRhsFn)(sunrealtype t, N_Vector y, N_Vector ydot, void* user_data);
-pub type CVRhsFn = unsafe extern "C" fn(t: sunrealtype, y: N_Vector, ydot: N_Vector, user_data: *mut std::ffi::c_void) -> i32;
+pub type CVRhsFn = unsafe extern "C" fn(t: sunrealtype, y: N_Vector, ydot: N_Vector, user_data: *mut c_void) -> i32;
 
 // typedef int (*CVRootFn)(sunrealtype t, N_Vector y, sunrealtype* gout_1d,
 //                         void* user_data);
-pub type CVRootFn = unsafe extern "C" fn(t: sunrealtype, y: N_Vector, gout_1d: *mut sunrealtype, user_data: *mut std::ffi::c_void) -> i32;
+pub type CVRootFn = unsafe extern "C" fn(t: sunrealtype, y: N_Vector, gout_1d: *mut sunrealtype, user_data: *mut c_void) -> i32;
 
 // typedef int (*CVEwtFn)(N_Vector y, N_Vector ewt, void* user_data);
 
@@ -121,14 +123,14 @@ unsafe extern "C" {
 // /* Initialization functions */
 
 // SUNDIALS_EXPORT void* CVodeCreate(int lmm, SUNContext sunctx);
-pub unsafe fn CVodeCreate(lmm: i32, sunctx: SUNContext) -> *mut std::ffi::c_void;
+pub unsafe fn CVodeCreate(lmm: i32, sunctx: SUNContext) -> *mut c_void;
 
 // SUNDIALS_EXPORT int CVodeInit(void* cvode_mem, CVRhsFn f, sunrealtype t0,
 //                               N_Vector y0);
-pub unsafe fn CVodeInit(cvode_mem: *mut std::ffi::c_void, f: CVRhsFn, t0: sunrealtype, y0: N_Vector) -> i32;
+pub unsafe fn CVodeInit(cvode_mem: *mut c_void, f: CVRhsFn, t0: sunrealtype, y0: N_Vector) -> i32;
 
 // SUNDIALS_EXPORT int CVodeReInit(void* cvode_mem, sunrealtype t0, N_Vector y0);
-pub unsafe fn CVodeReInit(cvode_mem: *mut std::ffi::c_void, t0: sunrealtype, y0: N_Vector) -> i32;
+pub unsafe fn CVodeReInit(cvode_mem: *mut c_void, t0: sunrealtype, y0: N_Vector) -> i32;
 
 // SUNDIALS_EXPORT int CVodeResizeHistory(void* cvode_mem, sunrealtype* t_hist_1d,
 //                                        N_Vector* y_hist_1d, N_Vector* f_hist_1d,
@@ -140,7 +142,7 @@ pub unsafe fn CVodeReInit(cvode_mem: *mut std::ffi::c_void, t0: sunrealtype, y0:
 //                                       sunrealtype abstol);
 // SUNDIALS_EXPORT int CVodeSVtolerances(void* cvode_mem, sunrealtype reltol,
 //                                       N_Vector abstol);
-pub unsafe fn CVodeSVtolerances(cvode_mem: *mut std::ffi::c_void, reltol: sunrealtype, abstol: N_Vector) -> i32;
+pub unsafe fn CVodeSVtolerances(cvode_mem: *mut c_void, reltol: sunrealtype, abstol: N_Vector) -> i32;
 
 // SUNDIALS_EXPORT int CVodeWFtolerances(void* cvode_mem, CVEwtFn efun);
 
@@ -157,14 +159,14 @@ pub unsafe fn CVodeSVtolerances(cvode_mem: *mut std::ffi::c_void, reltol: sunrea
 // SUNDIALS_EXPORT int CVodeSetLSetupFrequency(void* cvode_mem, long int msbp);
 // SUNDIALS_EXPORT int CVodeSetMaxConvFails(void* cvode_mem, int maxncf);
 // SUNDIALS_EXPORT int CVodeSetMaxErrTestFails(void* cvode_mem, int maxnef);
-pub unsafe fn CVodeSetMaxErrTestFails(cvode_mem: *mut std::ffi::c_void, maxnef: i32) -> i32;
+pub unsafe fn CVodeSetMaxErrTestFails(cvode_mem: *mut c_void, maxnef: i32) -> i32;
 
 // SUNDIALS_EXPORT int CVodeSetMaxHnilWarns(void* cvode_mem, int mxhnil);
 // SUNDIALS_EXPORT int CVodeSetMaxNonlinIters(void* cvode_mem, int maxcor);
-pub unsafe fn CVodeSetMaxNonlinIters(cvode_mem: *mut std::ffi::c_void, maxcor: i32) -> i32;
+pub unsafe fn CVodeSetMaxNonlinIters(cvode_mem: *mut c_void, maxcor: i32) -> i32;
 
 // SUNDIALS_EXPORT int CVodeSetMaxNumSteps(void* cvode_mem, long int mxsteps);
-pub unsafe fn CVodeSetMaxNumSteps(cvode_mem: *mut std::ffi::c_void, mxsteps: i32) -> i32;
+pub unsafe fn CVodeSetMaxNumSteps(cvode_mem: *mut c_void, mxsteps: i32) -> i32;
 
 // SUNDIALS_EXPORT int CVodeSetMaxOrd(void* cvode_mem, int maxord);
 // SUNDIALS_EXPORT int CVodeSetMaxStep(void* cvode_mem, sunrealtype hmax);
@@ -185,7 +187,7 @@ pub unsafe fn CVodeSetMaxNumSteps(cvode_mem: *mut std::ffi::c_void, mxsteps: i32
 // SUNDIALS_EXPORT int CVodeSetUseIntegratorFusedKernels(void* cvode_mem,
 //                                                       sunbooleantype onoff);
 // SUNDIALS_EXPORT int CVodeSetUserData(void* cvode_mem, void* user_data);
-pub unsafe fn CVodeSetUserData(cvode_mem: *mut std::ffi::c_void, user_data: *mut std::ffi::c_void) -> i32;
+pub unsafe fn CVodeSetUserData(cvode_mem: *mut c_void, user_data: *mut c_void) -> i32;
 
 // /* Optional step adaptivity input functions */
 
@@ -213,7 +215,7 @@ pub unsafe fn CVodeSetUserData(cvode_mem: *mut std::ffi::c_void, user_data: *mut
 
 // /* Rootfinding initialization function */
 // SUNDIALS_EXPORT int CVodeRootInit(void* cvode_mem, int nrtfn, CVRootFn g);
-pub unsafe fn CVodeRootInit(cvode_mem: *mut std::ffi::c_void, nrtfn: i32, g: CVRootFn) -> i32;
+pub unsafe fn CVodeRootInit(cvode_mem: *mut c_void, nrtfn: i32, g: CVRootFn) -> i32;
 
 // /* Rootfinding optional input functions */
 
@@ -223,7 +225,7 @@ pub unsafe fn CVodeRootInit(cvode_mem: *mut std::ffi::c_void, nrtfn: i32, g: CVR
 // /* Solver function */
 // SUNDIALS_EXPORT int CVode(void* cvode_mem, sunrealtype tout, N_Vector yout,
 //                           sunrealtype* tret, int itask);
-pub unsafe fn CVode(cvode_mem: *mut std::ffi::c_void, tout: sunrealtype, yout: N_Vector, tret: *mut sunrealtype, itask: i32) -> i32;
+pub unsafe fn CVode(cvode_mem: *mut c_void, tout: sunrealtype, yout: N_Vector, tret: *mut sunrealtype, itask: i32) -> i32;
 
 // /* Utility functions to update/compute y based on ycor */
 
@@ -259,7 +261,7 @@ pub unsafe fn CVode(cvode_mem: *mut std::ffi::c_void, tout: sunrealtype, yout: N
 // SUNDIALS_EXPORT int CVodeGetEstLocalErrors(void* cvode_mem, N_Vector ele);
 // SUNDIALS_EXPORT int CVodeGetNumGEvals(void* cvode_mem, long int* ngevals);
 // SUNDIALS_EXPORT int CVodeGetRootInfo(void* cvode_mem, int* rootsfound_1d);
-pub unsafe fn CVodeGetRootInfo(cvode_mem: *mut std::ffi::c_void, rootsfound_1d: *mut i32) -> i32;
+pub unsafe fn CVodeGetRootInfo(cvode_mem: *mut c_void, rootsfound_1d: *mut i32) -> i32;
 
 // SUNDIALS_EXPORT int CVodeGetIntegratorStats(
 //   void* cvode_mem, long int* nsteps, long int* nfevals, long int* nlinsetups,
@@ -288,7 +290,7 @@ pub unsafe fn CVodeGetRootInfo(cvode_mem: *mut std::ffi::c_void, rootsfound_1d: 
 
 // /* Free function */
 // SUNDIALS_EXPORT void CVodeFree(void** cvode_mem);
-pub unsafe fn CVodeFree(cvode_mem: *mut *mut std::ffi::c_void);
+pub unsafe fn CVodeFree(cvode_mem: *mut *mut c_void);
 
 // /* CVLS interface function that depends on CVRhsFn */
 // SUNDIALS_EXPORT int CVodeSetJacTimesRhsFn(void* cvode_mem, CVRhsFn jtimesRhsFn);

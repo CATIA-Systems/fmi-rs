@@ -26,9 +26,11 @@ pub fn build_sundials() {
     for lib in [
         "core",
         "cvode",
+        "ida",
         "nvecserial",
         "sunlinsoldense",
         "sunmatrixdense",
+        "sunnonlinsolnewton",
     ] {
         println!("cargo:rustc-link-lib=static=sundials_{lib}{lib_suffix}");
     }
@@ -100,7 +102,7 @@ fn fetch_and_build_sundials(install_dir: &Path, target: &str) {
             "-DSUNDIALS_ENABLE_ARKODE=OFF",
             "-DSUNDIALS_ENABLE_CVODES=OFF",
             "-DSUNDIALS_ENABLE_C_EXAMPLES=OFF",
-            "-DSUNDIALS_ENABLE_IDA=OFF",
+            // "-DSUNDIALS_ENABLE_IDA=OFF",
             "-DSUNDIALS_ENABLE_IDAS=OFF",
             "-DSUNDIALS_ENABLE_KINSOL=OFF",
             "-G",

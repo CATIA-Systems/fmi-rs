@@ -2,14 +2,18 @@
 
 #[rustfmt::skip] pub mod cvode;
 #[rustfmt::skip] pub mod cvode_ls;
+#[rustfmt::skip] pub mod ida;
+#[rustfmt::skip] pub mod ida_ls;
 #[rustfmt::skip] pub mod nvector_serial;
 #[rustfmt::skip] pub mod sundials_context;
 #[rustfmt::skip] pub mod sundials_linearsolver;
 #[rustfmt::skip] pub mod sundials_matrix;
+#[rustfmt::skip] pub mod sundials_nonlinearsolver;
 #[rustfmt::skip] pub mod sundials_nvector;
 #[rustfmt::skip] pub mod sundials_types;
 #[rustfmt::skip] pub mod sunlinsol_dense;
 #[rustfmt::skip] pub mod sunmatrix_dense;
+#[rustfmt::skip] pub mod sunnonlinsol_newton;
 
 pub mod solver;
 

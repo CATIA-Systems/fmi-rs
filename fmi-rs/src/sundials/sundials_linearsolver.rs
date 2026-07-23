@@ -1,5 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case)]
 
+use std::ffi::c_void;
+
 use crate::sundials::sundials_types::SUNErrCode;
 
 // /* -----------------------------------------------------------------
@@ -124,7 +126,7 @@ use crate::sundials::sundials_types::SUNErrCode;
 
 // /* Forward reference for pointer to SUNLinearSolver object */
 // typedef _SUNDIALS_STRUCT_ _generic_SUNLinearSolver* SUNLinearSolver;
-pub type SUNLinearSolver = *mut std::ffi::c_void;
+pub type SUNLinearSolver = *mut c_void;
 
 // /* Structure containing function pointers to linear solver operations */
 // struct _generic_SUNLinearSolver_Ops

@@ -96,7 +96,13 @@ pub fn SM_COLUMN_D(A: SUNMatrix, j: usize) -> *mut sunrealtype {
 }
 
 // #define SM_ELEMENT_D(A, i, j) ((SM_CONTENT_D(A)->cols)[j][i])
-
+pub fn SM_ELEMENT_D(A: SUNMatrix, i: usize, j: usize) -> *mut sunrealtype {
+    let content = SM_CONTENT_D(A);
+    unsafe {
+        let cols = (*content).cols;
+        (*cols.add(j)).add(i)
+    }
+}
 
 unsafe extern "C" {
 // /* ---------------------------------------
