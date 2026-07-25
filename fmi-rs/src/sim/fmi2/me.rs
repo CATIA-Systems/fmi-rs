@@ -1,16 +1,17 @@
 use crate::{
     fmi2::{
         self, FMU2, ME,
-        types::{fmi2False, fmi2Real, fmi2Status},
+        types::{fmi2False, fmi2Real, fmi2Status, fmi2ValueReference},
     },
-    model_description::fmi2::VariableType,
     sim::{
-        SimulationError, SolverFactory,
+        SimulationError,
         fmi2::{
             SimulationSettings, call, input::StaticInput, read_initial_fmu_state,
             recorder::Recorder, set_start_values, write_final_fmu_state,
         },
-        next_communication_point, relative_eq, relative_ge, relative_le, validate_simulation_steps,
+        next_communication_point, next_regular_point, relative_eq, relative_ge, relative_le,
+        solver::{Ode, SolverFactory},
+        validate_simulation_steps,
     },
 };
 
@@ -65,7 +66,11 @@ pub fn simulate<S: SolverFactory>(
         set_start_values(&settings.start_values, settings.model_description, &fmu)?;
 
         call(fmu.setupExperiment(
-            settings.tolerance,
+            if settings.set_tolerance {
+                Some(settings.tolerance)
+            } else {
+                None
+            },
             time,
             if set_stop_time { Some(stop_time) } else { None },
         ))?;
@@ -115,93 +120,17 @@ pub fn simulate<S: SolverFactory>(
         call(fmu.enterContinuousTimeMode())?;
     }
 
-    let derivative_indices: Vec<u32> = settings
-        .model_description
-        .derivatives
-        .iter()
-        .map(|d| d.index)
-        .collect();
+    let ode2 = Ode2 {
+        fmu: &fmu,
+        input,
+        nx: settings.model_description.derivatives.len(),
+        nz: settings.model_description.numberOfEventIndicators as usize,
+        supports_jacobian: false,
+        known_vrs: vec![],
+        unknown_vrs: vec![],
+    };
 
-    let derivative_vrs: Vec<u32> = derivative_indices
-        .iter()
-        .map(|i| settings.model_description.modelVariables[(*i - 1) as usize].valueReference)
-        .collect();
-
-    let state_vrs: Vec<u32> = derivative_indices
-        .iter()
-        .map(|i| {
-            let variable = &settings.model_description.modelVariables[(*i - 1) as usize];
-            let state_index = if let VariableType::Real {
-                derivative: Some(index),
-                ..
-            } = variable.variableType
-            {
-                index
-            } else {
-                panic!("Derivative variables must be of type Real and have a derivative element.");
-            };
-            settings.model_description.modelVariables[(state_index - 1) as usize].valueReference
-        })
-        .collect();
-
-    let mut solver = solver_factory.create(
-        time,
-        settings.model_description.derivatives.len(),
-        settings.model_description.numberOfEventIndicators as usize,
-        settings.tolerance.unwrap_or(1e-4),
-        derivative_vrs,
-        state_vrs,
-        Box::new(|time| {
-            fmu.setTime(time);
-            Ok(())
-        }),
-        Box::new(|time| {
-            if let Some(input) = &input {
-                input.set_continuous_inputs(time, false, &fmu)?;
-            }
-            Ok(())
-        }),
-        Box::new(
-            |event_indicators| match fmu.getEventIndicators(event_indicators) {
-                fmi2Status::fmi2OK => Ok(()),
-                _ => Err(SimulationError::FMICall),
-            },
-        ),
-        Box::new(
-            |continuous_states| match fmu.getContinuousStates(continuous_states) {
-                fmi2Status::fmi2OK => Ok(()),
-                _ => Err(SimulationError::FMICall),
-            },
-        ),
-        Box::new(
-            |nominals| match fmu.getNominalsOfContinuousStates(nominals) {
-                fmi2Status::fmi2OK => Ok(()),
-                _ => Err(SimulationError::FMICall),
-            },
-        ),
-        Box::new(
-            |state_derivatives| match fmu.getDerivatives(state_derivatives) {
-                fmi2Status::fmi2OK => Ok(()),
-                _ => Err(SimulationError::FMICall),
-            },
-        ),
-        if model_exchange.providesDirectionalDerivative {
-            Some(Box::new(|unknowns, knowns, seed, sensitivity| {
-                match fmu.getDirectionalDerivative(unknowns, knowns, seed, sensitivity) {
-                    fmi2Status::fmi2OK => Ok(()),
-                    _ => Err(SimulationError::FMICall),
-                }
-            }))
-        } else {
-            None
-        },
-        Box::new(
-            |continuous_states| match fmu.setContinuousStates(continuous_states) {
-                fmi2Status::fmi2OK => Ok(()),
-                _ => Err(SimulationError::FMICall),
-            },
-        ),
-    )?;
+    let mut solver = solver_factory.create(time, settings.tolerance, ode2, None)?;
 
     let mut n_steps = 0;
 
@@ -212,7 +141,13 @@ pub fn simulate<S: SolverFactory>(
             break;
         }
 
-        let next_regular_point = start_time + (n_steps + 1) as f64 * output_interval;
+        let next_regular_point = next_regular_point(
+            settings.log_time_scale,
+            start_time,
+            output_interval,
+            n_steps,
+        );
+
         let next_input_event_time = input.and_then(|i| i.next_event_time(time));
 
         let next_communication_point = next_communication_point(
@@ -231,9 +166,15 @@ pub fn simulate<S: SolverFactory>(
         let is_time_event =
             next_event_time.is_some_and(|t| relative_eq(t, next_communication_point));
 
-        let (time_reached, is_state_event) = solver.step(next_communication_point)?;
+        let (time_reached, x, is_state_event) = solver.step(next_communication_point)?;
 
         time = time_reached;
+
+        call(fmu.setTime(time))?;
+
+        if !x.is_empty() {
+            call(fmu.setContinuousStates(x))?;
+        }
 
         if is_input_event && let Some(input) = &input {
             input.set_continuous_inputs(time, false, &fmu)?;
@@ -319,4 +260,89 @@ pub fn simulate<S: SolverFactory>(
     call(fmu.terminate())?;
 
     Ok(())
+}
+
+pub struct Ode2<'a> {
+    fmu: &'a FMU2<ME>,
+    input: Option<&'a StaticInput<'a>>,
+    nx: usize,
+    nz: usize,
+    supports_jacobian: bool,
+    known_vrs: Vec<fmi2ValueReference>,
+    unknown_vrs: Vec<fmi2ValueReference>,
+}
+
+macro_rules! expect_ok {
+    ($result:expr) => {
+        if $result != fmi2Status::fmi2OK {
+            return Err(SimulationError::FMICall);
+        }
+    };
+}
+
+impl<'a> Ode for Ode2<'a> {
+    fn nx(&self) -> usize {
+        self.nx
+    }
+
+    fn nz(&self) -> usize {
+        self.nz
+    }
+
+    fn init(&self, x: &mut [f64], nominals: &mut [f64]) -> Result<(), SimulationError> {
+        expect_ok!(self.fmu.getContinuousStates(x));
+        expect_ok!(self.fmu.getNominalsOfContinuousStates(nominals));
+        Ok(())
+    }
+
+    fn f(&self, time: f64, x: &[f64], der_x: &mut [f64]) -> Result<(), SimulationError> {
+        if self.nx > 0 {
+            expect_ok!(self.fmu.setTime(time));
+
+            if let Some(input) = self.input {
+                input.set_continuous_inputs(time, true, self.fmu)?;
+            }
+
+            expect_ok!(self.fmu.setContinuousStates(x));
+            expect_ok!(self.fmu.getDerivatives(der_x));
+        }
+        Ok(())
+    }
+
+    fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError> {
+        if self.nz > 0 {
+            expect_ok!(self.fmu.setTime(time));
+            expect_ok!(self.fmu.setContinuousStates(x));
+            expect_ok!(self.fmu.getEventIndicators(z));
+        }
+        Ok(())
+    }
+
+    fn supports_jacobian(&self) -> bool {
+        self.supports_jacobian
+    }
+
+    fn jacobian(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError> {
+        expect_ok!(self.fmu.setTime(time));
+
+        if let Some(input) = self.input {
+            input.set_continuous_inputs(time, true, self.fmu)?;
+        }
+
+        expect_ok!(self.fmu.setContinuousStates(x));
+
+        for i in 0..self.nx {
+            let mut seed = vec![0.0; self.nx];
+            seed[i] = 1.0;
+            let column = &mut J[i * self.nx..(i + 1) * self.nx];
+            expect_ok!(self.fmu.getDirectionalDerivative(
+                &self.unknown_vrs,
+                &self.known_vrs,
+                &seed,
+                column
+            ));
+        }
+
+        Ok(())
+    }
 }

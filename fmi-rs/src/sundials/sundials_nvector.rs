@@ -221,7 +221,7 @@ pub struct _generic_N_Vector {
     pub sunctx: SUNContext,
 }
 
-impl AsMut<[f64]> for crate::sundials::sundials_nvector::_generic_N_Vector {
+impl AsMut<[f64]> for _generic_N_Vector {
     fn as_mut(&mut self) -> &mut [f64] {
         unsafe { 
             std::slice::from_raw_parts_mut(

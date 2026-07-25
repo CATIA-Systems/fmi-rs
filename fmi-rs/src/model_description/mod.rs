@@ -37,6 +37,9 @@ pub enum ModelDescriptionError {
 
     #[error("Unknown FMI version '{0}'")]
     UnknownVersion(String),
+
+    #[error("Illegal value reference: {0}")]
+    ValueReference(u32),
 }
 
 #[derive(Debug)]
