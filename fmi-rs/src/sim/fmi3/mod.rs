@@ -1,5 +1,6 @@
 pub mod cs;
 pub mod csv;
+pub mod dae;
 pub mod input;
 pub mod me;
 pub mod recorder;

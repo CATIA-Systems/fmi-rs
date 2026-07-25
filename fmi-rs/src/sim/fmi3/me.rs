@@ -24,8 +24,8 @@ pub fn simulate<S: SolverFactory>(
     let set_stop_time = settings.set_stop_time;
     let output_interval = settings.output_interval;
 
-    validate_simulation_steps(start_time, stop_time, output_interval)
-        .map_err(SimulationError::Parameter)?;
+    // validate_simulation_steps(start_time, stop_time, output_interval)
+    //     .map_err(SimulationError::Parameter)?;
 
     let mut time = start_time;
 
@@ -206,7 +206,8 @@ pub fn simulate<S: SolverFactory>(
             break;
         }
 
-        let next_regular_point = start_time + (n_steps + 1) as f64 * output_interval;
+        // let next_regular_point = start_time + (n_steps + 1) as f64 * output_interval;
+        let next_regular_point = start_time + 10.0_f64.powf((n_steps + 1) as f64 * 0.5);
         let next_input_event_time = input.and_then(|i| i.next_event_time(time));
 
         let next_communication_point = next_communication_point(
