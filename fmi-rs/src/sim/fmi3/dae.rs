@@ -342,75 +342,59 @@ pub fn simulate(
 
     call(fmu.exitInitializationMode())?;
 
+    let nx: usize = 2;
+    let neq: usize = 3;
+
+    let known_vrs = &[1, 3, 5];
+    let unknown_vrs = &[2, 4, 6];
+
     let init = Box::new(
         |yy: &mut [f64], yp: &mut [f64]| {
-            fmu.getFloat64(&[1, 3, 5], yy);
-            fmu.getFloat64(&[2, 4, 6], yp);
+            expect_ok!(fmu.getFloat64(known_vrs, yy));
+            expect_ok!(fmu.getFloat64(unknown_vrs, yp));
             Ok(())
         }
     );
 
-    const N_STATES: usize = 2;
-    const NEQ: usize = 3;
-    let known_vrs = [1, 3, 5];
-    let unknown_vrs = [2, 4, 6];
-
     let residuals = Box::new(
         |tt: f64, yy: &[f64], yp: &[f64], rr: &mut [f64]| {
 
-            let mut unknowns = [0.0; NEQ];
+            let mut unknowns = vec![0.0; neq];
 
-            fmu.setTime(tt);
-            fmu.setFloat64(&known_vrs, yy);
-            fmu.getFloat64(&unknown_vrs, &mut unknowns);
+            expect_ok!(fmu.setTime(tt));
+            expect_ok!(fmu.setFloat64(known_vrs, yy));
+            expect_ok!(fmu.getFloat64(unknown_vrs, &mut unknowns));
 
-            // let [der_y1, der_y2, r] = unknowns;
-
-            for i in 0..N_STATES {
+            for i in 0..nx {
                 rr[i] = unknowns[i] - yp[i];
             }
             
-            for i in N_STATES..NEQ {
+            for i in nx..neq {
                 rr[i] = unknowns[i];
             }
-
-
-
-            // rr[0] = der_y1 - yp[0];
-            // rr[1] = der_y2 - yp[1];
-            // rr[2] = r;
-
-            // rr[0] = -0.04 * yy[0] + 1e4 * yy[1] * yy[2]                       - yp[0];
-            // rr[1] =  0.04 * yy[0] - 1e4 * yy[1] * yy[2] - 3e7 * yy[1] * yy[1] - yp[1];
-            // rr[2] = yy[0] + yy[1] + yy[2] - 1.0;
-
-            // fmu.setFloat64(&[1, 3, 5], yy); 
 
             Ok(())
         }
     );
 
     let jacobian = |time: f64, y: &[f64], cj: f64, A: &mut [f64]| {
-
-        let knowns = &[1, 3, 5];
-        let unknowns = &[2, 4, 6];
         
         fmu.setTime(time);
-        expect_ok!(fmu.setFloat64(knowns, y));
+        expect_ok!(fmu.setFloat64(known_vrs, y));
         
         let seed = &[1.0, 0.0, 0.0];
         let column = &mut A[0..3];
-        expect_ok!(fmu.getDirectionalDerivative(unknowns, knowns, seed, column));
+        expect_ok!(fmu.getDirectionalDerivative(unknown_vrs, known_vrs, seed, column));
         column[0] -= cj;
         
         let seed = &[0.0, 1.0, 0.0];
         let column = &mut A[3..6];
-        expect_ok!(fmu.getDirectionalDerivative(unknowns, knowns, seed, column));
+        expect_ok!(fmu.getDirectionalDerivative(unknown_vrs, known_vrs, seed, column));
         column[1] -= cj;
         
         let seed = &[0.0, 0.0, 1.0];
         let column = &mut A[6..9];
-        expect_ok!(fmu.getDirectionalDerivative(unknowns, knowns, seed, column));
+        expect_ok!(fmu.getDirectionalDerivative(unknown_vrs, known_vrs, seed, column));
 
         Ok(())
     };
