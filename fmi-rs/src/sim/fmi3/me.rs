@@ -37,6 +37,13 @@ pub fn simulate<S: SolverFactory>(
 
     let needs_completed_integrator_step = model_exchange.needsCompletedIntegratorStep;
 
+    let logger = if let Some(log_file) = &settings.log_file {
+        let stream = std::fs::File::create(log_file).map_err(SimulationError::io(&log_file))?;
+        DefaultLogger::new(stream)
+    } else {
+        DefaultLogger::default()
+    };
+
     let fmu = FMU3::instantiateModelExchange(
         settings.unzipdir,
         &model_exchange.modelIdentifier,
@@ -44,7 +51,7 @@ pub fn simulate<S: SolverFactory>(
         &settings.model_description.instantiationToken,
         false,
         settings.logging_on,
-        Box::new(DefaultLogger::default()),
+        Box::new(logger),
         settings.log_fmi_calls,
     )?;
 

@@ -36,7 +36,7 @@ pub type ResidualsFn<'a> =
     Box<dyn Fn(f64, &[f64], &[f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
 
 pub type JacobianFn<'a> =
-    Box<dyn Fn(f64, f64, &mut [f64]) -> Result<(), SimulationError> + 'a>;
+    Box<dyn Fn(f64, &[f64], f64, &mut [f64]) -> Result<(), SimulationError> + 'a>;
 
 struct Functions<'a> {
     init: InitFn<'a>,
@@ -130,10 +130,11 @@ extern "C" fn jacrob(
         let functions: &Functions = &*(user_data as *const Functions);
 
         let J = SM_DATA_D(JJ); //.as_mut().unwrap();
-
         let J = from_raw_parts_mut(J, 9);
 
-        (functions.jacobian)(tt, cj, J).unwrap();
+        let y = (*yy).as_mut();
+
+        (functions.jacobian)(tt, y, cj, J).unwrap();
 
         // TODO:
         // expect_ok!((functions.set_time)(tt));
@@ -308,6 +309,13 @@ pub fn simulate(
 
     let needs_completed_integrator_step = model_exchange.needsCompletedIntegratorStep;
 
+    let logger = if let Some(log_file) = &settings.log_file {
+        let stream = std::fs::File::create(log_file).map_err(SimulationError::io(&log_file))?;
+        DefaultLogger::new(stream)
+    } else {
+        DefaultLogger::default()
+    };
+
     let fmu = FMU3::instantiateModelExchange(
         settings.unzipdir,
         &model_exchange.modelIdentifier,
@@ -315,7 +323,7 @@ pub fn simulate(
         &settings.model_description.instantiationToken,
         false,
         settings.logging_on,
-        Box::new(DefaultLogger::default()),
+        Box::new(logger),
         settings.log_fmi_calls,
     )?;
 
@@ -382,12 +390,13 @@ pub fn simulate(
         }
     );
 
-    let jacobian = |time: f64, cj: f64, A: &mut [f64]| {
+    let jacobian = |time: f64, y: &[f64], cj: f64, A: &mut [f64]| {
 
         let knowns = &[1, 3, 5];
         let unknowns = &[2, 4, 6];
         
         fmu.setTime(time);
+        expect_ok!(fmu.setFloat64(knowns, y));
         
         let seed = &[1.0, 0.0, 0.0];
         let column = &mut A[0..3];
