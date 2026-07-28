@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::ffi::c_void;
+use std::slice::{from_raw_parts, from_raw_parts_mut};
 
+use crate::fmi3::types::fmi3Status;
 use crate::fmi3::log::DefaultLogger;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
 use crate::sim::{
@@ -16,7 +18,7 @@ use crate::sundials::sundials_matrix::{SUNMatDestroy, SUNMatrix};
 use crate::sundials::sundials_nvector::{N_VDestroy, N_Vector};
 use crate::sundials::sundials_types::{SUN_COMM_NULL, SUNContext, sunrealtype};
 use crate::sundials::sunlinsol_dense::SUNLinSol_Dense;
-use crate::sundials::sunmatrix_dense::{SM_ELEMENT_D, SUNDenseMatrix};
+use crate::sundials::sunmatrix_dense::{SM_DATA_D, SM_ELEMENT_D, SUNDenseMatrix};
 use crate::{
     fmi3::{FMU3, types::*},
     model_description::fmi3::{ModelVariable, VariableType},
@@ -27,9 +29,19 @@ use crate::{
     },
 };
 
+pub type InitFn<'a> =
+    Box<dyn Fn(&mut [f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
+
+pub type ResidualsFn<'a> =
+    Box<dyn Fn(f64, &[f64], &[f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
+
+pub type JacobianFn<'a> =
+    Box<dyn Fn(f64, f64, &mut [f64]) -> Result<(), SimulationError> + 'a>;
+
 struct Functions<'a> {
     init: InitFn<'a>,
     residuals: ResidualsFn<'a>,
+    jacobian: JacobianFn<'a>,
 }
 
 pub struct Ida<'a> {
@@ -94,45 +106,68 @@ fn IJth(A: SUNMatrix, i: usize, j: usize) -> *mut sunrealtype {
     SM_ELEMENT_D(A, i - 1, j - 1)
 }
 
+macro_rules! expect_ok {
+    ($result:expr) => {
+        if $result != fmi3Status::fmi3OK {
+            return Err(SimulationError::FMICall);
+        }
+    };
+}
+
 extern "C" fn jacrob(
-    _tt: sunrealtype,
+    tt: sunrealtype,
     cj: sunrealtype,
     yy: N_Vector,
     _yp: N_Vector,
     _resvec: N_Vector,
     JJ: SUNMatrix,
-    _user_data: *mut c_void,
+    user_data: *mut c_void,
     _tmp1: N_Vector,
     _tmp2: N_Vector,
     _tmp3: N_Vector,
 ) -> i32 {
     unsafe {
-        let yval = (*yy).as_mut();
+        let functions: &Functions = &*(user_data as *const Functions);
 
-        *IJth(JJ, 1, 1) = -0.04 - cj;
-        *IJth(JJ, 2, 1) = 0.04;
-        *IJth(JJ, 3, 1) = 1.0;
-        *IJth(JJ, 1, 2) = 1.0e4 * yval[2];
-        *IJth(JJ, 2, 2) = -1.0e4 * yval[2] - 6.0e7 * yval[1] - cj;
-        *IJth(JJ, 3, 2) = 1.0;
-        *IJth(JJ, 1, 3) = 1.0e4 * yval[1];
-        *IJth(JJ, 2, 3) = -1.0e4 * yval[1];
-        *IJth(JJ, 3, 3) = 1.0;
+        let J = SM_DATA_D(JJ); //.as_mut().unwrap();
+
+        let J = from_raw_parts_mut(J, 9);
+
+        (functions.jacobian)(tt, cj, J).unwrap();
+
+        // TODO:
+        // expect_ok!((functions.set_time)(tt));
+        // expect_ok!((functions.set_continuous_inputs)(t));
+        // expect_ok!((functions.set_continuous_states)((*y).as_mut()));
+
+        // let get_directional_derivative = functions
+        //     .get_directional_derivative
+        //     .as_ref()
+        //     .expect("Directional derivative function not provided");
+
+        // let yval = (*yy).as_mut();
+
+        // *IJth(JJ, 1, 1) = -0.04 - cj;
+        // *IJth(JJ, 2, 1) = 0.04;
+        // *IJth(JJ, 3, 1) = 1.0;
+        
+        // *IJth(JJ, 1, 2) = 1.0e4 * yval[2];
+        // *IJth(JJ, 2, 2) = -1.0e4 * yval[2] - 6.0e7 * yval[1] - cj;
+        // *IJth(JJ, 3, 2) = 1.0;
+
+        // *IJth(JJ, 1, 3) = 1.0e4 * yval[1];
+        // *IJth(JJ, 2, 3) = -1.0e4 * yval[1];
+        // *IJth(JJ, 3, 3) = 1.0;
     }
     0
 }
-
-pub type InitFn<'a> =
-    Box<dyn Fn(&mut [f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
-
-pub type ResidualsFn<'a> =
-    Box<dyn Fn(f64, &[f64], &[f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
 
 impl<'a> Ida<'a> {
     pub fn new(
         t0: f64,
         init: InitFn<'a>,
         residuals: ResidualsFn<'a>,
+        jacobian: JacobianFn<'a>,
     ) -> Result<Self, SimulationError> {
         let NEQ = 3;
         let rtol = 1.0e-4;
@@ -194,7 +229,7 @@ impl<'a> Ida<'a> {
                 "Failed to set Jacobian routine"
             );
 
-            let functions = Box::new(Functions { init, residuals });
+            let functions = Box::new(Functions { init, residuals, jacobian });
 
             let user_data: *const Functions = &*functions;
 
@@ -347,7 +382,31 @@ pub fn simulate(
         }
     );
 
-    let mut solver = Ida::new(start_time, init, residuals)?;
+    let jacobian = |time: f64, cj: f64, A: &mut [f64]| {
+
+        let knowns = &[1, 3, 5];
+        let unknowns = &[2, 4, 6];
+        
+        fmu.setTime(time);
+        
+        let seed = &[1.0, 0.0, 0.0];
+        let column = &mut A[0..3];
+        expect_ok!(fmu.getDirectionalDerivative(unknowns, knowns, seed, column));
+        column[0] -= cj;
+        
+        let seed = &[0.0, 1.0, 0.0];
+        let column = &mut A[3..6];
+        expect_ok!(fmu.getDirectionalDerivative(unknowns, knowns, seed, column));
+        column[1] -= cj;
+        
+        let seed = &[0.0, 0.0, 1.0];
+        let column = &mut A[6..9];
+        expect_ok!(fmu.getDirectionalDerivative(unknowns, knowns, seed, column));
+
+        Ok(())
+    };
+
+    let mut solver = Ida::new(start_time, init, residuals, Box::new(jacobian))?;
 
     let mut next_event_time = None;
 
