@@ -14,6 +14,7 @@ use std::path::PathBuf;
 use approx::relative_eq;
 use thiserror::Error;
 
+use crate::dae::DaeManifestError;
 #[cfg(feature = "zip")]
 use crate::{model_description::ModelDescriptionError, zip::ZipError};
 
@@ -21,6 +22,9 @@ use crate::{model_description::ModelDescriptionError, zip::ZipError};
 pub enum SimulationError {
     #[error("Failed to load model description: {0}")]
     ModelDescription(#[from] ModelDescriptionError),
+
+    #[error("Failed to load FMI-LS-DAE manifest: {0}")]
+    DaeManifest(#[from] DaeManifestError),
 
     #[error("Failed to load platform binary '{path}': {source}")]
     Library {

@@ -1,14 +1,12 @@
-use std::collections::HashMap;
 use std::ffi::c_void;
-use std::slice::{from_raw_parts, from_raw_parts_mut};
+use std::slice::from_raw_parts_mut;
 
+
+use crate::dae::DaeManifest;
 use crate::fmi3::types::fmi3Status;
 use crate::fmi3::log::DefaultLogger;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
-use crate::sim::{
-    GetContinuousStateDerivativesFn, GetContinuousStatesFn, SetContinuousStatesFn, SetTimeFn,
-    SimulationError, next_communication_point, validate_simulation_steps,
-};
+use crate::sim::SimulationError;
 use crate::sundials::ida::{IDA_NORMAL, IDA_SUCCESS, IDA_TSTOP_RETURN, IDACreate, IDAFree, IDAInit, IDASVtolerances, IDASetUserData, IDASolve};
 use crate::sundials::ida_ls::{IDASetJacFn, IDASetLinearSolver};
 use crate::sundials::nvector_serial::N_VNew_Serial;
@@ -20,12 +18,10 @@ use crate::sundials::sundials_types::{SUN_COMM_NULL, SUNContext, sunrealtype};
 use crate::sundials::sunlinsol_dense::SUNLinSol_Dense;
 use crate::sundials::sunmatrix_dense::{SM_DATA_D, SM_ELEMENT_D, SUNDenseMatrix};
 use crate::{
-    fmi3::{FMU3, types::*},
-    model_description::fmi3::{ModelVariable, VariableType},
+    fmi3::FMU3,
     sim::{
         SolverFactory,
-        fmi3::{input::StaticInput, recorder::Recorder},
-        relative_eq, relative_ge, relative_le,
+        fmi3::{input::StaticInput, recorder::Recorder}, relative_ge,
     },
 };
 
@@ -307,7 +303,7 @@ pub fn simulate(
         .as_ref()
         .ok_or(SimulationError::InterfaceType)?;
 
-    let needs_completed_integrator_step = model_exchange.needsCompletedIntegratorStep;
+    let _needs_completed_integrator_step = model_exchange.needsCompletedIntegratorStep;
 
     let logger = if let Some(log_file) = &settings.log_file {
         let stream = std::fs::File::create(log_file).map_err(SimulationError::io(&log_file))?;
@@ -341,6 +337,13 @@ pub fn simulate(
     }
 
     call(fmu.exitInitializationMode())?;
+
+    let dae_manifest_path = settings.unzipdir
+        .join("extra")
+        .join("org.fmi-standard.fmi-ls-dae")
+        .join("fmi-ls-manifest.xml");
+
+    let _dae_manifest = DaeManifest::from_file(dae_manifest_path)?;
 
     let nx: usize = 2;
     let neq: usize = 3;

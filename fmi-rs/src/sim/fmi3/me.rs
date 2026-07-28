@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::fmi3::log::DefaultLogger;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
-use crate::sim::{SimulationError, next_communication_point, validate_simulation_steps};
+use crate::sim::{SimulationError, next_communication_point};
 use crate::{
     fmi3::{FMU3, types::*},
     model_description::fmi3::{ModelVariable, VariableType},
@@ -22,7 +22,7 @@ pub fn simulate<S: SolverFactory>(
     let start_time = settings.start_time;
     let stop_time = settings.stop_time;
     let set_stop_time = settings.set_stop_time;
-    let output_interval = settings.output_interval;
+    let _output_interval = settings.output_interval;
 
     // validate_simulation_steps(start_time, stop_time, output_interval)
     //     .map_err(SimulationError::Parameter)?;
