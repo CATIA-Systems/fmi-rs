@@ -253,7 +253,6 @@ pub fn simulate(
 ) -> Result<(), SimulationError> {
     let start_time = settings.start_time;
     let stop_time = settings.stop_time;
-    let set_stop_time = settings.set_stop_time;
     let output_interval = settings.output_interval;
 
     // validate_simulation_steps(start_time, stop_time, output_interval)
@@ -290,9 +289,9 @@ pub fn simulate(
     set_start_values(&settings.start_values, settings.model_description, &fmu)?;
 
     call(fmu.enterInitializationMode(
-        settings.tolerance,
+        if settings.set_tolerance { Some(settings.tolerance) } else { None },
         time,
-        if set_stop_time { Some(stop_time) } else { None },
+        if settings.set_stop_time { Some(stop_time) } else { None },
     ))?;
 
     if let Some(input) = &input {
@@ -428,9 +427,7 @@ pub fn simulate(
         Ok(())
     });
 
-    let rtol = settings.tolerance.unwrap_or(1e-6);
-
-    let mut solver = Ida::new(start_time, rtol, &nominals, init, residuals, jacobian)?;
+    let mut solver = Ida::new(start_time, settings.tolerance, &nominals, init, residuals, jacobian)?;
 
     let mut next_event_time = None;
 

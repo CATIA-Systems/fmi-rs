@@ -64,7 +64,7 @@ pub fn simulate(
         set_start_values(&settings.start_values, settings.model_description, &fmu)?;
 
         call(fmu.enterInitializationMode(
-            settings.tolerance,
+            if settings.set_tolerance { Some(settings.tolerance) } else { None },
             start_time,
             if set_stop_time { Some(stop_time) } else { None },
         ))?;

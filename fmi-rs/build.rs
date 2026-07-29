@@ -5,9 +5,6 @@ mod build {
 
 use std::env;
 
-use crate::build::schema::build_libxml2;
-use crate::build::sundials::build_sundials;
-
 fn main() {
     println!("cargo:rerun-if-changed=src/c/src/logger_proxy.c");
     println!("cargo:rerun-if-changed=src/c/src/variable_name_validator.c");
@@ -39,8 +36,8 @@ fn main() {
     builder.compile("variable_name_validator");
 
     #[cfg(feature = "schema")]
-    build_libxml2();
+    build::schema::build_libxml2();
 
     #[cfg(feature = "sundials")]
-    build_sundials();
+    build::sundials::build_sundials();
 }

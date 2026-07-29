@@ -65,7 +65,7 @@ pub fn simulate<S: SolverFactory>(
         set_start_values(&settings.start_values, settings.model_description, &fmu)?;
 
         call(fmu.setupExperiment(
-            settings.tolerance,
+            if settings.set_tolerance { Some(settings.tolerance) } else { None },
             time,
             if set_stop_time { Some(stop_time) } else { None },
         ))?;
@@ -148,7 +148,7 @@ pub fn simulate<S: SolverFactory>(
         time,
         settings.model_description.derivatives.len(),
         settings.model_description.numberOfEventIndicators as usize,
-        settings.tolerance.unwrap_or(1e-4),
+        settings.tolerance,
         derivative_vrs,
         state_vrs,
         Box::new(|time| {
