@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::fmi3::log::DefaultLogger;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
-use crate::sim::{SimulationError, next_communication_point};
+use crate::sim::{SimulationError, next_communication_point, next_regular_point};
 use crate::{
     fmi3::{FMU3, types::*},
     model_description::fmi3::{ModelVariable, VariableType},
@@ -57,10 +57,12 @@ pub fn simulate<S: SolverFactory>(
 
     set_start_values(&settings.start_values, settings.model_description, &fmu)?;
 
-
-
     call(fmu.enterInitializationMode(
-        if settings.set_tolerance { Some(settings.tolerance) } else { None },
+        if settings.set_tolerance {
+            Some(settings.tolerance)
+        } else {
+            None
+        },
         time,
         if set_stop_time { Some(stop_time) } else { None },
     ))?;
@@ -215,8 +217,13 @@ pub fn simulate<S: SolverFactory>(
             break;
         }
 
-        // let next_regular_point = start_time + (n_steps + 1) as f64 * output_interval;
-        let next_regular_point = start_time + 10.0_f64.powf((n_steps + 1) as f64 * 0.5);
+        let next_regular_point = next_regular_point(
+            settings.log_time_scale,
+            start_time,
+            settings.output_interval,
+            n_steps,
+        );
+
         let next_input_event_time = input.and_then(|i| i.next_event_time(time));
 
         let next_communication_point = next_communication_point(

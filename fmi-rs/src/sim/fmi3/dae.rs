@@ -3,8 +3,8 @@ use std::ffi::c_void;
 use crate::dae::DaeManifest;
 use crate::fmi3::log::DefaultLogger;
 use crate::fmi3::types::fmi3Status;
-use crate::sim::SimulationError;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
+use crate::sim::{SimulationError, next_regular_point};
 use crate::sundials::ida::{
     IDA_NORMAL, IDA_SUCCESS, IDA_TSTOP_RETURN, IDACreate, IDAFree, IDAInit, IDASVtolerances,
     IDASetUserData, IDASolve,
@@ -289,9 +289,17 @@ pub fn simulate(
     set_start_values(&settings.start_values, settings.model_description, &fmu)?;
 
     call(fmu.enterInitializationMode(
-        if settings.set_tolerance { Some(settings.tolerance) } else { None },
+        if settings.set_tolerance {
+            Some(settings.tolerance)
+        } else {
+            None
+        },
         time,
-        if settings.set_stop_time { Some(stop_time) } else { None },
+        if settings.set_stop_time {
+            Some(stop_time)
+        } else {
+            None
+        },
     ))?;
 
     if let Some(input) = &input {
@@ -427,7 +435,14 @@ pub fn simulate(
         Ok(())
     });
 
-    let mut solver = Ida::new(start_time, settings.tolerance, &nominals, init, residuals, jacobian)?;
+    let mut solver = Ida::new(
+        start_time,
+        settings.tolerance,
+        &nominals,
+        init,
+        residuals,
+        jacobian,
+    )?;
 
     let mut next_event_time = None;
 
@@ -467,7 +482,12 @@ pub fn simulate(
             break;
         }
 
-        let next_regular_point = start_time * output_interval.powi(n_steps + 1);
+        let next_regular_point = next_regular_point(
+            settings.log_time_scale,
+            start_time,
+            output_interval,
+            n_steps,
+        );
 
         solver.step(next_regular_point)?;
 

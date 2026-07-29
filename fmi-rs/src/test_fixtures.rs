@@ -27,9 +27,8 @@ pub fn download_file<P: AsRef<Path>>(url: &str, target_path: P) -> anyhow::Resul
 }
 
 pub fn download_reference_fmus<P: AsRef<Path>>(target_path: P) -> anyhow::Result<()> {
-    let url = 
-        "https://github.com/modelica/Reference-FMUs/releases/latest/download/Reference-FMUs.zip"
-    ;
+    let url =
+        "https://github.com/modelica/Reference-FMUs/releases/latest/download/Reference-FMUs.zip";
     let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/resources");
     let archive_path = resources_dir.join("Reference-FMUs.zip");
     download_file(url, &archive_path)?;

@@ -2,7 +2,9 @@ use crate::fmi3::log::DefaultLogger;
 use crate::sim::fmi3::{
     SimulationSettings, call, read_initial_fmu_state, set_start_values, write_final_fmu_state,
 };
-use crate::sim::{SimulationError, next_communication_point, validate_simulation_steps};
+use crate::sim::{
+    SimulationError, next_communication_point, next_regular_point, validate_simulation_steps,
+};
 use crate::{
     fmi3::FMU3,
     sim::{
@@ -64,7 +66,11 @@ pub fn simulate(
         set_start_values(&settings.start_values, settings.model_description, &fmu)?;
 
         call(fmu.enterInitializationMode(
-            if settings.set_tolerance { Some(settings.tolerance) } else { None },
+            if settings.set_tolerance {
+                Some(settings.tolerance)
+            } else {
+                None
+            },
             start_time,
             if set_stop_time { Some(stop_time) } else { None },
         ))?;
@@ -122,7 +128,13 @@ pub fn simulate(
     let mut input_applied = false;
 
     while relative_lt(time, stop_time) {
-        let next_regular_point = start_time + (n_steps + 1) as f64 * output_interval;
+        let next_regular_point = next_regular_point(
+            settings.log_time_scale,
+            start_time,
+            output_interval,
+            n_steps,
+        );
+
         let next_input_event_time = input.and_then(|i| i.next_event_time(time));
 
         let next_communication_point = if can_handle_variable_communication_step_size {

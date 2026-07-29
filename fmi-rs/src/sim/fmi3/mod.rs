@@ -24,6 +24,7 @@ pub struct SimulationSettings<'a> {
     pub logging_on: bool,
     pub set_stop_time: bool,
     pub output_interval: f64,
+    pub log_time_scale: bool,
     pub tolerance: f64,
     pub set_tolerance: bool,
     pub start_values: Vec<(String, String)>,

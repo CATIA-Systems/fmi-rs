@@ -200,3 +200,17 @@ pub fn next_communication_point(
 
     next_communication_point
 }
+
+/// Calculates the next regular sample point
+pub fn next_regular_point(
+    log_time_scale: bool,
+    start_time: f64,
+    output_interval: f64,
+    n_steps: i32,
+) -> f64 {
+    if log_time_scale {
+        start_time * output_interval.powi(n_steps + 1)
+    } else {
+        start_time + (n_steps + 1) as f64 * output_interval
+    }
+}
