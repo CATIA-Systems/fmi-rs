@@ -1,13 +1,14 @@
 use std::ffi::c_void;
-use std::slice::from_raw_parts_mut;
-
 
 use crate::dae::DaeManifest;
-use crate::fmi3::types::fmi3Status;
 use crate::fmi3::log::DefaultLogger;
-use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
+use crate::fmi3::types::fmi3Status;
 use crate::sim::SimulationError;
-use crate::sundials::ida::{IDA_NORMAL, IDA_SUCCESS, IDA_TSTOP_RETURN, IDACreate, IDAFree, IDAInit, IDASVtolerances, IDASetUserData, IDASolve};
+use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
+use crate::sundials::ida::{
+    IDA_NORMAL, IDA_SUCCESS, IDA_TSTOP_RETURN, IDACreate, IDAFree, IDAInit, IDASVtolerances,
+    IDASetUserData, IDASolve,
+};
 use crate::sundials::ida_ls::{IDASetJacFn, IDASetLinearSolver};
 use crate::sundials::nvector_serial::N_VNew_Serial;
 use crate::sundials::sundials_context::{SUNContext_Create, SUNContext_Free};
@@ -16,17 +17,16 @@ use crate::sundials::sundials_matrix::{SUNMatDestroy, SUNMatrix};
 use crate::sundials::sundials_nvector::{N_VDestroy, N_Vector};
 use crate::sundials::sundials_types::{SUN_COMM_NULL, SUNContext, sunrealtype};
 use crate::sundials::sunlinsol_dense::SUNLinSol_Dense;
-use crate::sundials::sunmatrix_dense::{SM_DATA_D, SM_ELEMENT_D, SUNDenseMatrix};
+use crate::sundials::sunmatrix_dense::SUNDenseMatrix;
 use crate::{
     fmi3::FMU3,
     sim::{
-        SolverFactory,
-        fmi3::{input::StaticInput, recorder::Recorder}, relative_ge,
+        fmi3::{input::StaticInput, recorder::Recorder},
+        relative_ge,
     },
 };
 
-pub type InitFn<'a> =
-    Box<dyn Fn(&mut [f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
+pub type InitFn<'a> = Box<dyn Fn(&mut [f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
 
 pub type ResidualsFn<'a> =
     Box<dyn Fn(f64, &[f64], &[f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
@@ -35,7 +35,6 @@ pub type JacobianFn<'a> =
     Box<dyn Fn(f64, &[f64], f64, &mut [f64]) -> Result<(), SimulationError> + 'a>;
 
 struct Functions<'a> {
-    init: InitFn<'a>,
     residuals: ResidualsFn<'a>,
     jacobian: JacobianFn<'a>,
 }
@@ -48,6 +47,7 @@ pub struct Ida<'a> {
     A: SUNMatrix,
     LS: SUNLinearSolver,
     ida_mem: *mut c_void,
+    #[allow(dead_code)]
     functions: Box<Functions<'a>>,
 }
 
@@ -77,29 +77,10 @@ extern "C" fn residuals_cb(
     rr: N_Vector,
     user_data: *mut c_void,
 ) -> i32 {
-
     unsafe {
         let functions: &Functions = &*(user_data as *const Functions);
-        (functions.residuals)(tt, (*yy).as_mut(), (*yp).as_mut(), (*rr).as_mut());
+        (functions.residuals)(tt, (*yy).as_mut(), (*yp).as_mut(), (*rr).as_mut()).map_or(-1, |_| 0)
     }
-    0
-
-    // unsafe {
-    //     let yval: &mut [f64] = (*yy).as_mut();
-    //     let ypval = (*yp).as_mut();
-    //     let rval = (*rr).as_mut();
-
-    //     rval[0] = -0.04 * yval[0] + 1.0e4 * yval[1] * yval[2];
-    //     rval[1] = -rval[0] - 3.0e7 * yval[1] * yval[1] - ypval[1];
-    //     rval[0] -= ypval[0];
-    //     rval[2] = yval[0] + yval[1] + yval[2] - 1.0;
-    // }
-    // 0
-}
-
-// #define IJth(A, i, j) SM_ELEMENT_D(A, i - 1, j - 1)
-fn IJth(A: SUNMatrix, i: usize, j: usize) -> *mut sunrealtype {
-    SM_ELEMENT_D(A, i - 1, j - 1)
 }
 
 macro_rules! expect_ok {
@@ -124,50 +105,22 @@ extern "C" fn jacrob(
 ) -> i32 {
     unsafe {
         let functions: &Functions = &*(user_data as *const Functions);
-
-        let J = SM_DATA_D(JJ); //.as_mut().unwrap();
-        let J = from_raw_parts_mut(J, 9);
-
+        let J = (*JJ).as_mut();
         let y = (*yy).as_mut();
-
-        (functions.jacobian)(tt, y, cj, J).unwrap();
-
-        // TODO:
-        // expect_ok!((functions.set_time)(tt));
-        // expect_ok!((functions.set_continuous_inputs)(t));
-        // expect_ok!((functions.set_continuous_states)((*y).as_mut()));
-
-        // let get_directional_derivative = functions
-        //     .get_directional_derivative
-        //     .as_ref()
-        //     .expect("Directional derivative function not provided");
-
-        // let yval = (*yy).as_mut();
-
-        // *IJth(JJ, 1, 1) = -0.04 - cj;
-        // *IJth(JJ, 2, 1) = 0.04;
-        // *IJth(JJ, 3, 1) = 1.0;
-        
-        // *IJth(JJ, 1, 2) = 1.0e4 * yval[2];
-        // *IJth(JJ, 2, 2) = -1.0e4 * yval[2] - 6.0e7 * yval[1] - cj;
-        // *IJth(JJ, 3, 2) = 1.0;
-
-        // *IJth(JJ, 1, 3) = 1.0e4 * yval[1];
-        // *IJth(JJ, 2, 3) = -1.0e4 * yval[1];
-        // *IJth(JJ, 3, 3) = 1.0;
+        (functions.jacobian)(tt, y, cj, J).map_or(-1, |_| 0)
     }
-    0
 }
 
 impl<'a> Ida<'a> {
     pub fn new(
         t0: f64,
+        rtol: f64,
+        nominals: &[f64],
         init: InitFn<'a>,
         residuals: ResidualsFn<'a>,
         jacobian: JacobianFn<'a>,
     ) -> Result<Self, SimulationError> {
-        let NEQ = 3;
-        let rtol = 1.0e-4;
+        let neq = nominals.len() as i64;
 
         unsafe {
             let mut sunctx = std::ptr::null_mut();
@@ -182,16 +135,16 @@ impl<'a> Ida<'a> {
 
             // Allocate N-vectors
             let yy: *mut crate::sundials::sundials_nvector::_generic_N_Vector =
-                N_VNew_Serial(NEQ, sunctx);
+                N_VNew_Serial(neq, sunctx);
             expect_not_null!(yy, "Failed to create yy vector");
 
-            let yp = N_VNew_Serial(NEQ, sunctx);
+            let yp = N_VNew_Serial(neq, sunctx);
             expect_not_null!(yp, "Failed to create yp vector");
 
-            let avtol = N_VNew_Serial(NEQ, sunctx);
+            let avtol = N_VNew_Serial(neq, sunctx);
             expect_not_null!(avtol, "Failed to create avtol vector");
 
-            let A = SUNDenseMatrix(NEQ, NEQ, sunctx);
+            let A = SUNDenseMatrix(neq, neq, sunctx);
             expect_not_null!(A, "Failed to create A matrix");
 
             // Initialize vectors
@@ -226,7 +179,10 @@ impl<'a> Ida<'a> {
                 "Failed to set Jacobian routine"
             );
 
-            let functions = Box::new(Functions { init, residuals, jacobian });
+            let functions = Box::new(Functions {
+                residuals,
+                jacobian,
+            });
 
             let user_data: *const Functions = &*functions;
 
@@ -249,18 +205,26 @@ impl<'a> Ida<'a> {
     }
 
     pub fn step(&mut self, next_time: f64) -> Result<(), SimulationError> {
-
         unsafe {
             let mut tret = 0.0;
 
-            let retval = IDASolve(self.ida_mem, next_time, &mut tret, self.yy, self.yp, IDA_NORMAL);
+            let retval = IDASolve(
+                self.ida_mem,
+                next_time,
+                &mut tret,
+                self.yy,
+                self.yp,
+                IDA_NORMAL,
+            );
 
             if retval == IDA_TSTOP_RETURN {
                 return Err(SimulationError::Solver("IDA_TSTOP_RETURN".to_owned()));
             }
 
             if retval < IDA_SUCCESS {
-                return Err(SimulationError::Solver(format!("IDASolve failed with code {retval}")));
+                return Err(SimulationError::Solver(format!(
+                    "IDASolve failed with code {retval}"
+                )));
             }
         }
 
@@ -338,71 +302,135 @@ pub fn simulate(
 
     call(fmu.exitInitializationMode())?;
 
-    let dae_manifest_path = settings.unzipdir
+    let dae_manifest_path = settings
+        .unzipdir
         .join("extra")
         .join("org.fmi-standard.fmi-ls-dae")
         .join("fmi-ls-manifest.xml");
 
-    let _dae_manifest = DaeManifest::from_file(dae_manifest_path)?;
+    let dae_manifest = DaeManifest::from_file(dae_manifest_path)?;
 
-    let nx: usize = 2;
-    let neq: usize = 3;
+    let mut continuous_state_vrs = vec![];
+    let mut continuous_state_derivative_vrs = vec![];
+    let mut algebraic_variable_vrs = vec![];
+    let mut nominals = vec![];
 
-    let known_vrs = &[1, 3, 5];
-    let unknown_vrs = &[2, 4, 6];
+    for derivative in dae_manifest.modelStructure.continuousStateDerivatives {
+        continuous_state_derivative_vrs.push(derivative.valueReference);
 
-    let init = Box::new(
-        |yy: &mut [f64], yp: &mut [f64]| {
-            expect_ok!(fmu.getFloat64(known_vrs, yy));
-            expect_ok!(fmu.getFloat64(unknown_vrs, yp));
-            Ok(())
+        let derivative_variable = settings
+            .model_description
+            .fetch_variable_by_value_reference(derivative.valueReference)?;
+
+        let continuous_state_vr =
+            derivative_variable
+                .variableType
+                .derivative()
+                .ok_or_else(|| {
+                    SimulationError::Parameter(format!(
+                        "Variable '{}' is missing the derivative attribute",
+                        derivative_variable.name
+                    ))
+                })?;
+
+        continuous_state_vrs.push(continuous_state_vr);
+
+        let continuous_state_variable = settings
+            .model_description
+            .fetch_variable_by_value_reference(continuous_state_vr)?;
+
+        nominals.push(
+            continuous_state_variable
+                .variableType
+                .nominal()
+                .unwrap_or(1.0),
+        );
+    }
+
+    for algebraic_variable in &dae_manifest.algebraicVariables.algebraicVariables {
+        algebraic_variable_vrs.push(algebraic_variable.valueReference);
+        let nominal = settings
+            .model_description
+            .fetch_variable_by_value_reference(algebraic_variable.valueReference)?
+            .variableType
+            .nominal()
+            .unwrap_or(1.0);
+        nominals.push(nominal);
+    }
+
+    let residual_vrs = dae_manifest
+        .modelStructure
+        .residuals
+        .iter()
+        .enumerate()
+        .map(|(i, residual)| match residual.formulations.as_slice() {
+            [first] => Ok(first.valueReference),
+            _ => Err(SimulationError::Parameter(format!(
+                "Residual {} must have exactly one formuation",
+                i + 1
+            ))),
+        })
+        .collect::<Result<Vec<u32>, SimulationError>>()?;
+
+    let known_vrs: Vec<u32> = continuous_state_vrs
+        .clone()
+        .into_iter()
+        .chain(algebraic_variable_vrs)
+        .collect();
+
+    let unknown_vrs: Vec<u32> = continuous_state_derivative_vrs
+        .clone()
+        .into_iter()
+        .chain(residual_vrs)
+        .collect();
+
+    let nx = continuous_state_vrs.len();
+    let neq = known_vrs.len();
+
+    let init = Box::new(|yy: &mut [f64], yp: &mut [f64]| {
+        expect_ok!(fmu.getFloat64(&known_vrs, yy));
+        expect_ok!(fmu.getFloat64(&unknown_vrs, yp));
+        Ok(())
+    });
+
+    let residuals = Box::new(|tt: f64, yy: &[f64], yp: &[f64], rr: &mut [f64]| {
+        let mut unknowns = vec![0.0; neq];
+
+        expect_ok!(fmu.setTime(tt));
+        expect_ok!(fmu.setFloat64(&known_vrs, yy));
+        expect_ok!(fmu.getFloat64(&unknown_vrs, &mut unknowns));
+
+        for i in 0..nx {
+            rr[i] = unknowns[i] - yp[i];
         }
-    );
 
-    let residuals = Box::new(
-        |tt: f64, yy: &[f64], yp: &[f64], rr: &mut [f64]| {
-
-            let mut unknowns = vec![0.0; neq];
-
-            expect_ok!(fmu.setTime(tt));
-            expect_ok!(fmu.setFloat64(known_vrs, yy));
-            expect_ok!(fmu.getFloat64(unknown_vrs, &mut unknowns));
-
-            for i in 0..nx {
-                rr[i] = unknowns[i] - yp[i];
-            }
-            
-            for i in nx..neq {
-                rr[i] = unknowns[i];
-            }
-
-            Ok(())
-        }
-    );
-
-    let jacobian = |time: f64, y: &[f64], cj: f64, A: &mut [f64]| {
-        
-        fmu.setTime(time);
-        expect_ok!(fmu.setFloat64(known_vrs, y));
-        
-        let seed = &[1.0, 0.0, 0.0];
-        let column = &mut A[0..3];
-        expect_ok!(fmu.getDirectionalDerivative(unknown_vrs, known_vrs, seed, column));
-        column[0] -= cj;
-        
-        let seed = &[0.0, 1.0, 0.0];
-        let column = &mut A[3..6];
-        expect_ok!(fmu.getDirectionalDerivative(unknown_vrs, known_vrs, seed, column));
-        column[1] -= cj;
-        
-        let seed = &[0.0, 0.0, 1.0];
-        let column = &mut A[6..9];
-        expect_ok!(fmu.getDirectionalDerivative(unknown_vrs, known_vrs, seed, column));
+        rr[nx..neq].copy_from_slice(&unknowns[nx..neq]);
 
         Ok(())
-    };
+    });
 
-    let mut solver = Ida::new(start_time, init, residuals, Box::new(jacobian))?;
+    let jacobian = Box::new(|time: f64, y: &[f64], cj: f64, A: &mut [f64]| {
+        fmu.setTime(time);
+        expect_ok!(fmu.setFloat64(&known_vrs, y));
+
+        let n = known_vrs.len();
+
+        for i in 0..n {
+            let mut seed = vec![0.0; known_vrs.len()];
+            seed[i] = 1.0;
+            let column = &mut A[i * n..(i + 1) * n];
+            expect_ok!(fmu.getDirectionalDerivative(&unknown_vrs, &known_vrs, &seed, column));
+            if i < continuous_state_vrs.len() {
+                column[i] -= cj;
+            }
+        }
+
+        Ok(())
+    });
+
+    let rtol = settings.tolerance.unwrap_or(1e-6);
+
+    let mut solver = Ida::new(start_time, rtol, &nominals, init, residuals, jacobian)?;
 
     let mut next_event_time = None;
 

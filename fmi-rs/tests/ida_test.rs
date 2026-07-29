@@ -3,17 +3,12 @@
 use std::{ffi::c_void, slice::from_raw_parts_mut};
 
 use fmi_rs::sundials::{
-    cvode::{
-        CV_BDF, CV_NORMAL, CV_ROOT_RETURN, CV_SUCCESS, CVode, CVodeCreate, CVodeGetRootInfo,
-        CVodeInit, CVodeReInit, CVodeRootInit, CVodeSVtolerances,
-    },
-    cvode_ls::CVodeSetLinearSolver,
     ida::{
         IDA_NORMAL, IDA_ROOT_RETURN, IDA_SUCCESS, IDA_TSTOP_RETURN, IDACreate, IDAFree,
         IDAGetRootInfo, IDAInit, IDARootInit, IDASVtolerances, IDASetNonlinearSolver, IDASolve,
     },
     ida_ls::{IDASetJacFn, IDASetLinearSolver},
-    nvector_serial::{N_VNew_Serial, NV_DATA_S, NV_LENGTH_S},
+    nvector_serial::N_VNew_Serial,
     sundials_context::{SUNContext_Create, SUNContext_Free},
     sundials_linearsolver::SUNLinSolFree,
     sundials_matrix::{SUNMatDestroy, SUNMatrix},

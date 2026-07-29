@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case)]
 
 use std::ffi::c_void;
-use crate::sundials::sundials_types::SUNContext;
+use crate::sundials::{sundials_types::SUNContext, sunmatrix_dense::{SM_COLUMNS_D, SM_DATA_D, SM_ROWS_D}};
 
 // /* -----------------------------------------------------------------
 //  * Programmer(s): Daniel Reynolds @ UMBC
@@ -126,6 +126,20 @@ pub struct _generic_SUNMatrix {
     pub content: *mut c_void,
     pub ops: SUNMatrix_Ops,
     pub sunctx: SUNContext,
+}
+
+impl AsMut<[f64]> for _generic_SUNMatrix {
+    fn as_mut(&mut self) -> &mut [f64] {
+        unsafe {
+            let data = SM_DATA_D(self);
+            let m = SM_ROWS_D(self);
+            let n = SM_COLUMNS_D(self);
+            std::slice::from_raw_parts_mut(
+                data, 
+                (m * n) as usize
+            ) 
+        }
+    }
 }
 
 unsafe extern "C" {

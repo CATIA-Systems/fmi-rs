@@ -80,8 +80,16 @@ pub fn SM_CONTENT_D(A: SUNMatrix) -> SUNMatrixContent_Dense {
 }
 
 // #define SM_ROWS_D(A) (SM_CONTENT_D(A)->M)
+pub fn SM_ROWS_D(A: SUNMatrix) -> sunindextype {
+    let content = SM_CONTENT_D(A);
+    unsafe { (*content).M }
+}
 
 // #define SM_COLUMNS_D(A) (SM_CONTENT_D(A)->N)
+pub fn SM_COLUMNS_D(A: SUNMatrix) -> sunindextype {
+    let content = SM_CONTENT_D(A);
+    unsafe { (*content).N }
+}
 
 // #define SM_LDATA_D(A) (SM_CONTENT_D(A)->ldata)
 

@@ -3,32 +3,32 @@
 use std::{fs::File, io::BufReader, path::Path};
 
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-use thiserror::Error;
 use serde_with::StringWithSeparator;
 use serde_with::formats::SpaceSeparator;
+use serde_with::serde_as;
 use strum_macros::{Display, EnumString};
+use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DaeManifest {
     #[serde(rename = "AlgebraicVariables")]
-    algebraicVariables: AlgebraicVariables,
+    pub algebraicVariables: AlgebraicVariables,
 
     #[serde(rename = "ModelStructure")]
-    modelStructure: ModelStructure,
+    pub modelStructure: ModelStructure,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AlgebraicVariables {
     #[serde(rename = "AlgebraicVariable")]
-    algebraicVariables: Vec<AlgebraicVariable>,
+    pub algebraicVariables: Vec<AlgebraicVariable>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AlgebraicVariable {
     #[serde(rename = "@valueReference")]
-    valueReference: u32,
+    pub valueReference: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display, EnumString)]
@@ -45,12 +45,12 @@ pub enum DependencyKind {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContinuousStateDerivative {
     #[serde(rename = "@valueReference")]
-    valueReference: u32,
-    
+    pub valueReference: u32,
+
     #[serde(rename = "@dependencies")]
     #[serde_as(as = "Option<StringWithSeparator::<SpaceSeparator, u32>>")]
     pub dependencies: Option<Vec<u32>>,
-    
+
     #[serde(rename = "@dependenciesKind")]
     #[serde_as(as = "Option<StringWithSeparator::<SpaceSeparator, DependencyKind>>")]
     pub dependenciesKind: Option<Vec<DependencyKind>>,
@@ -60,12 +60,12 @@ pub struct ContinuousStateDerivative {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Formulation {
     #[serde(rename = "@index")]
-    index: u32,
-    
-    #[serde(rename = "@valueReference")]
-    valueReference: u32,
+    pub index: u32,
 
-        #[serde(rename = "@dependencies")]
+    #[serde(rename = "@valueReference")]
+    pub valueReference: u32,
+
+    #[serde(rename = "@dependencies")]
     #[serde_as(as = "Option<StringWithSeparator::<SpaceSeparator, u32>>")]
     pub dependencies: Option<Vec<u32>>,
 
@@ -77,16 +77,16 @@ pub struct Formulation {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Residual {
     #[serde(rename = "Formulation")]
-    formulations: Vec<Formulation>,
+    pub formulations: Vec<Formulation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModelStructure {
     #[serde(rename = "ContinuousStateDerivative")]
-    continuousStateDerivatives: Vec<ContinuousStateDerivative>,
+    pub continuousStateDerivatives: Vec<ContinuousStateDerivative>,
 
     #[serde(rename = "Residual")]
-    residuals: Vec<Residual>,
+    pub residuals: Vec<Residual>,
 }
 
 #[derive(Error, Debug)]

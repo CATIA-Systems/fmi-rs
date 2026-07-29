@@ -6,6 +6,7 @@ use fmi_rs::model_description::fmi2::{Causality, ModelDescription};
 use fmi_rs::sim::fmi2::recorder::Recorder;
 use fmi_rs::sim::fmi2::{SimulationSettings, Trajectories};
 use fmi_rs::{fmi2::types::*, sim::fmi2::cs::simulate};
+use core::f64;
 use std::vec;
 use std::{env, path::PathBuf};
 
@@ -339,7 +340,7 @@ fn test_parameters() {
 
     // Test fixed parameter (should be settable during initialization)
     let fixed_param_vr = [5];
-    let fixed_param_values = [3.14159];
+    let fixed_param_values = [f64::consts::PI];
     let mut output_values = [0.0];
 
     // Set parameter value
@@ -349,7 +350,7 @@ fn test_parameters() {
 
     // Test tunable parameter
     let tunable_param_vr = [6];
-    let tunable_param_values = [2.71828];
+    let tunable_param_values = [f64::consts::E];
     let mut tunable_output_values = [0.0];
 
     assert_ok!(fmu.setReal(&tunable_param_vr, &tunable_param_values));

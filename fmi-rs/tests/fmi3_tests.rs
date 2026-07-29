@@ -251,7 +251,7 @@ fn test_binary() {
     let mut output_values = vec![vec![]; 1];
     assert_ok!(fmu.getBinary(&output_vr, &mut output_values));
 
-    assert_eq!(output_values.get(0).unwrap(), input_values);
+    assert_eq!(output_values[0], input_values);
 }
 
 #[test]
