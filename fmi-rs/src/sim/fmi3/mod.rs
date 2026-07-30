@@ -417,7 +417,7 @@ fn set_start_values(
     let mut non_structural_start_values = vec![];
 
     // set structural parameters first
-    for (var_name, value) in start_values {
+    for (var_name, literal) in start_values {
         if let Some(variable) = model_description.get_variable_by_name(var_name)
             && variable.causality == Causality::StructuralParameter
         {
@@ -426,20 +426,18 @@ fn set_start_values(
                 configuration_mode = true;
             }
 
-            let value_references = [variable.valueReference];
-            let values: Result<Vec<u64>, _> = value.split_whitespace().map(|v| v.parse()).collect();
-            match values {
-                Ok(vals) => {
-                    call(fmu.setUInt64(&value_references, &vals))?;
+            match parse_variable_value(&variable.variableType, literal) {
+                Ok(value) => {
+                    call(set_variable_value(fmu, variable.valueReference, &value))?;
                 }
-                Err(_) => {
+                Err(e) => {
                     return Err(SimulationError::Parameter(format!(
-                        "Invalid integer value '{value}' for variable '{var_name}'."
+                        "Invalid value '{literal}' for variable '{var_name}': {e}"
                     )));
                 }
             }
         } else {
-            non_structural_start_values.push((var_name.clone(), value.clone()));
+            non_structural_start_values.push((var_name.clone(), literal.clone()));
         }
     }
 
