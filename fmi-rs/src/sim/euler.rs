@@ -1,5 +1,8 @@
 use crate::sim::{
-    GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn, GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, SetContinuousInputsFn, SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory, fmi3::dae::{Dae3, InitFn, JacobianFn, ResidualsFn}, relative_eq,
+    GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn,
+    GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, SetContinuousInputsFn,
+    SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory, fmi3::dae::Dae3,
+    relative_eq,
 };
 
 pub struct ForwardEuler<'a> {
@@ -40,9 +43,6 @@ impl SolverFactory for ForwardEulerFactory {
         _get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
         set_continuous_states: SetContinuousStatesFn<'a>,
         _nominals: Vec<f64>,
-        _init: Option<InitFn<'a>>,
-        _residuals: Option<ResidualsFn<'a>>,
-        _jacobian: Option<JacobianFn<'a>>,
         _dae: Option<Dae3>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         let mut x = vec![0.0; nx];

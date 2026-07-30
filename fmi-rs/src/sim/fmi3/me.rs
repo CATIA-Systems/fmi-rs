@@ -345,9 +345,6 @@ pub fn simulate<S: SolverFactory>(
             },
         ),
         nominals,
-        Some(init),
-        Some(residuals),
-        Some(jacobian),
         Some(dae),
     )?;
 

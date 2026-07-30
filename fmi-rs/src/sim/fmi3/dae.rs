@@ -30,13 +30,13 @@ use crate::{
     },
 };
 
-pub type InitFn<'a> = Box<dyn Fn(&mut [f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
+// pub type InitFn<'a> = Box<dyn Fn(&mut [f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
 
-pub type ResidualsFn<'a> =
-    Box<dyn Fn(f64, &[f64], &[f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
+// pub type ResidualsFn<'a> =
+//     Box<dyn Fn(f64, &[f64], &[f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
 
-pub type JacobianFn<'a> =
-    Box<dyn Fn(f64, &[f64], f64, &mut [f64]) -> Result<(), SimulationError> + 'a>;
+// pub type JacobianFn<'a> =
+//     Box<dyn Fn(f64, &[f64], f64, &mut [f64]) -> Result<(), SimulationError> + 'a>;
 
 // pub trait Dae {
 //     type Context;
@@ -67,10 +67,10 @@ pub type JacobianFn<'a> =
 //     ) -> Result<(), SimulationError>;
 // }
 
-struct Functions<'a> {
-    residuals: ResidualsFn<'a>,
-    jacobian: JacobianFn<'a>,
-}
+// struct Functions<'a> {
+//     residuals: ResidualsFn<'a>,
+//     jacobian: JacobianFn<'a>,
+// }
 
 pub struct Ida<'a> {
     sunctx: SUNContext,
@@ -115,7 +115,8 @@ extern "C" fn residuals_cb(
         // let functions: &Functions = &*(user_data as *const Functions);
         // (functions.residuals)(tt, (*yy).as_mut(), (*yp).as_mut(), (*rr).as_mut()).map_or(-1, |_| 0)
         let dae: &Dae3 = &*(user_data as *const Dae3);
-        dae.residuals(tt, (*yy).as_mut(), (*yp).as_mut(), (*rr).as_mut()).map_or(-1, |_| 0)
+        dae.residuals(tt, (*yy).as_mut(), (*yp).as_mut(), (*rr).as_mut())
+            .map_or(-1, |_| 0)
     }
 }
 
@@ -170,9 +171,6 @@ impl<'a> Ida<'a> {
         t0: f64,
         rtol: f64,
         nominals: &[f64],
-        init: InitFn<'a>,
-        residuals: ResidualsFn<'a>,
-        jacobian: JacobianFn<'a>,
         dae: Dae3<'a>,
     ) -> Result<Self, SimulationError> {
         let neq = nominals.len() as i64;
@@ -203,7 +201,8 @@ impl<'a> Ida<'a> {
             expect_not_null!(A, "Failed to create A matrix");
 
             // Initialize vectors
-            (init)((*yy).as_mut(), (*yp).as_mut())?;
+            // (init)((*yy).as_mut(), (*yp).as_mut())?;
+            dae.init((*yy).as_mut(), (*yp).as_mut())?;
 
             let atol = (*avtol).as_mut();
 
@@ -335,20 +334,9 @@ impl SolverFactory for IdaSolverFactory {
         _get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
         _set_continuous_states: SetContinuousStatesFn<'a>,
         nominals: Vec<f64>,
-        init: Option<InitFn<'a>>,
-        residuals: Option<ResidualsFn<'a>>,
-        jacobian: Option<JacobianFn<'a>>,
         dae: Option<Dae3<'a>>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
-        let ida = Ida::new(
-            start_time,
-            rtol,
-            &nominals,
-            init.unwrap(),
-            residuals.unwrap(),
-            jacobian.unwrap(),
-            dae.unwrap(),
-        )?;
+        let ida = Ida::new(start_time, rtol, &nominals, dae.unwrap())?;
         Ok(Box::new(ida))
     }
 }
@@ -372,11 +360,7 @@ impl<'a> Dae3<'a> {
         })
     }
 
-    pub fn init(
-        &self,
-        knowns: &mut [f64],
-        unknowns: &mut [f64],
-    ) -> Result<(), SimulationError> {
+    pub fn init(&self, knowns: &mut [f64], unknowns: &mut [f64]) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.getFloat64(&self.known_vrs, knowns));
         expect_ok!(self.fmu.getFloat64(&self.unknown_vrs, unknowns));
         Ok(())

@@ -208,9 +208,6 @@ pub fn simulate<S: SolverFactory>(
         ),
         vec![],
         None,
-        None,
-        None,
-        None,
     )?;
 
     let mut n_steps = 0;

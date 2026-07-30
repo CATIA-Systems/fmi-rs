@@ -14,9 +14,7 @@ use std::path::PathBuf;
 use approx::relative_eq;
 use thiserror::Error;
 
-use crate::{
-    dae::DaeManifestError, sim::fmi3::dae::{Dae3, InitFn, JacobianFn, ResidualsFn},
-};
+use crate::{dae::DaeManifestError, sim::fmi3::dae::Dae3};
 #[cfg(feature = "zip")]
 use crate::{model_description::ModelDescriptionError, zip::ZipError};
 
@@ -114,9 +112,6 @@ pub trait SolverFactory {
         set_continuous_states: SetContinuousStatesFn<'a>,
         // experimental
         nominals: Vec<f64>,
-        init: Option<InitFn<'a>>,
-        residuals: Option<ResidualsFn<'a>>,
-        jacobian: Option<JacobianFn<'a>>,
         dae: Option<Dae3<'a>>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError>;
 }
