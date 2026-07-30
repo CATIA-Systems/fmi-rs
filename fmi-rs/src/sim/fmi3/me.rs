@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::dae::DaeManifest;
 use crate::fmi3::log::DefaultLogger;
+use crate::sim::fmi3::dae::Dae3;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
 use crate::sim::{SimulationError, next_communication_point, next_regular_point};
 use crate::{
@@ -283,6 +284,8 @@ pub fn simulate<S: SolverFactory>(
         Ok(())
     });
 
+    let dae = Dae3::new(known_vrs.clone(), unknown_vrs.clone())?;
+
     let mut solver = solver_factory.create(
         time,
         nx,
@@ -345,6 +348,7 @@ pub fn simulate<S: SolverFactory>(
         Some(init),
         Some(residuals),
         Some(jacobian),
+        Some(dae),
     )?;
 
     let mut n_steps = 0;

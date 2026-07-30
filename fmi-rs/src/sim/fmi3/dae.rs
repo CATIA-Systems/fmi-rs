@@ -2,9 +2,13 @@ use std::ffi::c_void;
 
 use crate::dae::DaeManifest;
 use crate::fmi3::log::DefaultLogger;
-use crate::fmi3::types::fmi3Status;
+use crate::fmi3::types::{fmi3Status, fmi3ValueReference};
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
-use crate::sim::{GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn, GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, SetContinuousInputsFn, SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory, next_regular_point};
+use crate::sim::{
+    GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn,
+    GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, SetContinuousInputsFn,
+    SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory, next_regular_point,
+};
 use crate::sundials::ida::{
     IDA_NORMAL, IDA_SUCCESS, IDA_TSTOP_RETURN, IDACreate, IDAFree, IDAInit, IDASVtolerances,
     IDASetUserData, IDASolve,
@@ -34,6 +38,35 @@ pub type ResidualsFn<'a> =
 pub type JacobianFn<'a> =
     Box<dyn Fn(f64, &[f64], f64, &mut [f64]) -> Result<(), SimulationError> + 'a>;
 
+// pub trait Dae {
+//     type Context;
+
+//     fn init(
+//         &self,
+//         ctx: &Self::Context,
+//         konwns: &mut [f64],
+//         unknowns: &mut [f64],
+//     ) -> Result<(), SimulationError>;
+
+//     fn residuals(
+//         &self,
+//         ctx: &Self::Context,
+//         time: f64,
+//         knowns: &[f64],
+//         unknowns: &[f64],
+//         residuals: &mut [f64],
+//     ) -> Result<(), SimulationError>;
+
+//     fn jacobian(
+//         &self,
+//         ctx: &Self::Context,
+//         time: f64,
+//         knowns: &[f64],
+//         alpha: f64,
+//         J: &mut [f64],
+//     ) -> Result<(), SimulationError>;
+// }
+
 struct Functions<'a> {
     residuals: ResidualsFn<'a>,
     jacobian: JacobianFn<'a>,
@@ -49,6 +82,7 @@ pub struct Ida<'a> {
     ida_mem: *mut c_void,
     #[allow(dead_code)]
     functions: Box<Functions<'a>>,
+    // dae: Box<dyn Dae<Context = FMU3>>,
 }
 
 macro_rules! expect_no_error {
@@ -103,6 +137,20 @@ extern "C" fn jacrob(
     _tmp2: N_Vector,
     _tmp3: N_Vector,
 ) -> i32 {
+    // // 1. Safety check
+    // if user_data.is_null() {
+    //     return -1; // Return error code to IDAS
+    // }
+
+    // // 2. Cast void* back to the trait object raw pointer
+    // let dae_ptr = user_data as *mut dyn Dae<Context = FMU3>;
+
+    // // 3. Convert raw pointer to a Rust reference (does NOT take ownership)
+    // let dae: &dyn Dae<Context = FMU3> = match dae_ptr.as_ref() {
+    //     Some(d) => d,
+    //     None => return -1,
+    // };
+
     unsafe {
         let functions: &Functions = &*(user_data as *const Functions);
         let J = (*JJ).as_mut();
@@ -119,6 +167,7 @@ impl<'a> Ida<'a> {
         init: InitFn<'a>,
         residuals: ResidualsFn<'a>,
         jacobian: JacobianFn<'a>,
+        dae: Dae3,
     ) -> Result<Self, SimulationError> {
         let neq = nominals.len() as i64;
 
@@ -185,6 +234,11 @@ impl<'a> Ida<'a> {
             });
 
             let user_data: *const Functions = &*functions;
+            // let user_data: *const Functions = &*functions;
+            // let user_data2: *const Box<dyn Dae<Context = FMU3>> = &dae;
+
+            // 2. Consume the Box and transfer ownership to a raw pointer
+            // let user_data_ptr: *mut c_void = Box::into_raw(dae) as *mut c_void;
 
             expect_no_error!(
                 IDASetUserData(ida_mem, user_data as *mut c_void),
@@ -200,6 +254,7 @@ impl<'a> Ida<'a> {
                 LS,
                 ida_mem,
                 functions,
+                // dae,
             })
         }
     }
@@ -232,7 +287,7 @@ impl<'a> Solver for Ida<'a> {
 
         Ok((next_time, false))
     }
-    
+
     fn reset(&mut self, _time: f64) -> Result<(), SimulationError> {
         Err(SimulationError::Parameter("Not implemented".to_owned()))
     }
@@ -275,6 +330,7 @@ impl SolverFactory for IdaSolverFactory {
         init: Option<InitFn<'a>>,
         residuals: Option<ResidualsFn<'a>>,
         jacobian: Option<JacobianFn<'a>>,
+        dae: Option<Dae3>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         let ida = Ida::new(
             start_time,
@@ -283,261 +339,91 @@ impl SolverFactory for IdaSolverFactory {
             init.unwrap(),
             residuals.unwrap(),
             jacobian.unwrap(),
+            dae.unwrap(),
         )?;
         Ok(Box::new(ida))
     }
 }
 
-pub fn simulate(
-    settings: &SimulationSettings,
-    input: Option<&StaticInput>,
-    recorder: &mut Recorder,
-) -> Result<(), SimulationError> {
-    let start_time = settings.start_time;
-    let stop_time = settings.stop_time;
-    let output_interval = settings.output_interval;
+pub struct Dae3 {
+    known_vrs: Vec<fmi3ValueReference>,
+    unknown_vrs: Vec<fmi3ValueReference>,
+}
 
-    // validate_simulation_steps(start_time, stop_time, output_interval)
-    //     .map_err(SimulationError::Parameter)?;
-
-    let mut time = start_time;
-
-    let model_exchange = settings
-        .model_description
-        .modelExchange
-        .as_ref()
-        .ok_or(SimulationError::InterfaceType)?;
-
-    let _needs_completed_integrator_step = model_exchange.needsCompletedIntegratorStep;
-
-    let logger = if let Some(log_file) = &settings.log_file {
-        let stream = std::fs::File::create(log_file).map_err(SimulationError::io(&log_file))?;
-        DefaultLogger::new(stream)
-    } else {
-        DefaultLogger::default()
-    };
-
-    let fmu = FMU3::instantiateModelExchange(
-        settings.unzipdir,
-        &model_exchange.modelIdentifier,
-        &settings.model_description.modelName,
-        &settings.model_description.instantiationToken,
-        false,
-        settings.logging_on,
-        Box::new(logger),
-        settings.log_fmi_calls,
-    )?;
-
-    set_start_values(&settings.start_values, settings.model_description, &fmu)?;
-
-    call(fmu.enterInitializationMode(
-        if settings.set_tolerance {
-            Some(settings.tolerance)
-        } else {
-            None
-        },
-        time,
-        if settings.set_stop_time {
-            Some(stop_time)
-        } else {
-            None
-        },
-    ))?;
-
-    if let Some(input) = &input {
-        input.set_discrete_inputs(time, &fmu)?;
-        input.set_continuous_inputs(time, false, &fmu)?;
-    }
-
-    call(fmu.exitInitializationMode())?;
-
-    let dae_manifest_path = settings
-        .unzipdir
-        .join("extra")
-        .join("org.fmi-standard.fmi-ls-dae")
-        .join("fmi-ls-manifest.xml");
-
-    let dae_manifest = DaeManifest::from_file(dae_manifest_path)?;
-
-    let mut continuous_state_vrs = vec![];
-    let mut continuous_state_derivative_vrs = vec![];
-    let mut algebraic_variable_vrs = vec![];
-    let mut nominals = vec![];
-
-    for derivative in dae_manifest.modelStructure.continuousStateDerivatives {
-        continuous_state_derivative_vrs.push(derivative.valueReference);
-
-        let derivative_variable = settings
-            .model_description
-            .fetch_variable_by_value_reference(derivative.valueReference)?;
-
-        let continuous_state_vr =
-            derivative_variable
-                .variableType
-                .derivative()
-                .ok_or_else(|| {
-                    SimulationError::Parameter(format!(
-                        "Variable '{}' is missing the derivative attribute",
-                        derivative_variable.name
-                    ))
-                })?;
-
-        continuous_state_vrs.push(continuous_state_vr);
-
-        let continuous_state_variable = settings
-            .model_description
-            .fetch_variable_by_value_reference(continuous_state_vr)?;
-
-        nominals.push(
-            continuous_state_variable
-                .variableType
-                .nominal()
-                .unwrap_or(1.0),
-        );
-    }
-
-    for algebraic_variable in &dae_manifest.algebraicVariables.algebraicVariables {
-        algebraic_variable_vrs.push(algebraic_variable.valueReference);
-        let nominal = settings
-            .model_description
-            .fetch_variable_by_value_reference(algebraic_variable.valueReference)?
-            .variableType
-            .nominal()
-            .unwrap_or(1.0);
-        nominals.push(nominal);
-    }
-
-    let residual_vrs = dae_manifest
-        .modelStructure
-        .residuals
-        .iter()
-        .enumerate()
-        .map(|(i, residual)| match residual.formulations.as_slice() {
-            [first] => Ok(first.valueReference),
-            _ => Err(SimulationError::Parameter(format!(
-                "Residual {} must have exactly one formuation",
-                i + 1
-            ))),
+impl Dae3 {
+    pub fn new(
+        known_vrs: Vec<fmi3ValueReference>,
+        unknown_vrs: Vec<fmi3ValueReference>,
+    ) -> Result<Self, SimulationError> {
+        Ok(Self {
+            known_vrs,
+            unknown_vrs,
         })
-        .collect::<Result<Vec<u32>, SimulationError>>()?;
+    }
+}
 
-    let known_vrs: Vec<u32> = continuous_state_vrs
-        .clone()
-        .into_iter()
-        .chain(algebraic_variable_vrs)
-        .collect();
-
-    let unknown_vrs: Vec<u32> = continuous_state_derivative_vrs
-        .clone()
-        .into_iter()
-        .chain(residual_vrs)
-        .collect();
-
-    let nx = continuous_state_vrs.len();
-    let neq = known_vrs.len();
-
-    let init = Box::new(|yy: &mut [f64], yp: &mut [f64]| {
-        expect_ok!(fmu.getFloat64(&known_vrs, yy));
-        expect_ok!(fmu.getFloat64(&unknown_vrs, yp));
+impl Dae3 {
+    fn init(
+        &self,
+        fmu: &FMU3,
+        knowns: &mut [f64],
+        unknowns: &mut [f64],
+    ) -> Result<(), SimulationError> {
+        expect_ok!(fmu.getFloat64(&self.known_vrs, knowns));
+        expect_ok!(fmu.getFloat64(&self.unknown_vrs, unknowns));
         Ok(())
-    });
+    }
 
-    let residuals = Box::new(|tt: f64, yy: &[f64], yp: &[f64], rr: &mut [f64]| {
-        let mut unknowns = vec![0.0; neq];
+    fn residuals(
+        &self,
+        fmu: &FMU3,
+        time: f64,
+        knowns: &[f64],
+        unknowns: &[f64],
+        residuals: &mut [f64],
+    ) -> Result<(), SimulationError> {
+        expect_ok!(fmu.setTime(time));
+        expect_ok!(fmu.setFloat64(&self.known_vrs, knowns));
+        expect_ok!(fmu.getFloat64(&self.unknown_vrs, residuals));
 
-        expect_ok!(fmu.setTime(tt));
-        expect_ok!(fmu.setFloat64(&known_vrs, yy));
-        expect_ok!(fmu.getFloat64(&unknown_vrs, &mut unknowns));
+        let nx: usize = 2;
 
         for i in 0..nx {
-            rr[i] = unknowns[i] - yp[i];
+            residuals[i] -= unknowns[i];
         }
 
-        rr[nx..neq].copy_from_slice(&unknowns[nx..neq]);
-
         Ok(())
-    });
+    }
 
-    let jacobian = Box::new(|time: f64, y: &[f64], cj: f64, A: &mut [f64]| {
-        fmu.setTime(time);
-        expect_ok!(fmu.setFloat64(&known_vrs, y));
+    fn jacobian(
+        &self,
+        fmu: &FMU3,
+        time: f64,
+        knowns: &[f64],
+        alpha: f64,
+        J: &mut [f64],
+    ) -> Result<(), SimulationError> {
+        expect_ok!(fmu.setTime(time));
+        expect_ok!(fmu.setFloat64(&self.known_vrs, knowns));
 
-        let n = known_vrs.len();
+        let nx: usize = 2;
+        let n = self.known_vrs.len();
 
         for i in 0..n {
-            let mut seed = vec![0.0; known_vrs.len()];
+            let mut seed = vec![0.0; n];
             seed[i] = 1.0;
-            let column = &mut A[i * n..(i + 1) * n];
-            expect_ok!(fmu.getDirectionalDerivative(&unknown_vrs, &known_vrs, &seed, column));
-            if i < continuous_state_vrs.len() {
-                column[i] -= cj;
+            let column = &mut J[i * n..(i + 1) * n];
+            expect_ok!(fmu.getDirectionalDerivative(
+                &self.unknown_vrs,
+                &self.known_vrs,
+                &seed,
+                column
+            ));
+            if i < nx {
+                column[i] -= alpha;
             }
         }
 
         Ok(())
-    });
-
-    let mut solver = Ida::new(
-        start_time,
-        settings.tolerance,
-        &nominals,
-        init,
-        residuals,
-        jacobian,
-    )?;
-
-    let mut next_event_time = None;
-
-    // initial event iteration
-    loop {
-        let mut discreteStatesNeedUpdate = false;
-        let mut terminateSimulation = false;
-        let mut nominalsOfContinuousStatesChanged = false;
-        let mut valuesOfContinuousStatesChanged = false;
-
-        call(fmu.updateDiscreteStates(
-            &mut discreteStatesNeedUpdate,
-            &mut terminateSimulation,
-            &mut nominalsOfContinuousStatesChanged,
-            &mut valuesOfContinuousStatesChanged,
-            &mut next_event_time,
-        ))?;
-
-        if terminateSimulation {
-            call(fmu.terminate())?;
-            return Ok(());
-        }
-
-        if !discreteStatesNeedUpdate {
-            break;
-        }
     }
-
-    call(fmu.enterContinuousTimeMode())?;
-
-    let mut n_steps = 0;
-
-    loop {
-        recorder.sample(time, &fmu)?;
-
-        if relative_ge(time, stop_time) {
-            break;
-        }
-
-        let next_regular_point = next_regular_point(
-            settings.log_time_scale,
-            start_time,
-            output_interval,
-            n_steps,
-        );
-
-        let (time_reached, _is_state_event) = solver.step(next_regular_point)?;
-
-        time = time_reached;
-        n_steps += 1;
-    }
-
-    call(fmu.terminate())?;
-
-    Ok(())
 }

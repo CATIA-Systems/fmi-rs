@@ -210,6 +210,7 @@ pub fn simulate<S: SolverFactory>(
         None,
         None,
         None,
+        None,
     )?;
 
     let mut n_steps = 0;

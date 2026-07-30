@@ -1,4 +1,4 @@
-use crate::sim::fmi3::dae::{InitFn, JacobianFn, ResidualsFn};
+use crate::sim::fmi3::dae::{Dae3, InitFn, JacobianFn, ResidualsFn};
 use crate::sim::{
     GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn,
     GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, SetContinuousInputsFn,
@@ -99,6 +99,7 @@ impl SolverFactory for CVodeSolverFactory {
         _init: Option<InitFn<'a>>,
         _residuals: Option<ResidualsFn<'a>>,
         _jacobian: Option<JacobianFn<'a>>,
+        _dae: Option<Dae3>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         unsafe {
             let functions = Box::new(Functions {
