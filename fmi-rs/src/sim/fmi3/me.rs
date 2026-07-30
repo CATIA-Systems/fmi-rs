@@ -284,7 +284,7 @@ pub fn simulate<S: SolverFactory>(
         Ok(())
     });
 
-    let dae = Dae3::new(known_vrs.clone(), unknown_vrs.clone())?;
+    let dae = Dae3::new(&fmu, known_vrs.clone(), unknown_vrs.clone())?;
 
     let mut solver = solver_factory.create(
         time,

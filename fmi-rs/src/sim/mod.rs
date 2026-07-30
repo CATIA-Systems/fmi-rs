@@ -117,7 +117,7 @@ pub trait SolverFactory {
         init: Option<InitFn<'a>>,
         residuals: Option<ResidualsFn<'a>>,
         jacobian: Option<JacobianFn<'a>>,
-        dae: Option<Dae3>,
+        dae: Option<Dae3<'a>>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError>;
 }
 

@@ -80,9 +80,9 @@ pub struct Ida<'a> {
     A: SUNMatrix,
     LS: SUNLinearSolver,
     ida_mem: *mut c_void,
-    #[allow(dead_code)]
-    functions: Box<Functions<'a>>,
-    // dae: Box<dyn Dae<Context = FMU3>>,
+    // #[allow(dead_code)]
+    // functions: Box<Functions<'a>>,
+    dae: Box<Dae3<'a>>,
 }
 
 macro_rules! expect_no_error {
@@ -112,8 +112,10 @@ extern "C" fn residuals_cb(
     user_data: *mut c_void,
 ) -> i32 {
     unsafe {
-        let functions: &Functions = &*(user_data as *const Functions);
-        (functions.residuals)(tt, (*yy).as_mut(), (*yp).as_mut(), (*rr).as_mut()).map_or(-1, |_| 0)
+        // let functions: &Functions = &*(user_data as *const Functions);
+        // (functions.residuals)(tt, (*yy).as_mut(), (*yp).as_mut(), (*rr).as_mut()).map_or(-1, |_| 0)
+        let dae: &Dae3 = &*(user_data as *const Dae3);
+        dae.residuals(tt, (*yy).as_mut(), (*yp).as_mut(), (*rr).as_mut()).map_or(-1, |_| 0)
     }
 }
 
@@ -152,10 +154,14 @@ extern "C" fn jacrob(
     // };
 
     unsafe {
-        let functions: &Functions = &*(user_data as *const Functions);
-        let J = (*JJ).as_mut();
+        // let functions: &Functions = &*(user_data as *const Functions);
+        let dae: &Dae3 = &*(user_data as *const Dae3);
         let y = (*yy).as_mut();
-        (functions.jacobian)(tt, y, cj, J).map_or(-1, |_| 0)
+        let J = (*JJ).as_mut();
+        // (functions.jacobian)(tt, y, cj, J).map_or(-1, |_| 0)
+        dae.jacobian(tt, y, cj, J).map_or(-1, |_| 0)
+
+        // (functions.jacobian)(tt, y, cj, J).map_or(-1, |_| 0)
     }
 }
 
@@ -167,7 +173,7 @@ impl<'a> Ida<'a> {
         init: InitFn<'a>,
         residuals: ResidualsFn<'a>,
         jacobian: JacobianFn<'a>,
-        dae: Dae3,
+        dae: Dae3<'a>,
     ) -> Result<Self, SimulationError> {
         let neq = nominals.len() as i64;
 
@@ -228,13 +234,15 @@ impl<'a> Ida<'a> {
                 "Failed to set Jacobian routine"
             );
 
-            let functions = Box::new(Functions {
-                residuals,
-                jacobian,
-            });
+            // let functions = Box::new(Functions {
+            //     residuals,
+            //     jacobian,
+            // });
 
-            let user_data: *const Functions = &*functions;
+            let dae = Box::new(dae);
+
             // let user_data: *const Functions = &*functions;
+            let user_data: *const Dae3 = &*dae;
             // let user_data2: *const Box<dyn Dae<Context = FMU3>> = &dae;
 
             // 2. Consume the Box and transfer ownership to a raw pointer
@@ -253,8 +261,8 @@ impl<'a> Ida<'a> {
                 A,
                 LS,
                 ida_mem,
-                functions,
-                // dae,
+                // functions,
+                dae,
             })
         }
     }
@@ -330,7 +338,7 @@ impl SolverFactory for IdaSolverFactory {
         init: Option<InitFn<'a>>,
         residuals: Option<ResidualsFn<'a>>,
         jacobian: Option<JacobianFn<'a>>,
-        dae: Option<Dae3>,
+        dae: Option<Dae3<'a>>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         let ida = Ida::new(
             start_time,
@@ -345,46 +353,45 @@ impl SolverFactory for IdaSolverFactory {
     }
 }
 
-pub struct Dae3 {
+pub struct Dae3<'a> {
+    fmu: &'a FMU3,
     known_vrs: Vec<fmi3ValueReference>,
     unknown_vrs: Vec<fmi3ValueReference>,
 }
 
-impl Dae3 {
+impl<'a> Dae3<'a> {
     pub fn new(
+        fmu: &'a FMU3,
         known_vrs: Vec<fmi3ValueReference>,
         unknown_vrs: Vec<fmi3ValueReference>,
     ) -> Result<Self, SimulationError> {
         Ok(Self {
+            fmu,
             known_vrs,
             unknown_vrs,
         })
     }
-}
 
-impl Dae3 {
-    fn init(
+    pub fn init(
         &self,
-        fmu: &FMU3,
         knowns: &mut [f64],
         unknowns: &mut [f64],
     ) -> Result<(), SimulationError> {
-        expect_ok!(fmu.getFloat64(&self.known_vrs, knowns));
-        expect_ok!(fmu.getFloat64(&self.unknown_vrs, unknowns));
+        expect_ok!(self.fmu.getFloat64(&self.known_vrs, knowns));
+        expect_ok!(self.fmu.getFloat64(&self.unknown_vrs, unknowns));
         Ok(())
     }
 
-    fn residuals(
+    pub fn residuals(
         &self,
-        fmu: &FMU3,
         time: f64,
         knowns: &[f64],
         unknowns: &[f64],
         residuals: &mut [f64],
     ) -> Result<(), SimulationError> {
-        expect_ok!(fmu.setTime(time));
-        expect_ok!(fmu.setFloat64(&self.known_vrs, knowns));
-        expect_ok!(fmu.getFloat64(&self.unknown_vrs, residuals));
+        expect_ok!(self.fmu.setTime(time));
+        expect_ok!(self.fmu.setFloat64(&self.known_vrs, knowns));
+        expect_ok!(self.fmu.getFloat64(&self.unknown_vrs, residuals));
 
         let nx: usize = 2;
 
@@ -395,16 +402,15 @@ impl Dae3 {
         Ok(())
     }
 
-    fn jacobian(
+    pub fn jacobian(
         &self,
-        fmu: &FMU3,
         time: f64,
         knowns: &[f64],
         alpha: f64,
         J: &mut [f64],
     ) -> Result<(), SimulationError> {
-        expect_ok!(fmu.setTime(time));
-        expect_ok!(fmu.setFloat64(&self.known_vrs, knowns));
+        expect_ok!(self.fmu.setTime(time));
+        expect_ok!(self.fmu.setFloat64(&self.known_vrs, knowns));
 
         let nx: usize = 2;
         let n = self.known_vrs.len();
@@ -413,7 +419,7 @@ impl Dae3 {
             let mut seed = vec![0.0; n];
             seed[i] = 1.0;
             let column = &mut J[i * n..(i + 1) * n];
-            expect_ok!(fmu.getDirectionalDerivative(
+            expect_ok!(self.fmu.getDirectionalDerivative(
                 &self.unknown_vrs,
                 &self.known_vrs,
                 &seed,
