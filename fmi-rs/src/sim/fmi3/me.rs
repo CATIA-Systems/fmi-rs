@@ -241,50 +241,8 @@ pub fn simulate<S: SolverFactory>(
         .collect();
 
     let nx = continuous_state_vrs.len();
-    let neq = known_vrs.len();
 
-    let init = Box::new(|yy: &mut [f64], yp: &mut [f64]| {
-        expect_ok!(fmu.getFloat64(&known_vrs, yy));
-        expect_ok!(fmu.getFloat64(&unknown_vrs, yp));
-        Ok(())
-    });
-
-    let residuals = Box::new(|tt: f64, yy: &[f64], yp: &[f64], rr: &mut [f64]| {
-        let mut unknowns = vec![0.0; neq];
-
-        expect_ok!(fmu.setTime(tt));
-        expect_ok!(fmu.setFloat64(&known_vrs, yy));
-        expect_ok!(fmu.getFloat64(&unknown_vrs, &mut unknowns));
-
-        for i in 0..nx {
-            rr[i] = unknowns[i] - yp[i];
-        }
-
-        rr[nx..neq].copy_from_slice(&unknowns[nx..neq]);
-
-        Ok(())
-    });
-
-    let jacobian = Box::new(|time: f64, y: &[f64], cj: f64, A: &mut [f64]| {
-        fmu.setTime(time);
-        expect_ok!(fmu.setFloat64(&known_vrs, y));
-
-        let n = known_vrs.len();
-
-        for i in 0..n {
-            let mut seed = vec![0.0; known_vrs.len()];
-            seed[i] = 1.0;
-            let column = &mut A[i * n..(i + 1) * n];
-            expect_ok!(fmu.getDirectionalDerivative(&unknown_vrs, &known_vrs, &seed, column));
-            if i < continuous_state_vrs.len() {
-                column[i] -= cj;
-            }
-        }
-
-        Ok(())
-    });
-
-    let dae = Dae3::new(&fmu, known_vrs.clone(), unknown_vrs.clone())?;
+    let dae = Dae3::new(&fmu, nominals, known_vrs.clone(), unknown_vrs.clone())?;
 
     let mut solver = solver_factory.create(
         time,
@@ -344,7 +302,6 @@ pub fn simulate<S: SolverFactory>(
                 _ => Err(SimulationError::FMICall),
             },
         ),
-        nominals,
         Some(dae),
     )?;
 

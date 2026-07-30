@@ -206,7 +206,6 @@ pub fn simulate<S: SolverFactory>(
                 _ => Err(SimulationError::FMICall),
             },
         ),
-        vec![],
         None,
     )?;
 

@@ -111,7 +111,6 @@ pub trait SolverFactory {
         get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
         set_continuous_states: SetContinuousStatesFn<'a>,
         // experimental
-        nominals: Vec<f64>,
         dae: Option<Dae3<'a>>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError>;
 }

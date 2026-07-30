@@ -170,10 +170,9 @@ impl<'a> Ida<'a> {
     pub fn new(
         t0: f64,
         rtol: f64,
-        nominals: &[f64],
         dae: Dae3<'a>,
     ) -> Result<Self, SimulationError> {
-        let neq = nominals.len() as i64;
+        let neq = dae.nominals.len() as i64;
 
         unsafe {
             let mut sunctx = std::ptr::null_mut();
@@ -333,16 +332,16 @@ impl SolverFactory for IdaSolverFactory {
         _get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
         _get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
         _set_continuous_states: SetContinuousStatesFn<'a>,
-        nominals: Vec<f64>,
         dae: Option<Dae3<'a>>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
-        let ida = Ida::new(start_time, rtol, &nominals, dae.unwrap())?;
+        let ida = Ida::new(start_time, rtol, dae.unwrap())?;
         Ok(Box::new(ida))
     }
 }
 
 pub struct Dae3<'a> {
     fmu: &'a FMU3,
+    nominals: Vec<f64>,
     known_vrs: Vec<fmi3ValueReference>,
     unknown_vrs: Vec<fmi3ValueReference>,
 }
@@ -350,11 +349,13 @@ pub struct Dae3<'a> {
 impl<'a> Dae3<'a> {
     pub fn new(
         fmu: &'a FMU3,
+        nominals: Vec<f64>,
         known_vrs: Vec<fmi3ValueReference>,
         unknown_vrs: Vec<fmi3ValueReference>,
     ) -> Result<Self, SimulationError> {
         Ok(Self {
             fmu,
+            nominals,
             known_vrs,
             unknown_vrs,
         })
