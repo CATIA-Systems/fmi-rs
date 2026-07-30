@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::dae::DaeManifest;
 use crate::fmi3::log::DefaultLogger;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
 use crate::sim::{SimulationError, next_communication_point, next_regular_point};
@@ -12,6 +13,14 @@ use crate::{
         relative_eq, relative_ge, relative_le,
     },
 };
+
+macro_rules! expect_ok {
+    ($result:expr) => {
+        if $result != fmi3Status::fmi3OK {
+            return Err(SimulationError::FMICall);
+        }
+    };
+}
 
 pub fn simulate<S: SolverFactory>(
     settings: &SimulationSettings,
@@ -148,6 +157,132 @@ pub fn simulate<S: SolverFactory>(
     call(fmu.getNumberOfContinuousStates(&mut nx))?;
     call(fmu.getNumberOfEventIndicators(&mut nz))?;
 
+    let dae_manifest_path = settings
+        .unzipdir
+        .join("extra")
+        .join("org.fmi-standard.fmi-ls-dae")
+        .join("fmi-ls-manifest.xml");
+
+    let dae_manifest = DaeManifest::from_file(dae_manifest_path)?;
+
+    let mut continuous_state_vrs = vec![];
+    let mut continuous_state_derivative_vrs = vec![];
+    let mut algebraic_variable_vrs = vec![];
+    let mut nominals = vec![];
+
+    for derivative in dae_manifest.modelStructure.continuousStateDerivatives {
+        continuous_state_derivative_vrs.push(derivative.valueReference);
+
+        let derivative_variable = settings
+            .model_description
+            .fetch_variable_by_value_reference(derivative.valueReference)?;
+
+        let continuous_state_vr =
+            derivative_variable
+                .variableType
+                .derivative()
+                .ok_or_else(|| {
+                    SimulationError::Parameter(format!(
+                        "Variable '{}' is missing the derivative attribute",
+                        derivative_variable.name
+                    ))
+                })?;
+
+        continuous_state_vrs.push(continuous_state_vr);
+
+        let continuous_state_variable = settings
+            .model_description
+            .fetch_variable_by_value_reference(continuous_state_vr)?;
+
+        nominals.push(
+            continuous_state_variable
+                .variableType
+                .nominal()
+                .unwrap_or(1.0),
+        );
+    }
+
+    for algebraic_variable in &dae_manifest.algebraicVariables.algebraicVariables {
+        algebraic_variable_vrs.push(algebraic_variable.valueReference);
+        let nominal = settings
+            .model_description
+            .fetch_variable_by_value_reference(algebraic_variable.valueReference)?
+            .variableType
+            .nominal()
+            .unwrap_or(1.0);
+        nominals.push(nominal);
+    }
+
+    let residual_vrs = dae_manifest
+        .modelStructure
+        .residuals
+        .iter()
+        .enumerate()
+        .map(|(i, residual)| match residual.formulations.as_slice() {
+            [first] => Ok(first.valueReference),
+            _ => Err(SimulationError::Parameter(format!(
+                "Residual {} must have exactly one formuation",
+                i + 1
+            ))),
+        })
+        .collect::<Result<Vec<u32>, SimulationError>>()?;
+
+    let known_vrs: Vec<u32> = continuous_state_vrs
+        .clone()
+        .into_iter()
+        .chain(algebraic_variable_vrs)
+        .collect();
+
+    let unknown_vrs: Vec<u32> = continuous_state_derivative_vrs
+        .clone()
+        .into_iter()
+        .chain(residual_vrs)
+        .collect();
+
+    let nx = continuous_state_vrs.len();
+    let neq = known_vrs.len();
+
+    let init = Box::new(|yy: &mut [f64], yp: &mut [f64]| {
+        expect_ok!(fmu.getFloat64(&known_vrs, yy));
+        expect_ok!(fmu.getFloat64(&unknown_vrs, yp));
+        Ok(())
+    });
+
+    let residuals = Box::new(|tt: f64, yy: &[f64], yp: &[f64], rr: &mut [f64]| {
+        let mut unknowns = vec![0.0; neq];
+
+        expect_ok!(fmu.setTime(tt));
+        expect_ok!(fmu.setFloat64(&known_vrs, yy));
+        expect_ok!(fmu.getFloat64(&unknown_vrs, &mut unknowns));
+
+        for i in 0..nx {
+            rr[i] = unknowns[i] - yp[i];
+        }
+
+        rr[nx..neq].copy_from_slice(&unknowns[nx..neq]);
+
+        Ok(())
+    });
+
+    let jacobian = Box::new(|time: f64, y: &[f64], cj: f64, A: &mut [f64]| {
+        fmu.setTime(time);
+        expect_ok!(fmu.setFloat64(&known_vrs, y));
+
+        let n = known_vrs.len();
+
+        for i in 0..n {
+            let mut seed = vec![0.0; known_vrs.len()];
+            seed[i] = 1.0;
+            let column = &mut A[i * n..(i + 1) * n];
+            expect_ok!(fmu.getDirectionalDerivative(&unknown_vrs, &known_vrs, &seed, column));
+            if i < continuous_state_vrs.len() {
+                column[i] -= cj;
+            }
+        }
+
+        Ok(())
+    });
+
     let mut solver = solver_factory.create(
         time,
         nx,
@@ -206,6 +341,10 @@ pub fn simulate<S: SolverFactory>(
                 _ => Err(SimulationError::FMICall),
             },
         ),
+        nominals,
+        Some(init),
+        Some(residuals),
+        Some(jacobian),
     )?;
 
     let mut n_steps = 0;

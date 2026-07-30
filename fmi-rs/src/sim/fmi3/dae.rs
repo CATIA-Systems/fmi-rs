@@ -4,7 +4,7 @@ use crate::dae::DaeManifest;
 use crate::fmi3::log::DefaultLogger;
 use crate::fmi3::types::fmi3Status;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
-use crate::sim::{SimulationError, next_regular_point};
+use crate::sim::{GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn, GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, SetContinuousInputsFn, SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory, next_regular_point};
 use crate::sundials::ida::{
     IDA_NORMAL, IDA_SUCCESS, IDA_TSTOP_RETURN, IDACreate, IDAFree, IDAInit, IDASVtolerances,
     IDASetUserData, IDASolve,
@@ -203,8 +203,10 @@ impl<'a> Ida<'a> {
             })
         }
     }
+}
 
-    pub fn step(&mut self, next_time: f64) -> Result<(), SimulationError> {
+impl<'a> Solver for Ida<'a> {
+    fn step(&mut self, next_time: f64) -> Result<(f64, bool), SimulationError> {
         unsafe {
             let mut tret = 0.0;
 
@@ -228,7 +230,11 @@ impl<'a> Ida<'a> {
             }
         }
 
-        Ok(())
+        Ok((next_time, false))
+    }
+    
+    fn reset(&mut self, _time: f64) -> Result<(), SimulationError> {
+        Err(SimulationError::Parameter("Not implemented".to_owned()))
     }
 }
 
@@ -243,6 +249,42 @@ impl<'a> Drop for Ida<'a> {
             SUNMatDestroy(self.A);
             SUNContext_Free(&mut self.sunctx);
         }
+    }
+}
+
+pub struct IdaSolverFactory;
+
+impl SolverFactory for IdaSolverFactory {
+    fn create<'a>(
+        &self,
+        start_time: f64,
+        _nx: usize,
+        _nz: usize,
+        rtol: f64,
+        _unknowns: Vec<u32>,
+        _knowns: Vec<u32>,
+        _set_time: SetTimeFn<'a>,
+        _set_continuous_inputs: SetContinuousInputsFn<'a>,
+        _get_event_indicators: GetEventIndicatorsFn<'a>,
+        _get_continuous_states: GetContinuousStatesFn<'a>,
+        _get_nominals_of_continuous_states: GetNominalsOfContinuousStatesFn<'a>,
+        _get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
+        _get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
+        _set_continuous_states: SetContinuousStatesFn<'a>,
+        nominals: Vec<f64>,
+        init: Option<InitFn<'a>>,
+        residuals: Option<ResidualsFn<'a>>,
+        jacobian: Option<JacobianFn<'a>>,
+    ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
+        let ida = Ida::new(
+            start_time,
+            rtol,
+            &nominals,
+            init.unwrap(),
+            residuals.unwrap(),
+            jacobian.unwrap(),
+        )?;
+        Ok(Box::new(ida))
     }
 }
 
@@ -489,10 +531,10 @@ pub fn simulate(
             n_steps,
         );
 
-        solver.step(next_regular_point)?;
+        let (time_reached, _is_state_event) = solver.step(next_regular_point)?;
 
+        time = time_reached;
         n_steps += 1;
-        time = next_regular_point;
     }
 
     call(fmu.terminate())?;

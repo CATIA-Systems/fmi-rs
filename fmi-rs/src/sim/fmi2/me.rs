@@ -206,6 +206,10 @@ pub fn simulate<S: SolverFactory>(
                 _ => Err(SimulationError::FMICall),
             },
         ),
+        vec![],
+        None,
+        None,
+        None,
     )?;
 
     let mut n_steps = 0;
