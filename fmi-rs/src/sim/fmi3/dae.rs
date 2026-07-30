@@ -200,15 +200,14 @@ impl<'a> Ida<'a> {
             expect_not_null!(A, "Failed to create A matrix");
 
             // Initialize vectors
-            // (init)((*yy).as_mut(), (*yp).as_mut())?;
             dae.init((*yy).as_mut(), (*yp).as_mut())?;
 
             let atol = (*avtol).as_mut();
 
-            atol[0] = 1e-8;
-            atol[1] = 1e-6;
-            atol[2] = 1e-6;
-
+            for (src, dst) in dae.nominals.iter().zip(atol.iter_mut()) {
+                *dst = src * rtol;
+            }
+            
             expect_no_error!(
                 IDAInit(ida_mem, residuals_cb, t0, yy, yp),
                 "Failed to initilalize IDA"
