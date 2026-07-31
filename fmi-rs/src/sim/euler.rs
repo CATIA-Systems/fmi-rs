@@ -7,6 +7,7 @@ pub struct ForwardEuler<T: Ode> {
     fixed_step_size: f64,
     n_steps: usize,
     x: Vec<f64>,
+    nominals: Vec<f64>,
     der_x: Vec<f64>,
     z: Vec<f64>,
     pre_z: Vec<f64>,
@@ -37,7 +38,8 @@ impl SolverFactory for ForwardEulerFactory {
         ode: Option<T>,
         _dae: Option<Dae3>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
-        let mut x = vec![0.0; nx];
+        let mut x: Vec<f64> = vec![0.0; nx];
+        let mut nominals: Vec<f64> = vec![0.0; nx];
         let der_x = vec![0.0; nx];
         let z = vec![0.0; nz];
         let mut pre_z = vec![0.0; nz];
@@ -52,7 +54,8 @@ impl SolverFactory for ForwardEulerFactory {
 
         let ode = ode.unwrap();
 
-        ode.init(x.as_mut(), pre_z.as_mut())?;
+        ode.init(x.as_mut_slice(), nominals.as_mut_slice())?;
+        ode.g(start_time, x.as_slice(), pre_z.as_mut_slice())?;
 
         Ok(Box::new({
             ForwardEuler {
@@ -60,6 +63,7 @@ impl SolverFactory for ForwardEulerFactory {
                 fixed_step_size: self.fixes_step_size,
                 n_steps: 0,
                 x,
+                nominals,
                 der_x,
                 z,
                 pre_z,
@@ -107,7 +111,7 @@ impl<T: Ode> Solver for ForwardEuler<T> {
     fn reset(&mut self, time: f64) -> Result<(), SimulationError> {
         self.start_time = time;
         self.n_steps = 0;
-        self.ode.init(&mut self.x, &mut self.pre_z)?;
+        self.ode.init(&mut self.x, &mut self.nominals)?;
         self.der_x.fill(0.0);
         self.z.fill(0.0);
         Ok(())

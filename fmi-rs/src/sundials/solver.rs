@@ -48,30 +48,32 @@ macro_rules! expect_not_null {
     };
 }
 
-struct Functions<'a> {
-    nx: usize,
-    nz: usize,
-    unknowns: Vec<u32>,
-    knowns: Vec<u32>,
-    rtol: f64,
-    set_time: SetTimeFn<'a>,
-    set_continuous_inputs: SetContinuousInputsFn<'a>,
-    get_event_indicators: GetEventIndicatorsFn<'a>,
-    get_continuous_states: GetContinuousStatesFn<'a>,
-    get_nominals_of_continuous_states: GetNominalsOfContinuousStatesFn<'a>,
-    get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
-    get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
-    set_continuous_states: SetContinuousStatesFn<'a>,
-}
+// struct Functions<'a> {
+//     nx: usize,
+//     nz: usize,
+//     unknowns: Vec<u32>,
+//     knowns: Vec<u32>,
+//     rtol: f64,
+//     set_time: SetTimeFn<'a>,
+//     set_continuous_inputs: SetContinuousInputsFn<'a>,
+//     get_event_indicators: GetEventIndicatorsFn<'a>,
+//     get_continuous_states: GetContinuousStatesFn<'a>,
+//     get_nominals_of_continuous_states: GetNominalsOfContinuousStatesFn<'a>,
+//     get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
+//     get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
+//     set_continuous_states: SetContinuousStatesFn<'a>,
+// }
 
-pub struct CVodeSolver<'a> {
+pub struct CVodeSolver<T: Ode> {
     sunctx: SUNContext,
     x: N_Vector,
+    rtol: f64,
     abstol: N_Vector,
     A: SUNMatrix,
     LS: SUNLinearSolver,
     cvode_mem: *mut c_void,
-    functions: Box<Functions<'a>>,
+    // functions: Box<Functions<'a>>,
+    ode: Box<T>,
 }
 
 pub struct CVodeSolverFactory;
@@ -93,25 +95,25 @@ impl SolverFactory for CVodeSolverFactory {
         get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
         get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
         set_continuous_states: SetContinuousStatesFn<'a>,
-        _ode: Option<T>,
+        ode: Option<T>,
         _dae: Option<Dae3>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         unsafe {
-            let functions = Box::new(Functions {
-                nx,
-                nz,
-                rtol,
-                unknowns,
-                knowns,
-                set_time,
-                set_continuous_inputs,
-                get_event_indicators,
-                get_continuous_states,
-                get_nominals_of_continuous_states,
-                get_continuous_state_derivatives,
-                get_directional_derivative,
-                set_continuous_states,
-            });
+            // let functions = Box::new(Functions {
+            //     nx,
+            //     nz,
+            //     rtol,
+            //     unknowns,
+            //     knowns,
+            //     set_time,
+            //     set_continuous_inputs,
+            //     get_event_indicators,
+            //     get_continuous_states,
+            //     get_nominals_of_continuous_states,
+            //     get_continuous_state_derivatives,
+            //     get_directional_derivative,
+            //     set_continuous_states,
+            // });
 
             let mut sunctx = std::ptr::null_mut();
 
@@ -123,7 +125,10 @@ impl SolverFactory for CVodeSolverFactory {
             let cvode_mem = CVodeCreate(CV_BDF, sunctx);
             expect_not_null!(cvode_mem, "Failed to create CVODE memory");
 
-            let user_data: *const Functions = &*functions;
+            let ode = Box::new(ode.unwrap());
+
+            // let user_data: *const Functions = &*functions;
+            let user_data: *const T = &*ode;
 
             expect_no_error!(
                 CVodeSetUserData(cvode_mem, user_data as *mut c_void),
@@ -132,29 +137,37 @@ impl SolverFactory for CVodeSolverFactory {
 
             let x = N_VNew_Serial(nx.max(1) as sunindextype, sunctx);
             expect_not_null!(x, "Failed to create N_Vector");
+            let x_slice = (*x).as_mut();
+            // if nx > 0 {
+            //     (functions.get_continuous_states)((*x).as_mut())?;
+            // } else {
+            //     (*x).as_mut().fill(0.0); // Dummy state for discrete systems
+            // }
 
-            if nx > 0 {
-                (functions.get_continuous_states)((*x).as_mut())?;
-            } else {
-                (*x).as_mut().fill(0.0); // Dummy state for discrete systems
-            }
-
+            
             let abstol = N_VNew_Serial(NV_LENGTH_S(x), sunctx);
             expect_not_null!(abstol, "Failed to create N_Vector");
             let abstol_slice = (*abstol).as_mut();
-
-            if nx > 0 {
-                (functions.get_nominals_of_continuous_states)(abstol_slice)?;
-            } else {
-                abstol_slice.fill(1.0); // Dummy tolerances for discrete systems
-            }
+            
+            ode.init(x_slice, abstol_slice);
 
             for value in abstol_slice.iter_mut() {
                 *value *= rtol;
             }
 
+
+            // if nx > 0 {
+            //     (functions.get_nominals_of_continuous_states)(abstol_slice)?;
+            // } else {
+                // abstol_slice.fill(1.0); // Dummy tolerances for discrete systems
+            // }
+
+            // for value in abstol_slice.iter_mut() {
+            //     *value *= rtol;
+            // }
+
             expect_no_error!(
-                CVodeInit(cvode_mem, f, start_time, x),
+                CVodeInit(cvode_mem, f::<T>, start_time, x),
                 "Failed to initialize CVODE"
             );
 
@@ -174,16 +187,16 @@ impl SolverFactory for CVodeSolverFactory {
                 "Failed to set linear solver"
             );
 
-            if nx > 0 && functions.get_directional_derivative.is_some() {
-                expect_no_error!(
-                    CVodeSetJacFn(cvode_mem, jac),
-                    "Failed to set Jacobian function"
-                );
-            }
+            // if nx > 0 && functions.get_directional_derivative.is_some() {
+            //     expect_no_error!(
+            //         CVodeSetJacFn(cvode_mem, jac),
+            //         "Failed to set Jacobian function"
+            //     );
+            // }
 
             if nz > 0 {
                 expect_no_error!(
-                    CVodeRootInit(cvode_mem, nz as i32, g),
+                    CVodeRootInit(cvode_mem, nz as i32, g::<T>),
                     "Failed to initialize rootfinding"
                 );
             }
@@ -191,34 +204,61 @@ impl SolverFactory for CVodeSolverFactory {
             Ok(Box::new(CVodeSolver {
                 sunctx,
                 x,
+                rtol,
                 abstol,
                 A,
                 LS,
                 cvode_mem,
-                functions,
+                // functions,
+                ode,
             }))
         }
     }
 }
 
-impl<'a> Solver for CVodeSolver<'a> {
+impl<T: Ode> Solver for CVodeSolver<T> {
     fn reset(&mut self, time: f64) -> Result<(), SimulationError> {
         unsafe {
-            if self.functions.nx > 0 {
-                (self.functions.get_continuous_states)((*self.x).as_mut())?;
-                (self.functions.get_nominals_of_continuous_states)((*self.abstol).as_mut())?;
-                for value in (*self.abstol).as_mut().iter_mut() {
-                    *value *= self.functions.rtol;
-                }
-            } else {
-                (*self.x).as_mut().fill(0.0); // Dummy state for discrete systems
-                (*self.abstol).as_mut().fill(0.0); // Dummy tolerances for discrete systems
+        //     if self.functions.nx > 0 {
+        //         (self.functions.get_continuous_states)((*self.x).as_mut())?;
+        //         (self.functions.get_nominals_of_continuous_states)((*self.abstol).as_mut())?;
+        //         for value in (*self.abstol).as_mut().iter_mut() {
+        //             *value *= self.functions.rtol;
+        //         }
+        //     } else {
+        //         (*self.x).as_mut().fill(0.0); // Dummy state for discrete systems
+        //         (*self.abstol).as_mut().fill(0.0); // Dummy tolerances for discrete systems
+        //     }
+            let x = (*self.x).as_mut();
+            let abstol = (*self.abstol).as_mut();
+            
+            self.ode.init(x, abstol)?;
+
+            for v in abstol.iter_mut() {
+                *v *= self.rtol;
             }
+
             expect_no_error!(
                 CVodeReInit(self.cvode_mem, time, self.x),
                 "CVodeReInit failed"
             );
         }
+        // unsafe {
+        //     if self.functions.nx > 0 {
+        //         (self.functions.get_continuous_states)((*self.x).as_mut())?;
+        //         (self.functions.get_nominals_of_continuous_states)((*self.abstol).as_mut())?;
+        //         for value in (*self.abstol).as_mut().iter_mut() {
+        //             *value *= self.functions.rtol;
+        //         }
+        //     } else {
+        //         (*self.x).as_mut().fill(0.0); // Dummy state for discrete systems
+        //         (*self.abstol).as_mut().fill(0.0); // Dummy tolerances for discrete systems
+        //     }
+        //     expect_no_error!(
+        //         CVodeReInit(self.cvode_mem, time, self.x),
+        //         "CVodeReInit failed"
+        //     );
+        // }
         Ok(())
     }
 
@@ -231,18 +271,18 @@ impl<'a> Solver for CVodeSolver<'a> {
             return Err(SimulationError::Solver(format!("status {flag}")));
         }
 
-        (self.functions.set_time)(tret)?;
-        (self.functions.set_continuous_inputs)(tret)?;
+        // (self.functions.set_time)(tret)?;
+        // (self.functions.set_continuous_inputs)(tret)?;
 
-        if self.functions.nx > 0 {
-            (self.functions.set_continuous_states)(unsafe { (*self.x).as_mut() })?;
-        }
+        // if self.functions.nx > 0 {
+        //     (self.functions.set_continuous_states)(unsafe { (*self.x).as_mut() })?;
+        // }
 
         Ok((tret, flag == CV_ROOT_RETURN))
     }
 }
 
-impl<'a> Drop for CVodeSolver<'a> {
+impl<T: Ode> Drop for CVodeSolver<T> {
     fn drop(&mut self) {
         unsafe {
             N_VDestroy(self.x);
@@ -256,44 +296,68 @@ impl<'a> Drop for CVodeSolver<'a> {
 }
 
 // Right-hand-side function
-extern "C" fn f(t: sunrealtype, y: N_Vector, ydot: N_Vector, user_data: *mut c_void) -> i32 {
+extern "C" fn f<T: Ode>(t: sunrealtype, y: N_Vector, ydot: N_Vector, user_data: *mut c_void) -> i32 {
     unsafe {
-        let functions: &Functions = &*(user_data as *const Functions);
+        if user_data.is_null() {
+            return -1;
+        }
 
-        expect_ok!((functions.set_time)(t));
-        expect_ok!((functions.set_continuous_inputs)(t));
+        let ode: &mut T = &mut *(user_data as *mut T);
 
+        let y_slice = (*y).as_mut();
         let ydot_slice = (*ydot).as_mut();
 
-        if functions.nx > 0 {
-            expect_ok!((functions.set_continuous_states)((*y).as_mut()));
-            expect_ok!((functions.get_continuous_state_derivatives)(ydot_slice));
-        } else {
-            ydot_slice.fill(0.0); // Dummy derivative for discrete systems
-        }
+        ode.f(t, y_slice, ydot_slice);
     }
+
+    // unsafe {
+    //     let functions: &Functions = &*(user_data as *const Functions);
+
+    //     expect_ok!((functions.set_time)(t));
+    //     expect_ok!((functions.set_continuous_inputs)(t));
+
+    //     let ydot_slice = (*ydot).as_mut();
+
+    //     if functions.nx > 0 {
+    //         expect_ok!((functions.set_continuous_states)((*y).as_mut()));
+    //         expect_ok!((functions.get_continuous_state_derivatives)(ydot_slice));
+    //     } else {
+    //         ydot_slice.fill(0.0); // Dummy derivative for discrete systems
+    //     }
+    // }
     0
 }
 
 // Root function
-extern "C" fn g(
+extern "C" fn g<T: Ode>(
     t: sunrealtype,
     y: N_Vector,
     gout: *mut sunrealtype,
     user_data: *mut c_void,
 ) -> i32 {
     unsafe {
-        let functions: &Functions = &*(user_data as *const Functions);
-
-        expect_ok!((functions.set_time)(t));
-        expect_ok!((functions.set_continuous_inputs)(t));
-
-        if functions.nx > 0 {
-            expect_ok!((functions.set_continuous_states)((*y).as_mut()));
+        if user_data.is_null() {
+            return -1;
         }
 
-        let z = from_raw_parts_mut(gout, functions.nz);
-        expect_ok!((functions.get_event_indicators)(z));
+        let ode: &mut T = &mut *(user_data as *mut T);
+
+        let y_slice = (*y).as_mut();
+        let gout_slice = from_raw_parts_mut(gout, ode.nz());
+
+        ode.g(t, y_slice, gout_slice);
+
+        // let functions: &Functions = &*(user_data as *const Functions);
+
+        // expect_ok!((functions.set_time)(t));
+        // expect_ok!((functions.set_continuous_inputs)(t));
+
+        // if functions.nx > 0 {
+        //     expect_ok!((functions.set_continuous_states)((*y).as_mut()));
+        // }
+
+        // let z = from_raw_parts_mut(gout, functions.nz);
+        // expect_ok!((functions.get_event_indicators)(z));
     }
     0
 }
@@ -309,40 +373,40 @@ extern "C" fn jac(
     _tmp2: N_Vector,
     _tmp3: N_Vector,
 ) -> i32 {
-    unsafe {
-        let functions: &Functions = &*(user_data as *const Functions);
+    // unsafe {
+    //     let functions: &Functions = &*(user_data as *const Functions);
 
-        expect_ok!((functions.set_time)(t));
-        expect_ok!((functions.set_continuous_inputs)(t));
-        expect_ok!((functions.set_continuous_states)((*y).as_mut()));
+    //     expect_ok!((functions.set_time)(t));
+    //     expect_ok!((functions.set_continuous_inputs)(t));
+    //     expect_ok!((functions.set_continuous_states)((*y).as_mut()));
 
-        let get_directional_derivative = functions
-            .get_directional_derivative
-            .as_ref()
-            .expect("Directional derivative function not provided");
+    //     let get_directional_derivative = functions
+    //         .get_directional_derivative
+    //         .as_ref()
+    //         .expect("Directional derivative function not provided");
 
-        let mut seed_v = vec![0.0; NV_LENGTH_S(y) as usize]; // The 'direction' vector
+    //     let mut seed_v = vec![0.0; NV_LENGTH_S(y) as usize]; // The 'direction' vector
 
-        for j in 0..functions.nx {
-            if j > 0 {
-                seed_v[j - 1] = 0.0; // reset previous column's seed
-            }
+    //     for j in 0..functions.nx {
+    //         if j > 0 {
+    //             seed_v[j - 1] = 0.0; // reset previous column's seed
+    //         }
 
-            // set seed for the j-th column
-            seed_v[j] = 1.0;
+    //         // set seed for the j-th column
+    //         seed_v[j] = 1.0;
 
-            // copy the result into the SUNMatrix
-            let column_j = SM_COLUMN_D(Jac, j);
-            let colmn_j_slice = from_raw_parts_mut(column_j, NV_LENGTH_S(y) as usize);
+    //         // copy the result into the SUNMatrix
+    //         let column_j = SM_COLUMN_D(Jac, j);
+    //         let colmn_j_slice = from_raw_parts_mut(column_j, NV_LENGTH_S(y) as usize);
 
-            // get the j-th column of the Jacobian
-            expect_ok!(get_directional_derivative(
-                &functions.unknowns,
-                &functions.knowns,
-                &seed_v,
-                colmn_j_slice
-            ));
-        }
-    }
+    //         // get the j-th column of the Jacobian
+    //         expect_ok!(get_directional_derivative(
+    //             &functions.unknowns,
+    //             &functions.knowns,
+    //             &seed_v,
+    //             colmn_j_slice
+    //         ));
+    //     }
+    // }
     0
 }

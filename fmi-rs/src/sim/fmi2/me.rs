@@ -365,9 +365,9 @@ impl<'a> Ode for Ode2<'a> {
         self.nz
     }
 
-    fn init(&self, x: &mut [f64], z: &mut [f64]) -> Result<(), SimulationError> {
+    fn init(&self, x: &mut [f64], nominals: &mut [f64]) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.getContinuousStates(x));
-        expect_ok!(self.fmu.getEventIndicators(z));
+        expect_ok!(self.fmu.getNominalsOfContinuousStates(nominals));
         Ok(())
     }
 

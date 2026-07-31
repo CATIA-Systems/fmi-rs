@@ -222,7 +222,7 @@ pub fn next_regular_point(
 pub trait Ode {
     fn nx(&self) -> usize;
     fn nz(&self) -> usize;
-    fn init(&self, x: &mut [f64], z: &mut [f64]) -> Result<(), SimulationError>;
+    fn init(&self, x: &mut [f64], nominals: &mut [f64]) -> Result<(), SimulationError>;
     fn f(&self, time: f64, x: &[f64], der_x: &mut [f64]) -> Result<(), SimulationError>;
     fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError>;
     fn supports_jacobian(&self) -> bool;
@@ -240,7 +240,7 @@ impl Ode for DummyOde {
         todo!()
     }
 
-    fn init(&self, x: &mut [f64], z: &mut [f64]) -> Result<(), SimulationError> {
+    fn init(&self, x: &mut [f64], nominals: &mut [f64]) -> Result<(), SimulationError> {
         todo!()
     }
 
