@@ -1,7 +1,6 @@
 use crate::{
     fmi2::{
-        self, FMU2, ME,
-        types::{fmi2False, fmi2Real, fmi2Status},
+        self, FMU2, ME, types::{fmi2False, fmi2Real, fmi2Status, fmi2ValueReference},
     }, model_description::fmi2::VariableType, sim::{
         DummyOde, Ode, SimulationError, SolverFactory, fmi2::{
             SimulationSettings, call, input::StaticInput, read_initial_fmu_state,
@@ -150,6 +149,8 @@ pub fn simulate<S: SolverFactory>(
         nx: 2usize,
         nz: 1usize,
         supports_jacobian: false,
+        known_vrs: vec![],
+        unknown_vrs: vec![],
     };
 
     let mut solver = solver_factory.create(
@@ -343,6 +344,8 @@ pub struct Ode2<'a> {
     nx: usize,
     nz: usize,
     supports_jacobian: bool,
+    known_vrs: Vec<fmi2ValueReference>,
+    unknown_vrs: Vec<fmi2ValueReference>,
 }
 
 macro_rules! expect_ok {
@@ -396,6 +399,26 @@ impl<'a> Ode for Ode2<'a> {
     }
 
     fn jacobian(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError> {
-        todo!()
+        expect_ok!(self.fmu.setTime(time));
+        
+        if let Some(input) = self.input {
+            input.set_continuous_inputs(time, true, self.fmu)?;
+        }
+        
+        expect_ok!(self.fmu.setContinuousStates(x));
+
+        for i in 0..self.nx {
+            let mut seed = vec![0.0;self.nx];
+            seed[i] = 1.0;
+            let column = &mut J[i * self.nx..(i + 1) * self.nx];
+            expect_ok!(self.fmu.getDirectionalDerivative(
+                &self.unknown_vrs,
+                &self.known_vrs,
+                &seed,
+                column
+            ));
+        }
+
+        Ok(())
     }
 }
