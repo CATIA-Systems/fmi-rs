@@ -4,7 +4,7 @@ use crate::dae::DaeManifest;
 use crate::fmi3::log::DefaultLogger;
 use crate::sim::fmi3::dae::Dae3;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
-use crate::sim::{SimulationError, next_communication_point, next_regular_point};
+use crate::sim::{DummyOde, SimulationError, next_communication_point, next_regular_point};
 use crate::{
     fmi3::{FMU3, types::*},
     model_description::fmi3::{ModelVariable, VariableType},
@@ -21,6 +21,50 @@ macro_rules! expect_ok {
             return Err(SimulationError::FMICall);
         }
     };
+}
+
+pub struct Ode3<'a> {
+    fmu: &'a FMU3,
+}
+
+impl<'a> Ode3<'a> {
+    fn nx(&self) -> Result<usize, SimulationError> {
+        let mut nContinuousStates = 0usize;
+        expect_ok!(self.fmu.getNumberOfContinuousStates(&mut nContinuousStates));
+        Ok(nContinuousStates)
+    }
+    
+    fn nz(&self) -> Result<usize, SimulationError> {
+        let mut nEventIndicators = 0usize;
+        expect_ok!(self.fmu.getNumberOfEventIndicators(&mut nEventIndicators));
+        Ok(nEventIndicators)
+    }
+
+    fn nominals(&self, nominals: &mut [f64]) -> Result<(), SimulationError> {
+        expect_ok!(self.fmu.getNominalsOfContinuousStates(nominals));
+        Ok(())
+    }
+    
+    fn f(&self, time: f64, x: &[f64], dx: &mut [f64]) -> Result<(), SimulationError> {
+        expect_ok!(self.fmu.setTime(time));
+        expect_ok!(self.fmu.setContinuousStates(x));
+        expect_ok!(self.fmu.getContinuousStateDerivatives(dx));
+        Ok(())
+    }
+
+    fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError> {
+        expect_ok!(self.fmu.setTime(time));
+        expect_ok!(self.fmu.setContinuousStates(x));
+        expect_ok!(self.fmu.getEventIndicators(z));
+        Ok(())
+    }
+
+    fn jac(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError> {
+        expect_ok!(self.fmu.setTime(time));
+        expect_ok!(self.fmu.setContinuousStates(x));
+        todo!();
+        Ok(())
+    }
 }
 
 pub fn simulate<S: SolverFactory>(
@@ -242,7 +286,7 @@ pub fn simulate<S: SolverFactory>(
 
     let nx = continuous_state_vrs.len();
 
-    let dae = Dae3::new(&fmu, nominals, known_vrs.clone(), unknown_vrs.clone())?;
+    let dae = Dae3::new(&fmu, input, nominals, known_vrs.clone(), unknown_vrs.clone())?;
 
     let mut solver = solver_factory.create(
         time,
@@ -302,6 +346,7 @@ pub fn simulate<S: SolverFactory>(
                 _ => Err(SimulationError::FMICall),
             },
         ),
+        None::<DummyOde>,
         Some(dae),
     )?;
 

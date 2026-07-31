@@ -5,9 +5,7 @@ use crate::fmi3::log::DefaultLogger;
 use crate::fmi3::types::{fmi3Status, fmi3ValueReference};
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
 use crate::sim::{
-    GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn,
-    GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, SetContinuousInputsFn,
-    SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory, next_regular_point,
+    DummyOde, GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn, GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, Ode, SetContinuousInputsFn, SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory, next_regular_point,
 };
 use crate::sundials::ida::{
     IDA_NORMAL, IDA_SUCCESS, IDA_TSTOP_RETURN, IDACreate, IDAFree, IDAInit, IDASVtolerances,
@@ -30,48 +28,6 @@ use crate::{
     },
 };
 
-// pub type InitFn<'a> = Box<dyn Fn(&mut [f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
-
-// pub type ResidualsFn<'a> =
-//     Box<dyn Fn(f64, &[f64], &[f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
-
-// pub type JacobianFn<'a> =
-//     Box<dyn Fn(f64, &[f64], f64, &mut [f64]) -> Result<(), SimulationError> + 'a>;
-
-// pub trait Dae {
-//     type Context;
-
-//     fn init(
-//         &self,
-//         ctx: &Self::Context,
-//         konwns: &mut [f64],
-//         unknowns: &mut [f64],
-//     ) -> Result<(), SimulationError>;
-
-//     fn residuals(
-//         &self,
-//         ctx: &Self::Context,
-//         time: f64,
-//         knowns: &[f64],
-//         unknowns: &[f64],
-//         residuals: &mut [f64],
-//     ) -> Result<(), SimulationError>;
-
-//     fn jacobian(
-//         &self,
-//         ctx: &Self::Context,
-//         time: f64,
-//         knowns: &[f64],
-//         alpha: f64,
-//         J: &mut [f64],
-//     ) -> Result<(), SimulationError>;
-// }
-
-// struct Functions<'a> {
-//     residuals: ResidualsFn<'a>,
-//     jacobian: JacobianFn<'a>,
-// }
-
 pub struct Ida<'a> {
     sunctx: SUNContext,
     yy: N_Vector,
@@ -80,8 +36,7 @@ pub struct Ida<'a> {
     A: SUNMatrix,
     LS: SUNLinearSolver,
     ida_mem: *mut c_void,
-    // #[allow(dead_code)]
-    // functions: Box<Functions<'a>>,
+    #[allow(dead_code)]
     dae: Box<Dae3<'a>>,
 }
 
@@ -166,7 +121,7 @@ extern "C" fn jacrob(
     }
 }
 
-impl<'a> Ida<'a> {
+impl<'a,> Ida<'a> {
     pub fn new(
         t0: f64,
         rtol: f64,
@@ -258,7 +213,6 @@ impl<'a> Ida<'a> {
                 A,
                 LS,
                 ida_mem,
-                // functions,
                 dae,
             })
         }
@@ -315,7 +269,7 @@ impl<'a> Drop for Ida<'a> {
 pub struct IdaSolverFactory;
 
 impl SolverFactory for IdaSolverFactory {
-    fn create<'a>(
+    fn create<'a, T: Ode + 'a>(
         &self,
         start_time: f64,
         _nx: usize,
@@ -331,6 +285,7 @@ impl SolverFactory for IdaSolverFactory {
         _get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
         _get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
         _set_continuous_states: SetContinuousStatesFn<'a>,
+        _ode: Option<T>,
         dae: Option<Dae3<'a>>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         let ida = Ida::new(start_time, rtol, dae.unwrap())?;
@@ -340,20 +295,23 @@ impl SolverFactory for IdaSolverFactory {
 
 pub struct Dae3<'a> {
     fmu: &'a FMU3,
+    input: Option<&'a StaticInput<'a>>,
     nominals: Vec<f64>,
     known_vrs: Vec<fmi3ValueReference>,
     unknown_vrs: Vec<fmi3ValueReference>,
 }
 
-impl<'a> Dae3<'a> {
+impl<'a,> Dae3<'a> {
     pub fn new(
         fmu: &'a FMU3,
+        input: Option<&'a StaticInput<'a>>,
         nominals: Vec<f64>,
         known_vrs: Vec<fmi3ValueReference>,
         unknown_vrs: Vec<fmi3ValueReference>,
     ) -> Result<Self, SimulationError> {
         Ok(Self {
             fmu,
+            input,
             nominals,
             known_vrs,
             unknown_vrs,
@@ -374,7 +332,13 @@ impl<'a> Dae3<'a> {
         residuals: &mut [f64],
     ) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.setTime(time));
+        
+        if let Some(input) = self.input {
+            input.set_continuous_inputs(time, true, self.fmu)?;
+        }
+        
         expect_ok!(self.fmu.setFloat64(&self.known_vrs, knowns));
+        
         expect_ok!(self.fmu.getFloat64(&self.unknown_vrs, residuals));
 
         let nx: usize = 2;
@@ -394,6 +358,11 @@ impl<'a> Dae3<'a> {
         J: &mut [f64],
     ) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.setTime(time));
+        
+        if let Some(input) = self.input {
+            input.set_continuous_inputs(time, true, self.fmu)?;
+        }
+        
         expect_ok!(self.fmu.setFloat64(&self.known_vrs, knowns));
 
         let nx: usize = 2;

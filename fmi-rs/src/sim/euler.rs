@@ -1,11 +1,8 @@
 use crate::sim::{
-    GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn,
-    GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, SetContinuousInputsFn,
-    SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory, fmi3::dae::Dae3,
-    relative_eq,
+    DummyOde, GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn, GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, Ode, SetContinuousInputsFn, SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory, fmi3::dae::Dae3, relative_eq,
 };
 
-pub struct ForwardEuler<'a> {
+pub struct ForwardEuler<T: Ode> {
     start_time: f64,
     fixed_step_size: f64,
     n_steps: usize,
@@ -13,12 +10,7 @@ pub struct ForwardEuler<'a> {
     der_x: Vec<f64>,
     z: Vec<f64>,
     pre_z: Vec<f64>,
-    set_time: SetTimeFn<'a>,
-    set_continuous_inputs: SetContinuousInputsFn<'a>,
-    get_event_indicators: GetEventIndicatorsFn<'a>,
-    get_continuous_states: GetContinuousStatesFn<'a>,
-    get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
-    set_continuous_states: SetContinuousStatesFn<'a>,
+    ode: T,
 }
 
 pub struct ForwardEulerFactory {
@@ -26,7 +18,7 @@ pub struct ForwardEulerFactory {
 }
 
 impl SolverFactory for ForwardEulerFactory {
-    fn create<'a>(
+    fn create<'a, T: Ode + 'a>(
         &self,
         start_time: f64,
         nx: usize,
@@ -34,14 +26,15 @@ impl SolverFactory for ForwardEulerFactory {
         _rtol: f64,
         _unknowns: Vec<u32>,
         _knowns: Vec<u32>,
-        set_time: SetTimeFn<'a>,
-        set_continuous_inputs: SetContinuousInputsFn<'a>,
-        get_event_indicators: GetEventIndicatorsFn<'a>,
-        get_continuous_states: GetContinuousStatesFn<'a>,
+        _set_time: SetTimeFn<'a>,
+        _set_continuous_inputs: SetContinuousInputsFn<'a>,
+        _get_event_indicators: GetEventIndicatorsFn<'a>,
+        _get_continuous_states: GetContinuousStatesFn<'a>,
         _get_nominals_of_continuous_states: GetNominalsOfContinuousStatesFn<'a>,
-        get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
+        _get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
         _get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
-        set_continuous_states: SetContinuousStatesFn<'a>,
+        _set_continuous_states: SetContinuousStatesFn<'a>,
+        ode: Option<T>,
         _dae: Option<Dae3>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         let mut x = vec![0.0; nx];
@@ -49,13 +42,17 @@ impl SolverFactory for ForwardEulerFactory {
         let z = vec![0.0; nz];
         let mut pre_z = vec![0.0; nz];
 
-        if !x.is_empty() {
-            (get_continuous_states)(x.as_mut_slice())?;
-        }
+        // if !x.is_empty() {
+        //     (get_continuous_states)(x.as_mut_slice())?;
+        // }
 
-        if !z.is_empty() {
-            (get_event_indicators)(pre_z.as_mut_slice())?;
-        }
+        // if !z.is_empty() {
+        //     (get_event_indicators)(pre_z.as_mut_slice())?;
+        // }
+
+        let ode = ode.unwrap();
+
+        ode.init(x.as_mut(), pre_z.as_mut())?;
 
         Ok(Box::new({
             ForwardEuler {
@@ -66,74 +63,53 @@ impl SolverFactory for ForwardEulerFactory {
                 der_x,
                 z,
                 pre_z,
-                set_time,
-                set_continuous_inputs,
-                get_event_indicators,
-                get_continuous_states,
-                get_continuous_state_derivatives,
-                set_continuous_states,
+                ode,
             }
         }))
     }
 }
 
-impl<'a> ForwardEuler<'a> {
+impl<T: Ode> ForwardEuler<T> {
     fn do_fixed_step(&mut self) -> Result<(f64, bool), SimulationError> {
-        if !self.x.is_empty() {
-            (self.get_continuous_state_derivatives)(self.der_x.as_mut_slice())?;
 
-            for i in 0..self.x.len() {
-                self.x[i] += self.der_x[i] * self.fixed_step_size;
-            }
+        let time = self.start_time + self.n_steps as f64 * self.fixed_step_size;
 
-            (self.set_continuous_states)(self.x.as_slice())?;
+        self.ode.f(time, &self.x, &mut self.der_x)?;
+
+        for i in 0..self.x.len() {
+            self.x[i] += self.der_x[i] * self.fixed_step_size;
         }
 
         self.n_steps += 1;
 
         let time = self.start_time + self.n_steps as f64 * self.fixed_step_size;
 
-        (self.set_time)(time)?;
-
-        (self.set_continuous_inputs)(time)?;
+        self.ode.g(time, &self.x, &mut self.z)?;
 
         let mut state_event = false;
 
-        if !self.z.is_empty() {
-            (self.get_event_indicators)(self.z.as_mut_slice())?;
 
-            for i in 0..self.z.len() {
-                if self.pre_z[i] <= 0.0 && self.z[i] > 0.0 {
-                    state_event = true; // -\+
-                } else if self.pre_z[i] > 0.0 && self.z[i] <= 0.0 {
-                    state_event = true; // +/-
-                }
-
-                self.pre_z[i] = self.z[i];
+        for i in 0..self.z.len() {
+            if self.pre_z[i] <= 0.0 && self.z[i] > 0.0 {
+                state_event = true; // -\+
+            } else if self.pre_z[i] > 0.0 && self.z[i] <= 0.0 {
+                state_event = true; // +/-
             }
+
+            self.pre_z[i] = self.z[i];
         }
 
         Ok((time, state_event))
     }
 }
 
-impl<'a> Solver for ForwardEuler<'a> {
+impl<T: Ode> Solver for ForwardEuler<T> {
     fn reset(&mut self, time: f64) -> Result<(), SimulationError> {
         self.start_time = time;
         self.n_steps = 0;
-
-        if !self.x.is_empty() {
-            (self.get_continuous_states)(self.x.as_mut_slice())?;
-        }
-
+        self.ode.init(&mut self.x, &mut self.pre_z)?;
         self.der_x.fill(0.0);
-
         self.z.fill(0.0);
-
-        if !self.pre_z.is_empty() {
-            (self.get_event_indicators)(self.pre_z.as_mut_slice())?;
-        }
-
         Ok(())
     }
 

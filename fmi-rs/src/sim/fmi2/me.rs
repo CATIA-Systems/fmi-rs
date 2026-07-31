@@ -2,16 +2,11 @@ use crate::{
     fmi2::{
         self, FMU2, ME,
         types::{fmi2False, fmi2Real, fmi2Status},
-    },
-    model_description::fmi2::VariableType,
-    sim::{
-        SimulationError, SolverFactory,
-        fmi2::{
+    }, model_description::fmi2::VariableType, sim::{
+        DummyOde, Ode, SimulationError, SolverFactory, fmi2::{
             SimulationSettings, call, input::StaticInput, read_initial_fmu_state,
             recorder::Recorder, set_start_values, write_final_fmu_state,
-        },
-        next_communication_point, next_regular_point, relative_eq, relative_ge, relative_le,
-        validate_simulation_steps,
+        }, next_communication_point, next_regular_point, relative_eq, relative_ge, relative_le, validate_simulation_steps,
     },
 };
 
@@ -149,6 +144,14 @@ pub fn simulate<S: SolverFactory>(
         })
         .collect();
 
+    let ode2 = Ode2 {
+        fmu: &fmu,
+        input: input,
+        nx: 2usize,
+        nz: 1usize,
+        supports_jacobian: false,
+    };
+
     let mut solver = solver_factory.create(
         time,
         settings.model_description.derivatives.len(),
@@ -206,6 +209,7 @@ pub fn simulate<S: SolverFactory>(
                 _ => Err(SimulationError::FMICall),
             },
         ),
+        Some(ode2),
         None,
     )?;
 
@@ -331,4 +335,67 @@ pub fn simulate<S: SolverFactory>(
     call(fmu.terminate())?;
 
     Ok(())
+}
+
+pub struct Ode2<'a> {
+    fmu: &'a FMU2<ME>,
+    input: Option<&'a StaticInput<'a>>,
+    nx: usize,
+    nz: usize,
+    supports_jacobian: bool,
+}
+
+macro_rules! expect_ok {
+    ($result:expr) => {
+        if $result != fmi2Status::fmi2OK {
+            return Err(SimulationError::FMICall);
+        }
+    };
+}
+
+impl<'a> Ode for Ode2<'a> {
+    fn nx(&self) -> usize {
+        self.nx
+    }
+
+    fn nz(&self) -> usize {
+        self.nz
+    }
+
+    fn init(&self, x: &mut [f64], z: &mut [f64]) -> Result<(), SimulationError> {
+        expect_ok!(self.fmu.getContinuousStates(x));
+        expect_ok!(self.fmu.getEventIndicators(z));
+        Ok(())
+    }
+
+    fn f(&self, time: f64, x: &[f64], der_x: &mut [f64]) -> Result<(), SimulationError> {
+        if self.nx > 0 {
+            expect_ok!(self.fmu.setTime(time));
+            
+            if let Some(input) = self.input {
+                input.set_continuous_inputs(time, true, self.fmu)?;
+            }
+            
+            expect_ok!(self.fmu.setContinuousStates(x));
+            expect_ok!(self.fmu.getDerivatives(der_x));
+        }
+        Ok(())
+    }
+    
+    fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError> {
+        if self.nz > 0 {
+            expect_ok!(self.fmu.setTime(time));
+            expect_ok!(self.fmu.setContinuousStates(x));
+            expect_ok!(self.fmu.getEventIndicators(z));
+        }
+        Ok(())
+    }
+
+    fn supports_jacobian(&self) -> bool {
+        self.supports_jacobian
+    }
+
+    fn jacobian(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError> {
+        todo!()
+    }
 }

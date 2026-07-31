@@ -94,7 +94,7 @@ pub trait Solver {
     fn step(&mut self, next_time: f64) -> Result<(f64, bool), SimulationError>;
 }
 pub trait SolverFactory {
-    fn create<'a>(
+    fn create<'a, T: Ode + 'a>(
         &self,
         start_time: f64,
         nx: usize,
@@ -111,7 +111,9 @@ pub trait SolverFactory {
         get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
         set_continuous_states: SetContinuousStatesFn<'a>,
         // experimental
+        ode: Option<T>,
         dae: Option<Dae3<'a>>,
+
     ) -> Result<Box<dyn Solver + 'a>, SimulationError>;
 }
 
@@ -214,5 +216,47 @@ pub fn next_regular_point(
         start_time * output_interval.powi(n_steps + 1)
     } else {
         start_time + (n_steps + 1) as f64 * output_interval
+    }
+}
+
+pub trait Ode {
+    fn nx(&self) -> usize;
+    fn nz(&self) -> usize;
+    fn init(&self, x: &mut [f64], z: &mut [f64]) -> Result<(), SimulationError>;
+    fn f(&self, time: f64, x: &[f64], der_x: &mut [f64]) -> Result<(), SimulationError>;
+    fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError>;
+    fn supports_jacobian(&self) -> bool;
+    fn jacobian(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError>;
+}
+
+pub struct DummyOde;
+
+impl Ode for DummyOde {
+    fn nx(&self) -> usize {
+        todo!()
+    }
+
+    fn nz(&self) -> usize {
+        todo!()
+    }
+
+    fn init(&self, x: &mut [f64], z: &mut [f64]) -> Result<(), SimulationError> {
+        todo!()
+    }
+
+    fn f(&self, time: f64, x: &[f64], der_x: &mut [f64]) -> Result<(), SimulationError> {
+        todo!()
+    }
+
+    fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError> {
+        todo!()
+    }
+
+    fn supports_jacobian(&self) -> bool {
+        todo!()
+    }
+
+    fn jacobian(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError> {
+        todo!()
     }
 }

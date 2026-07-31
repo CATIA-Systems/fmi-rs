@@ -1,8 +1,6 @@
 use crate::sim::fmi3::dae::Dae3;
 use crate::sim::{
-    GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn,
-    GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, SetContinuousInputsFn,
-    SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory,
+    GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn, GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, Ode, SetContinuousInputsFn, SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory,
 };
 use crate::sundials::cvode::CV_BDF;
 use crate::sundials::nvector_serial::{NV_DATA_S, NV_LENGTH_S};
@@ -79,7 +77,7 @@ pub struct CVodeSolver<'a> {
 pub struct CVodeSolverFactory;
 
 impl SolverFactory for CVodeSolverFactory {
-    fn create<'a>(
+    fn create<'a, T: Ode + 'a>(
         &self,
         start_time: f64,
         nx: usize,
@@ -95,6 +93,7 @@ impl SolverFactory for CVodeSolverFactory {
         get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
         get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
         set_continuous_states: SetContinuousStatesFn<'a>,
+        _ode: Option<T>,
         _dae: Option<Dae3>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         unsafe {
