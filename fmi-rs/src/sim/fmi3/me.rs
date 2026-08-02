@@ -4,7 +4,7 @@ use crate::dae::DaeManifest;
 use crate::fmi3::log::DefaultLogger;
 use crate::sim::fmi3::dae::Dae3;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
-use crate::sim::{DummyOde, SimulationError, next_communication_point, next_regular_point};
+use crate::sim::{DummyOde, Ode, SimulationError, next_communication_point, next_regular_point};
 use crate::{
     fmi3::{FMU3, types::*},
     model_description::fmi3::{ModelVariable, VariableType},
@@ -15,57 +15,57 @@ use crate::{
     },
 };
 
-macro_rules! expect_ok {
-    ($result:expr) => {
-        if $result != fmi3Status::fmi3OK {
-            return Err(SimulationError::FMICall);
-        }
-    };
-}
+// macro_rules! expect_ok {
+//     ($result:expr) => {
+//         if $result != fmi3Status::fmi3OK {
+//             return Err(SimulationError::FMICall);
+//         }
+//     };
+// }
 
-pub struct Ode3<'a> {
-    fmu: &'a FMU3,
-}
+// pub struct Ode3<'a> {
+//     fmu: &'a FMU3,
+// }
 
-impl<'a> Ode3<'a> {
-    fn nx(&self) -> Result<usize, SimulationError> {
-        let mut nContinuousStates = 0usize;
-        expect_ok!(self.fmu.getNumberOfContinuousStates(&mut nContinuousStates));
-        Ok(nContinuousStates)
-    }
+// impl<'a> Ode3<'a> {
+//     fn nx(&self) -> Result<usize, SimulationError> {
+//         let mut nContinuousStates = 0usize;
+//         expect_ok!(self.fmu.getNumberOfContinuousStates(&mut nContinuousStates));
+//         Ok(nContinuousStates)
+//     }
     
-    fn nz(&self) -> Result<usize, SimulationError> {
-        let mut nEventIndicators = 0usize;
-        expect_ok!(self.fmu.getNumberOfEventIndicators(&mut nEventIndicators));
-        Ok(nEventIndicators)
-    }
+//     fn nz(&self) -> Result<usize, SimulationError> {
+//         let mut nEventIndicators = 0usize;
+//         expect_ok!(self.fmu.getNumberOfEventIndicators(&mut nEventIndicators));
+//         Ok(nEventIndicators)
+//     }
 
-    fn nominals(&self, nominals: &mut [f64]) -> Result<(), SimulationError> {
-        expect_ok!(self.fmu.getNominalsOfContinuousStates(nominals));
-        Ok(())
-    }
+//     fn nominals(&self, nominals: &mut [f64]) -> Result<(), SimulationError> {
+//         expect_ok!(self.fmu.getNominalsOfContinuousStates(nominals));
+//         Ok(())
+//     }
     
-    fn f(&self, time: f64, x: &[f64], dx: &mut [f64]) -> Result<(), SimulationError> {
-        expect_ok!(self.fmu.setTime(time));
-        expect_ok!(self.fmu.setContinuousStates(x));
-        expect_ok!(self.fmu.getContinuousStateDerivatives(dx));
-        Ok(())
-    }
+//     fn f(&self, time: f64, x: &[f64], dx: &mut [f64]) -> Result<(), SimulationError> {
+//         expect_ok!(self.fmu.setTime(time));
+//         expect_ok!(self.fmu.setContinuousStates(x));
+//         expect_ok!(self.fmu.getContinuousStateDerivatives(dx));
+//         Ok(())
+//     }
 
-    fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError> {
-        expect_ok!(self.fmu.setTime(time));
-        expect_ok!(self.fmu.setContinuousStates(x));
-        expect_ok!(self.fmu.getEventIndicators(z));
-        Ok(())
-    }
+//     fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError> {
+//         expect_ok!(self.fmu.setTime(time));
+//         expect_ok!(self.fmu.setContinuousStates(x));
+//         expect_ok!(self.fmu.getEventIndicators(z));
+//         Ok(())
+//     }
 
-    fn jac(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError> {
-        expect_ok!(self.fmu.setTime(time));
-        expect_ok!(self.fmu.setContinuousStates(x));
-        todo!();
-        Ok(())
-    }
-}
+//     fn jac(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError> {
+//         expect_ok!(self.fmu.setTime(time));
+//         expect_ok!(self.fmu.setContinuousStates(x));
+//         todo!();
+//         Ok(())
+//     }
+// }
 
 pub fn simulate<S: SolverFactory>(
     settings: &SimulationSettings,
@@ -208,85 +208,101 @@ pub fn simulate<S: SolverFactory>(
         .join("org.fmi-standard.fmi-ls-dae")
         .join("fmi-ls-manifest.xml");
 
-    let dae_manifest = DaeManifest::from_file(dae_manifest_path)?;
+    let dae = if dae_manifest_path.is_file() {
+        let dae_manifest = DaeManifest::from_file(dae_manifest_path)?;
 
-    let mut continuous_state_vrs = vec![];
-    let mut continuous_state_derivative_vrs = vec![];
-    let mut algebraic_variable_vrs = vec![];
-    let mut nominals = vec![];
+        let mut continuous_state_vrs = vec![];
+        let mut continuous_state_derivative_vrs = vec![];
+        let mut algebraic_variable_vrs = vec![];
+        let mut nominals = vec![];
 
-    for derivative in dae_manifest.modelStructure.continuousStateDerivatives {
-        continuous_state_derivative_vrs.push(derivative.valueReference);
+        for derivative in dae_manifest.modelStructure.continuousStateDerivatives {
+            continuous_state_derivative_vrs.push(derivative.valueReference);
 
-        let derivative_variable = settings
-            .model_description
-            .fetch_variable_by_value_reference(derivative.valueReference)?;
+            let derivative_variable = settings
+                .model_description
+                .fetch_variable_by_value_reference(derivative.valueReference)?;
 
-        let continuous_state_vr =
-            derivative_variable
-                .variableType
-                .derivative()
-                .ok_or_else(|| {
-                    SimulationError::Parameter(format!(
-                        "Variable '{}' is missing the derivative attribute",
-                        derivative_variable.name
-                    ))
-                })?;
+            let continuous_state_vr =
+                derivative_variable
+                    .variableType
+                    .derivative()
+                    .ok_or_else(|| {
+                        SimulationError::Parameter(format!(
+                            "Variable '{}' is missing the derivative attribute",
+                            derivative_variable.name
+                        ))
+                    })?;
 
-        continuous_state_vrs.push(continuous_state_vr);
+            continuous_state_vrs.push(continuous_state_vr);
 
-        let continuous_state_variable = settings
-            .model_description
-            .fetch_variable_by_value_reference(continuous_state_vr)?;
+            let continuous_state_variable = settings
+                .model_description
+                .fetch_variable_by_value_reference(continuous_state_vr)?;
 
-        nominals.push(
-            continuous_state_variable
+            nominals.push(
+                continuous_state_variable
+                    .variableType
+                    .nominal()
+                    .unwrap_or(1.0),
+            );
+        }
+
+        for algebraic_variable in &dae_manifest.algebraicVariables.algebraicVariables {
+            algebraic_variable_vrs.push(algebraic_variable.valueReference);
+            let nominal = settings
+                .model_description
+                .fetch_variable_by_value_reference(algebraic_variable.valueReference)?
                 .variableType
                 .nominal()
-                .unwrap_or(1.0),
-        );
-    }
+                .unwrap_or(1.0);
+            nominals.push(nominal);
+        }
 
-    for algebraic_variable in &dae_manifest.algebraicVariables.algebraicVariables {
-        algebraic_variable_vrs.push(algebraic_variable.valueReference);
-        let nominal = settings
-            .model_description
-            .fetch_variable_by_value_reference(algebraic_variable.valueReference)?
-            .variableType
-            .nominal()
-            .unwrap_or(1.0);
-        nominals.push(nominal);
-    }
+        let residual_vrs = dae_manifest
+            .modelStructure
+            .residuals
+            .iter()
+            .enumerate()
+            .map(|(i, residual)| match residual.formulations.as_slice() {
+                [first] => Ok(first.valueReference),
+                _ => Err(SimulationError::Parameter(format!(
+                    "Residual {} must have exactly one formuation",
+                    i + 1
+                ))),
+            })
+            .collect::<Result<Vec<u32>, SimulationError>>()?;
 
-    let residual_vrs = dae_manifest
-        .modelStructure
-        .residuals
-        .iter()
-        .enumerate()
-        .map(|(i, residual)| match residual.formulations.as_slice() {
-            [first] => Ok(first.valueReference),
-            _ => Err(SimulationError::Parameter(format!(
-                "Residual {} must have exactly one formuation",
-                i + 1
-            ))),
-        })
-        .collect::<Result<Vec<u32>, SimulationError>>()?;
+        let known_vrs: Vec<u32> = continuous_state_vrs
+            .clone()
+            .into_iter()
+            .chain(algebraic_variable_vrs)
+            .collect();
 
-    let known_vrs: Vec<u32> = continuous_state_vrs
-        .clone()
-        .into_iter()
-        .chain(algebraic_variable_vrs)
-        .collect();
+        let unknown_vrs: Vec<u32> = continuous_state_derivative_vrs
+            .clone()
+            .into_iter()
+            .chain(residual_vrs)
+            .collect();
 
-    let unknown_vrs: Vec<u32> = continuous_state_derivative_vrs
-        .clone()
-        .into_iter()
-        .chain(residual_vrs)
-        .collect();
+        let nx = continuous_state_vrs.len();
 
-    let nx = continuous_state_vrs.len();
+        let dae = Dae3::new(&fmu, input, nominals, known_vrs.clone(), unknown_vrs.clone())?;
 
-    let dae = Dae3::new(&fmu, input, nominals, known_vrs.clone(), unknown_vrs.clone())?;
+        Some(dae)
+    } else {
+        None
+    };
+
+    let ode = Ode3 {
+        fmu: &fmu,
+        input,
+        nx,
+        nz,
+        supports_jacobian: false,
+        known_vrs: vec![],
+        unknown_vrs: vec![],
+    };
 
     let mut solver = solver_factory.create(
         time,
@@ -346,8 +362,8 @@ pub fn simulate<S: SolverFactory>(
                 _ => Err(SimulationError::FMICall),
             },
         ),
-        None::<DummyOde>,
-        Some(dae),
+        Some(ode),
+        dae,
     )?;
 
     let mut n_steps = 0;
@@ -470,4 +486,89 @@ pub fn simulate<S: SolverFactory>(
     call(fmu.terminate())?;
 
     Ok(())
+}
+
+pub struct Ode3<'a> {
+    fmu: &'a FMU3,
+    input: Option<&'a StaticInput<'a>>,
+    nx: usize,
+    nz: usize,
+    supports_jacobian: bool,
+    known_vrs: Vec<fmi3ValueReference>,
+    unknown_vrs: Vec<fmi3ValueReference>,
+}
+
+macro_rules! expect_ok {
+    ($result:expr) => {
+        if $result != fmi3Status::fmi3OK {
+            return Err(SimulationError::FMICall);
+        }
+    };
+}
+
+impl<'a> Ode for Ode3<'a> {
+    fn nx(&self) -> usize {
+        self.nx
+    }
+
+    fn nz(&self) -> usize {
+        self.nz
+    }
+
+    fn init(&self, x: &mut [f64], nominals: &mut [f64]) -> Result<(), SimulationError> {
+        expect_ok!(self.fmu.getContinuousStates(x));
+        expect_ok!(self.fmu.getNominalsOfContinuousStates(nominals));
+        Ok(())
+    }
+
+    fn f(&self, time: f64, x: &[f64], der_x: &mut [f64]) -> Result<(), SimulationError> {
+        if self.nx > 0 {
+            expect_ok!(self.fmu.setTime(time));
+            
+            if let Some(input) = self.input {
+                input.set_continuous_inputs(time, true, self.fmu)?;
+            }
+            
+            expect_ok!(self.fmu.setContinuousStates(x));
+            expect_ok!(self.fmu.getContinuousStateDerivatives(der_x));
+        }
+        Ok(())
+    }
+    
+    fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError> {
+        if self.nz > 0 {
+            expect_ok!(self.fmu.setTime(time));
+            expect_ok!(self.fmu.setContinuousStates(x));
+            expect_ok!(self.fmu.getEventIndicators(z));
+        }
+        Ok(())
+    }
+
+    fn supports_jacobian(&self) -> bool {
+        self.supports_jacobian
+    }
+
+    fn jacobian(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError> {
+        expect_ok!(self.fmu.setTime(time));
+        
+        if let Some(input) = self.input {
+            input.set_continuous_inputs(time, true, self.fmu)?;
+        }
+        
+        expect_ok!(self.fmu.setContinuousStates(x));
+
+        for i in 0..self.nx {
+            let mut seed = vec![0.0;self.nx];
+            seed[i] = 1.0;
+            let column = &mut J[i * self.nx..(i + 1) * self.nx];
+            expect_ok!(self.fmu.getDirectionalDerivative(
+                &self.unknown_vrs,
+                &self.known_vrs,
+                &seed,
+                column
+            ));
+        }
+
+        Ok(())
+    }
 }
