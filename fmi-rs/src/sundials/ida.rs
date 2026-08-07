@@ -126,11 +126,10 @@ pub unsafe fn IDACreate(sunctx: SUNContext) -> *mut c_void;
 pub unsafe fn IDAInit(ida_mem: *mut c_void, res: IDAResFn, t0: sunrealtype,
     yy0: N_Vector, yp0: N_Vector) -> i32;
 
-
-// pub unsafe fn CVodeInit(cvode_mem: *mut std::ffi::c_void, f: CVRhsFn, t0: sunrealtype, y0: N_Vector) -> i32;
-
 // SUNDIALS_EXPORT int IDAReInit(void* ida_mem, sunrealtype t0, N_Vector yy0,
 //                               N_Vector yp0);
+pub unsafe fn IDAReInit(ida_mem: *mut c_void, t0: sunrealtype, yy0: N_Vector, 
+    yp0: N_Vector) -> i32;
 
 // /* Tolerance input functions */
 

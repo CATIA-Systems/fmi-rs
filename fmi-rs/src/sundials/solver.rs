@@ -48,22 +48,6 @@ macro_rules! expect_not_null {
     };
 }
 
-// struct Functions<'a> {
-//     nx: usize,
-//     nz: usize,
-//     unknowns: Vec<u32>,
-//     knowns: Vec<u32>,
-//     rtol: f64,
-//     set_time: SetTimeFn<'a>,
-//     set_continuous_inputs: SetContinuousInputsFn<'a>,
-//     get_event_indicators: GetEventIndicatorsFn<'a>,
-//     get_continuous_states: GetContinuousStatesFn<'a>,
-//     get_nominals_of_continuous_states: GetNominalsOfContinuousStatesFn<'a>,
-//     get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
-//     get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
-//     set_continuous_states: SetContinuousStatesFn<'a>,
-// }
-
 pub struct CVodeSolver<T: Ode> {
     sunctx: SUNContext,
     x: N_Vector,
@@ -72,7 +56,6 @@ pub struct CVodeSolver<T: Ode> {
     A: SUNMatrix,
     LS: SUNLinearSolver,
     cvode_mem: *mut c_void,
-    // functions: Box<Functions<'a>>,
     ode: Box<T>,
 }
 
@@ -82,39 +65,11 @@ impl SolverFactory for CVodeSolverFactory {
     fn create<'a, T: Ode + 'a>(
         &self,
         start_time: f64,
-        nx: usize,
-        nz: usize,
         rtol: f64,
-        unknowns: Vec<u32>,
-        knowns: Vec<u32>,
-        set_time: SetTimeFn<'a>,
-        set_continuous_inputs: SetContinuousInputsFn<'a>,
-        get_event_indicators: GetEventIndicatorsFn<'a>,
-        get_continuous_states: GetContinuousStatesFn<'a>,
-        get_nominals_of_continuous_states: GetNominalsOfContinuousStatesFn<'a>,
-        get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
-        get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
-        set_continuous_states: SetContinuousStatesFn<'a>,
         ode: Option<T>,
         _dae: Option<Dae3>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         unsafe {
-            // let functions = Box::new(Functions {
-            //     nx,
-            //     nz,
-            //     rtol,
-            //     unknowns,
-            //     knowns,
-            //     set_time,
-            //     set_continuous_inputs,
-            //     get_event_indicators,
-            //     get_continuous_states,
-            //     get_nominals_of_continuous_states,
-            //     get_continuous_state_derivatives,
-            //     get_directional_derivative,
-            //     set_continuous_states,
-            // });
-
             let mut sunctx = std::ptr::null_mut();
 
             expect_no_error!(
@@ -127,6 +82,9 @@ impl SolverFactory for CVodeSolverFactory {
 
             let ode = Box::new(ode.unwrap());
 
+            let nx = ode.nx();
+            let nz = ode.nz();
+
             // let user_data: *const Functions = &*functions;
             let user_data: *const T = &*ode;
 
@@ -138,6 +96,7 @@ impl SolverFactory for CVodeSolverFactory {
             let x = N_VNew_Serial(nx.max(1) as sunindextype, sunctx);
             expect_not_null!(x, "Failed to create N_Vector");
             let x_slice = (*x).as_mut();
+
             // if nx > 0 {
             //     (functions.get_continuous_states)((*x).as_mut())?;
             // } else {
@@ -363,7 +322,7 @@ extern "C" fn g<T: Ode>(
 }
 
 // Jacobian function
-extern "C" fn jac(
+extern "C" fn jac<T: Ode>(
     t: sunrealtype,
     y: N_Vector,
     _fy: N_Vector,
@@ -373,6 +332,17 @@ extern "C" fn jac(
     _tmp2: N_Vector,
     _tmp3: N_Vector,
 ) -> i32 {
+    if user_data.is_null() {
+        return -1;
+    }
+
+    unsafe {
+        let ode: &mut T = &mut *(user_data as *mut T);
+        let y = (*y).as_mut();
+        let J = (*Jac).as_mut();
+        ode.jacobian(t, y, J).map_or(-1, |_| 0)
+    }
+
     // unsafe {
     //     let functions: &Functions = &*(user_data as *const Functions);
 
@@ -408,5 +378,5 @@ extern "C" fn jac(
     //         ));
     //     }
     // }
-    0
+    // 0
 }

@@ -2,7 +2,7 @@ use crate::{
     fmi2::{
         self, FMU2, ME, types::{fmi2False, fmi2Real, fmi2Status, fmi2ValueReference},
     }, model_description::fmi2::VariableType, sim::{
-        DummyOde, Ode, SimulationError, SolverFactory, fmi2::{
+         Ode, SimulationError, SolverFactory, fmi2::{
             SimulationSettings, call, input::StaticInput, read_initial_fmu_state,
             recorder::Recorder, set_start_values, write_final_fmu_state,
         }, next_communication_point, next_regular_point, relative_eq, relative_ge, relative_le, validate_simulation_steps,
@@ -121,12 +121,12 @@ pub fn simulate<S: SolverFactory>(
         .map(|d| d.index)
         .collect();
 
-    let derivative_vrs: Vec<u32> = derivative_indices
+    let _derivative_vrs: Vec<u32> = derivative_indices
         .iter()
         .map(|i| settings.model_description.modelVariables[(*i - 1) as usize].valueReference)
         .collect();
 
-    let state_vrs: Vec<u32> = derivative_indices
+    let _state_vrs: Vec<u32> = derivative_indices
         .iter()
         .map(|i| {
             let variable = &settings.model_description.modelVariables[(*i - 1) as usize];
@@ -145,7 +145,7 @@ pub fn simulate<S: SolverFactory>(
 
     let ode2 = Ode2 {
         fmu: &fmu,
-        input: input,
+        input,
         nx: 2usize,
         nz: 1usize,
         supports_jacobian: false,
@@ -155,61 +155,7 @@ pub fn simulate<S: SolverFactory>(
 
     let mut solver = solver_factory.create(
         time,
-        settings.model_description.derivatives.len(),
-        settings.model_description.numberOfEventIndicators as usize,
         settings.tolerance,
-        derivative_vrs,
-        state_vrs,
-        Box::new(|time| {
-            fmu.setTime(time);
-            Ok(())
-        }),
-        Box::new(|time| {
-            if let Some(input) = &input {
-                input.set_continuous_inputs(time, false, &fmu)?;
-            }
-            Ok(())
-        }),
-        Box::new(
-            |event_indicators| match fmu.getEventIndicators(event_indicators) {
-                fmi2Status::fmi2OK => Ok(()),
-                _ => Err(SimulationError::FMICall),
-            },
-        ),
-        Box::new(
-            |continuous_states| match fmu.getContinuousStates(continuous_states) {
-                fmi2Status::fmi2OK => Ok(()),
-                _ => Err(SimulationError::FMICall),
-            },
-        ),
-        Box::new(
-            |nominals| match fmu.getNominalsOfContinuousStates(nominals) {
-                fmi2Status::fmi2OK => Ok(()),
-                _ => Err(SimulationError::FMICall),
-            },
-        ),
-        Box::new(
-            |state_derivatives| match fmu.getDerivatives(state_derivatives) {
-                fmi2Status::fmi2OK => Ok(()),
-                _ => Err(SimulationError::FMICall),
-            },
-        ),
-        if model_exchange.providesDirectionalDerivative {
-            Some(Box::new(|unknowns, knowns, seed, sensitivity| {
-                match fmu.getDirectionalDerivative(unknowns, knowns, seed, sensitivity) {
-                    fmi2Status::fmi2OK => Ok(()),
-                    _ => Err(SimulationError::FMICall),
-                }
-            }))
-        } else {
-            None
-        },
-        Box::new(
-            |continuous_states| match fmu.setContinuousStates(continuous_states) {
-                fmi2Status::fmi2OK => Ok(()),
-                _ => Err(SimulationError::FMICall),
-            },
-        ),
         Some(ode2),
         None,
     )?;

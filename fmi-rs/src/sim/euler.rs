@@ -1,5 +1,5 @@
 use crate::sim::{
-    DummyOde, GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn, GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, Ode, SetContinuousInputsFn, SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory, fmi3::dae::Dae3, relative_eq,
+    Ode, SimulationError, Solver, SolverFactory, fmi3::dae::Dae3, relative_eq,
 };
 
 pub struct ForwardEuler<T: Ode> {
@@ -22,37 +22,21 @@ impl SolverFactory for ForwardEulerFactory {
     fn create<'a, T: Ode + 'a>(
         &self,
         start_time: f64,
-        nx: usize,
-        nz: usize,
         _rtol: f64,
-        _unknowns: Vec<u32>,
-        _knowns: Vec<u32>,
-        _set_time: SetTimeFn<'a>,
-        _set_continuous_inputs: SetContinuousInputsFn<'a>,
-        _get_event_indicators: GetEventIndicatorsFn<'a>,
-        _get_continuous_states: GetContinuousStatesFn<'a>,
-        _get_nominals_of_continuous_states: GetNominalsOfContinuousStatesFn<'a>,
-        _get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
-        _get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
-        _set_continuous_states: SetContinuousStatesFn<'a>,
         ode: Option<T>,
         _dae: Option<Dae3>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
+
+        let ode = ode.unwrap();
+
+        let nx = ode.nx();
+        let nz = ode.nz();
+
         let mut x: Vec<f64> = vec![0.0; nx];
         let mut nominals: Vec<f64> = vec![0.0; nx];
         let der_x = vec![0.0; nx];
         let z = vec![0.0; nz];
         let mut pre_z = vec![0.0; nz];
-
-        // if !x.is_empty() {
-        //     (get_continuous_states)(x.as_mut_slice())?;
-        // }
-
-        // if !z.is_empty() {
-        //     (get_event_indicators)(pre_z.as_mut_slice())?;
-        // }
-
-        let ode = ode.unwrap();
 
         ode.init(x.as_mut_slice(), nominals.as_mut_slice())?;
         ode.g(start_time, x.as_slice(), pre_z.as_mut_slice())?;

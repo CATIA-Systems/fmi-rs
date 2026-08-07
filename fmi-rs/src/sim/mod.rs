@@ -97,23 +97,9 @@ pub trait SolverFactory {
     fn create<'a, T: Ode + 'a>(
         &self,
         start_time: f64,
-        nx: usize,
-        nz: usize,
         rtol: f64,
-        unknowns: Vec<u32>,
-        knowns: Vec<u32>,
-        set_time: SetTimeFn<'a>,
-        set_continuous_inputs: SetContinuousInputsFn<'a>,
-        get_event_indicators: GetEventIndicatorsFn<'a>,
-        get_continuous_states: GetContinuousStatesFn<'a>,
-        get_nominals_of_continuous_states: GetNominalsOfContinuousStatesFn<'a>,
-        get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
-        get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
-        set_continuous_states: SetContinuousStatesFn<'a>,
-        // experimental
         ode: Option<T>,
         dae: Option<Dae3<'a>>,
-
     ) -> Result<Box<dyn Solver + 'a>, SimulationError>;
 }
 
@@ -227,36 +213,4 @@ pub trait Ode {
     fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError>;
     fn supports_jacobian(&self) -> bool;
     fn jacobian(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError>;
-}
-
-pub struct DummyOde;
-
-impl Ode for DummyOde {
-    fn nx(&self) -> usize {
-        todo!()
-    }
-
-    fn nz(&self) -> usize {
-        todo!()
-    }
-
-    fn init(&self, x: &mut [f64], nominals: &mut [f64]) -> Result<(), SimulationError> {
-        todo!()
-    }
-
-    fn f(&self, time: f64, x: &[f64], der_x: &mut [f64]) -> Result<(), SimulationError> {
-        todo!()
-    }
-
-    fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError> {
-        todo!()
-    }
-
-    fn supports_jacobian(&self) -> bool {
-        todo!()
-    }
-
-    fn jacobian(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError> {
-        todo!()
-    }
 }

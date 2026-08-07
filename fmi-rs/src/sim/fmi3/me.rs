@@ -4,7 +4,7 @@ use crate::dae::DaeManifest;
 use crate::fmi3::log::DefaultLogger;
 use crate::sim::fmi3::dae::Dae3;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
-use crate::sim::{DummyOde, Ode, SimulationError, next_communication_point, next_regular_point};
+use crate::sim::{ Ode, SimulationError, next_communication_point, next_regular_point};
 use crate::{
     fmi3::{FMU3, types::*},
     model_description::fmi3::{ModelVariable, VariableType},
@@ -14,58 +14,6 @@ use crate::{
         relative_eq, relative_ge, relative_le,
     },
 };
-
-// macro_rules! expect_ok {
-//     ($result:expr) => {
-//         if $result != fmi3Status::fmi3OK {
-//             return Err(SimulationError::FMICall);
-//         }
-//     };
-// }
-
-// pub struct Ode3<'a> {
-//     fmu: &'a FMU3,
-// }
-
-// impl<'a> Ode3<'a> {
-//     fn nx(&self) -> Result<usize, SimulationError> {
-//         let mut nContinuousStates = 0usize;
-//         expect_ok!(self.fmu.getNumberOfContinuousStates(&mut nContinuousStates));
-//         Ok(nContinuousStates)
-//     }
-    
-//     fn nz(&self) -> Result<usize, SimulationError> {
-//         let mut nEventIndicators = 0usize;
-//         expect_ok!(self.fmu.getNumberOfEventIndicators(&mut nEventIndicators));
-//         Ok(nEventIndicators)
-//     }
-
-//     fn nominals(&self, nominals: &mut [f64]) -> Result<(), SimulationError> {
-//         expect_ok!(self.fmu.getNominalsOfContinuousStates(nominals));
-//         Ok(())
-//     }
-    
-//     fn f(&self, time: f64, x: &[f64], dx: &mut [f64]) -> Result<(), SimulationError> {
-//         expect_ok!(self.fmu.setTime(time));
-//         expect_ok!(self.fmu.setContinuousStates(x));
-//         expect_ok!(self.fmu.getContinuousStateDerivatives(dx));
-//         Ok(())
-//     }
-
-//     fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError> {
-//         expect_ok!(self.fmu.setTime(time));
-//         expect_ok!(self.fmu.setContinuousStates(x));
-//         expect_ok!(self.fmu.getEventIndicators(z));
-//         Ok(())
-//     }
-
-//     fn jac(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError> {
-//         expect_ok!(self.fmu.setTime(time));
-//         expect_ok!(self.fmu.setContinuousStates(x));
-//         todo!();
-//         Ok(())
-//     }
-// }
 
 pub fn simulate<S: SolverFactory>(
     settings: &SimulationSettings,
@@ -77,9 +25,6 @@ pub fn simulate<S: SolverFactory>(
     let stop_time = settings.stop_time;
     let set_stop_time = settings.set_stop_time;
     let _output_interval = settings.output_interval;
-
-    // validate_simulation_steps(start_time, stop_time, output_interval)
-    //     .map_err(SimulationError::Parameter)?;
 
     let mut time = start_time;
 
@@ -173,7 +118,7 @@ pub fn simulate<S: SolverFactory>(
         .map(|d| d.valueReference)
         .collect();
 
-    let state_vrs: Vec<u32> = derivative_vrs
+    let _state_vrs: Vec<u32> = derivative_vrs
         .iter()
         .map(|s| {
             let derivative_variable = variables_map[s];
@@ -287,62 +232,7 @@ pub fn simulate<S: SolverFactory>(
 
     let mut solver = solver_factory.create(
         time,
-        nx,
-        nz,
         settings.tolerance,
-        derivative_vrs,
-        state_vrs,
-        Box::new(|time| {
-            fmu.setTime(time);
-            Ok(())
-        }),
-        Box::new(|time| {
-            if let Some(input) = &input {
-                input.set_continuous_inputs(time, false, &fmu)
-            } else {
-                Ok(())
-            }
-        }),
-        Box::new(
-            |event_indicators| match fmu.getEventIndicators(event_indicators) {
-                fmi3Status::fmi3OK => Ok(()),
-                _ => Err(SimulationError::FMICall),
-            },
-        ),
-        Box::new(
-            |continuous_states| match fmu.getContinuousStates(continuous_states) {
-                fmi3Status::fmi3OK => Ok(()),
-                _ => Err(SimulationError::FMICall),
-            },
-        ),
-        Box::new(
-            |nominals| match fmu.getNominalsOfContinuousStates(nominals) {
-                fmi3Status::fmi3OK => Ok(()),
-                _ => Err(SimulationError::FMICall),
-            },
-        ),
-        Box::new(
-            |state_derivatives| match fmu.getContinuousStateDerivatives(state_derivatives) {
-                fmi3Status::fmi3OK => Ok(()),
-                _ => Err(SimulationError::FMICall),
-            },
-        ),
-        if model_exchange.providesDirectionalDerivatives {
-            Some(Box::new(|unknowns, knowns, seed, sensitivity| {
-                match fmu.getDirectionalDerivative(unknowns, knowns, seed, sensitivity) {
-                    fmi3Status::fmi3OK => Ok(()),
-                    _ => Err(SimulationError::FMICall),
-                }
-            }))
-        } else {
-            None
-        },
-        Box::new(
-            |continuous_states| match fmu.setContinuousStates(continuous_states) {
-                fmi3Status::fmi3OK => Ok(()),
-                _ => Err(SimulationError::FMICall),
-            },
-        ),
         Some(ode),
         dae,
     )?;
