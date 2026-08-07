@@ -29,6 +29,9 @@ pub struct AlgebraicVariables {
 pub struct AlgebraicVariable {
     #[serde(rename = "@valueReference")]
     pub valueReference: u32,
+
+    #[serde(rename = "@nominal")]
+    pub nominal: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display, EnumString)]

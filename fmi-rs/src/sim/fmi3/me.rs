@@ -214,7 +214,7 @@ pub fn simulate<S: SolverFactory>(
         let mut continuous_state_vrs = vec![];
         let mut continuous_state_derivative_vrs = vec![];
         let mut algebraic_variable_vrs = vec![];
-        let mut nominals = vec![];
+        let mut algebraic_variable_nominal_vrs = vec![];
 
         for derivative in dae_manifest.modelStructure.continuousStateDerivatives {
             continuous_state_derivative_vrs.push(derivative.valueReference);
@@ -235,28 +235,11 @@ pub fn simulate<S: SolverFactory>(
                     })?;
 
             continuous_state_vrs.push(continuous_state_vr);
-
-            let continuous_state_variable = settings
-                .model_description
-                .fetch_variable_by_value_reference(continuous_state_vr)?;
-
-            nominals.push(
-                continuous_state_variable
-                    .variableType
-                    .nominal()
-                    .unwrap_or(1.0),
-            );
         }
 
         for algebraic_variable in &dae_manifest.algebraicVariables.algebraicVariables {
             algebraic_variable_vrs.push(algebraic_variable.valueReference);
-            let nominal = settings
-                .model_description
-                .fetch_variable_by_value_reference(algebraic_variable.valueReference)?
-                .variableType
-                .nominal()
-                .unwrap_or(1.0);
-            nominals.push(nominal);
+            algebraic_variable_nominal_vrs.push(algebraic_variable.nominal);
         }
 
         let residual_vrs = dae_manifest
@@ -285,9 +268,7 @@ pub fn simulate<S: SolverFactory>(
             .chain(residual_vrs)
             .collect();
 
-        let nx = continuous_state_vrs.len();
-
-        let dae = Dae3::new(&fmu, input, nominals, known_vrs.clone(), unknown_vrs.clone())?;
+        let dae = Dae3::new(&fmu, input, known_vrs.clone(), unknown_vrs.clone(), algebraic_variable_nominal_vrs.clone())?;
 
         Some(dae)
     } else {

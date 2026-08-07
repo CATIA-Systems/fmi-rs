@@ -127,7 +127,8 @@ impl<'a,> Ida<'a> {
         rtol: f64,
         dae: Dae3<'a>,
     ) -> Result<Self, SimulationError> {
-        let neq = dae.nominals.len() as i64;
+
+        let neq = dae.known_vrs.len() as i64;
 
         unsafe {
             let mut sunctx = std::ptr::null_mut();
@@ -155,14 +156,8 @@ impl<'a,> Ida<'a> {
             expect_not_null!(A, "Failed to create A matrix");
 
             // Initialize vectors
-            dae.init((*yy).as_mut(), (*yp).as_mut())?;
+            dae.init((*yy).as_mut(), (*avtol).as_mut(), (*yp).as_mut())?;
 
-            let atol = (*avtol).as_mut();
-
-            for (src, dst) in dae.nominals.iter().zip(atol.iter_mut()) {
-                *dst = src * rtol;
-            }
-            
             expect_no_error!(
                 IDAInit(ida_mem, residuals_cb, t0, yy, yp),
                 "Failed to initilalize IDA"
@@ -296,31 +291,35 @@ impl SolverFactory for IdaSolverFactory {
 pub struct Dae3<'a> {
     fmu: &'a FMU3,
     input: Option<&'a StaticInput<'a>>,
-    nominals: Vec<f64>,
     known_vrs: Vec<fmi3ValueReference>,
     unknown_vrs: Vec<fmi3ValueReference>,
+    algebraic_variable_nominal_vrs: Vec<fmi3ValueReference>,
 }
 
 impl<'a,> Dae3<'a> {
     pub fn new(
         fmu: &'a FMU3,
         input: Option<&'a StaticInput<'a>>,
-        nominals: Vec<f64>,
         known_vrs: Vec<fmi3ValueReference>,
         unknown_vrs: Vec<fmi3ValueReference>,
+        algebraic_variable_nominal_vrs: Vec<fmi3ValueReference>,
     ) -> Result<Self, SimulationError> {
         Ok(Self {
             fmu,
             input,
-            nominals,
             known_vrs,
             unknown_vrs,
+            algebraic_variable_nominal_vrs,
         })
     }
 
-    pub fn init(&self, knowns: &mut [f64], unknowns: &mut [f64]) -> Result<(), SimulationError> {
+    pub fn init(&self, knowns: &mut [f64], nominals: &mut [f64], unknowns: &mut [f64]) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.getFloat64(&self.known_vrs, knowns));
         expect_ok!(self.fmu.getFloat64(&self.unknown_vrs, unknowns));
+        let mut nx = 0;
+        expect_ok!(self.fmu.getNumberOfContinuousStates(&mut nx));
+        expect_ok!(self.fmu.getNominalsOfContinuousStates(&mut nominals[..nx]));
+        expect_ok!(self.fmu.getFloat64(&self.algebraic_variable_nominal_vrs, &mut nominals[nx..]));
         Ok(())
     }
 
