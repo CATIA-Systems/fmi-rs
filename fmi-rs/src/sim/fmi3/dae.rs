@@ -2,11 +2,10 @@ use std::ffi::c_void;
 use std::slice::from_raw_parts_mut;
 
 use crate::fmi3::types::{fmi3Status, fmi3ValueReference};
-use crate::sim::{
-     Ode, SimulationError, Solver, SolverFactory,
-};
+use crate::sim::{Ode, SimulationError, Solver, SolverFactory};
 use crate::sundials::ida::{
-    IDA_NORMAL, IDA_ROOT_RETURN, IDA_SUCCESS, IDA_TSTOP_RETURN, IDACreate, IDAFree, IDAInit, IDAReInit, IDARootInit, IDASVtolerances, IDASetUserData, IDASolve,
+    IDA_NORMAL, IDA_ROOT_RETURN, IDA_SUCCESS, IDA_TSTOP_RETURN, IDACreate, IDAFree, IDAInit,
+    IDAReInit, IDARootInit, IDASVtolerances, IDASetUserData, IDASolve,
 };
 use crate::sundials::ida_ls::{IDASetJacFn, IDASetLinearSolver};
 use crate::sundials::nvector_serial::N_VNew_Serial;
@@ -17,10 +16,7 @@ use crate::sundials::sundials_nvector::{N_VDestroy, N_Vector};
 use crate::sundials::sundials_types::{SUN_COMM_NULL, SUNContext, sunrealtype};
 use crate::sundials::sunlinsol_dense::SUNLinSol_Dense;
 use crate::sundials::sunmatrix_dense::SUNDenseMatrix;
-use crate::{
-    fmi3::FMU3,
-    sim::fmi3::input::StaticInput,
-};
+use crate::{fmi3::FMU3, sim::fmi3::input::StaticInput};
 
 pub struct Ida<'a> {
     sunctx: SUNContext,
@@ -64,7 +60,7 @@ extern "C" fn residuals_cb(
     if user_data.is_null() {
         return -1;
     }
-    
+
     unsafe {
         let dae: &Dae3 = &*(user_data as *const Dae3);
         dae.residuals(tt, (*yy).as_mut(), (*yp).as_mut(), (*rr).as_mut())
@@ -123,13 +119,8 @@ extern "C" fn jacrob(
     }
 }
 
-impl<'a,> Ida<'a> {
-    pub fn new(
-        t0: f64,
-        rtol: f64,
-        dae: Dae3<'a>,
-    ) -> Result<Self, SimulationError> {
-
+impl<'a> Ida<'a> {
+    pub fn new(t0: f64, rtol: f64, dae: Dae3<'a>) -> Result<Self, SimulationError> {
         let neq = dae.known_vrs.len() as i64;
 
         unsafe {
@@ -242,7 +233,7 @@ impl<'a> Solver for Ida<'a> {
                     "IDASolve failed with code {retval}"
                 )));
             }
-            
+
             Ok((next_time, (*self.yy).as_mut(), retval == IDA_ROOT_RETURN))
         }
     }
@@ -252,17 +243,14 @@ impl<'a> Solver for Ida<'a> {
             let knowns = (*self.yy).as_mut();
             let absolut_tolerances = (*self.avtol).as_mut();
             let unknowns = (*self.yp).as_mut();
-            
+
             self.dae.init(knowns, absolut_tolerances, unknowns)?;
-            
+
             for absolut_tolerance in absolut_tolerances.iter_mut() {
                 *absolut_tolerance *= self.rtol;
             }
 
-            expect_no_error!(
-                IDAReInit(self.ida_mem, time, self.yy, self.yp),
-                ""
-            );
+            expect_no_error!(IDAReInit(self.ida_mem, time, self.yy, self.yp), "");
 
             expect_no_error!(
                 IDASVtolerances(self.ida_mem, self.rtol, self.avtol),
@@ -313,7 +301,7 @@ pub struct Dae3<'a> {
     algebraic_variable_nominal_vrs: Vec<fmi3ValueReference>,
 }
 
-impl<'a,> Dae3<'a> {
+impl<'a> Dae3<'a> {
     pub fn new(
         fmu: &'a FMU3,
         input: Option<&'a StaticInput<'a>>,
@@ -323,10 +311,10 @@ impl<'a,> Dae3<'a> {
     ) -> Result<Self, SimulationError> {
         let mut nx = 0;
         expect_ok!(fmu.getNumberOfContinuousStates(&mut nx));
-        
+
         let mut nz = 0;
         expect_ok!(fmu.getNumberOfEventIndicators(&mut nz));
-        
+
         Ok(Self {
             fmu,
             input,
@@ -338,11 +326,22 @@ impl<'a,> Dae3<'a> {
         })
     }
 
-    pub fn init(&self, knowns: &mut [f64], nominals: &mut [f64], unknowns: &mut [f64]) -> Result<(), SimulationError> {
+    pub fn init(
+        &self,
+        knowns: &mut [f64],
+        nominals: &mut [f64],
+        unknowns: &mut [f64],
+    ) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.getFloat64(&self.known_vrs, knowns));
         expect_ok!(self.fmu.getFloat64(&self.unknown_vrs, unknowns));
-        expect_ok!(self.fmu.getNominalsOfContinuousStates(&mut nominals[..self.nx]));
-        expect_ok!(self.fmu.getFloat64(&self.algebraic_variable_nominal_vrs, &mut nominals[self.nx..]));
+        expect_ok!(
+            self.fmu
+                .getNominalsOfContinuousStates(&mut nominals[..self.nx])
+        );
+        expect_ok!(self.fmu.getFloat64(
+            &self.algebraic_variable_nominal_vrs,
+            &mut nominals[self.nx..]
+        ));
         Ok(())
     }
 
@@ -354,11 +353,11 @@ impl<'a,> Dae3<'a> {
         residuals: &mut [f64],
     ) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.setTime(time));
-        
+
         if let Some(input) = self.input {
             input.set_continuous_inputs(time, true, self.fmu)?;
         }
-        
+
         expect_ok!(self.fmu.setFloat64(&self.known_vrs, knowns));
 
         expect_ok!(self.fmu.getFloat64(&self.unknown_vrs, residuals));
@@ -370,11 +369,7 @@ impl<'a,> Dae3<'a> {
         Ok(())
     }
 
-    pub fn root(&self,         
-        time: f64,
-        knowns: &[f64],
-        z: &mut [f64],
-    ) -> Result<(), SimulationError> {
+    pub fn root(&self, time: f64, knowns: &[f64], z: &mut [f64]) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.setTime(time));
         if let Some(input) = self.input {
             input.set_continuous_inputs(time, true, self.fmu)?;
@@ -392,11 +387,11 @@ impl<'a,> Dae3<'a> {
         J: &mut [f64],
     ) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.setTime(time));
-        
+
         if let Some(input) = self.input {
             input.set_continuous_inputs(time, true, self.fmu)?;
         }
-        
+
         expect_ok!(self.fmu.setFloat64(&self.known_vrs, knowns));
 
         let n = self.known_vrs.len();

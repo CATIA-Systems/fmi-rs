@@ -1,6 +1,4 @@
-use crate::sim::{
-    Ode, SimulationError, Solver, SolverFactory, fmi3::dae::Dae3, relative_eq,
-};
+use crate::sim::{Ode, SimulationError, Solver, SolverFactory, fmi3::dae::Dae3, relative_eq};
 
 pub struct ForwardEuler<T: Ode> {
     start_time: f64,
@@ -26,7 +24,6 @@ impl SolverFactory for ForwardEulerFactory {
         ode: Option<T>,
         _dae: Option<Dae3>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
-
         let ode = ode.unwrap();
 
         let nx = ode.nx();
@@ -59,7 +56,6 @@ impl SolverFactory for ForwardEulerFactory {
 
 impl<T: Ode> ForwardEuler<T> {
     fn do_fixed_step(&mut self) -> Result<(f64, bool), SimulationError> {
-
         let time = self.start_time + self.n_steps as f64 * self.fixed_step_size;
 
         self.ode.f(time, &self.x, &mut self.der_x)?;
@@ -75,7 +71,6 @@ impl<T: Ode> ForwardEuler<T> {
         self.ode.g(time, &self.x, &mut self.z)?;
 
         let mut state_event = false;
-
 
         for i in 0..self.z.len() {
             if self.pre_z[i] <= 0.0 && self.z[i] > 0.0 {

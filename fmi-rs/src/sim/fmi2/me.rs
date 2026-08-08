@@ -1,11 +1,17 @@
 use crate::{
     fmi2::{
-        self, FMU2, ME, types::{fmi2False, fmi2Real, fmi2Status, fmi2ValueReference},
-    }, model_description::fmi2::VariableType, sim::{
-         Ode, SimulationError, SolverFactory, fmi2::{
+        self, FMU2, ME,
+        types::{fmi2False, fmi2Real, fmi2Status, fmi2ValueReference},
+    },
+    model_description::fmi2::VariableType,
+    sim::{
+        Ode, SimulationError, SolverFactory,
+        fmi2::{
             SimulationSettings, call, input::StaticInput, read_initial_fmu_state,
             recorder::Recorder, set_start_values, write_final_fmu_state,
-        }, next_communication_point, next_regular_point, relative_eq, relative_ge, relative_le, validate_simulation_steps,
+        },
+        next_communication_point, next_regular_point, relative_eq, relative_ge, relative_le,
+        validate_simulation_steps,
     },
 };
 
@@ -124,12 +130,7 @@ pub fn simulate<S: SolverFactory>(
         unknown_vrs: vec![],
     };
 
-    let mut solver = solver_factory.create(
-        time,
-        settings.tolerance,
-        Some(ode2),
-        None,
-    )?;
+    let mut solver = solver_factory.create(time, settings.tolerance, Some(ode2), None)?;
 
     let mut n_steps = 0;
 
@@ -294,17 +295,17 @@ impl<'a> Ode for Ode2<'a> {
     fn f(&self, time: f64, x: &[f64], der_x: &mut [f64]) -> Result<(), SimulationError> {
         if self.nx > 0 {
             expect_ok!(self.fmu.setTime(time));
-            
+
             if let Some(input) = self.input {
                 input.set_continuous_inputs(time, true, self.fmu)?;
             }
-            
+
             expect_ok!(self.fmu.setContinuousStates(x));
             expect_ok!(self.fmu.getDerivatives(der_x));
         }
         Ok(())
     }
-    
+
     fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError> {
         if self.nz > 0 {
             expect_ok!(self.fmu.setTime(time));
@@ -320,15 +321,15 @@ impl<'a> Ode for Ode2<'a> {
 
     fn jacobian(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.setTime(time));
-        
+
         if let Some(input) = self.input {
             input.set_continuous_inputs(time, true, self.fmu)?;
         }
-        
+
         expect_ok!(self.fmu.setContinuousStates(x));
 
         for i in 0..self.nx {
-            let mut seed = vec![0.0;self.nx];
+            let mut seed = vec![0.0; self.nx];
             seed[i] = 1.0;
             let column = &mut J[i * self.nx..(i + 1) * self.nx];
             expect_ok!(self.fmu.getDirectionalDerivative(

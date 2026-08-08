@@ -4,7 +4,7 @@ use crate::dae::DaeManifest;
 use crate::fmi3::log::DefaultLogger;
 use crate::sim::fmi3::dae::Dae3;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
-use crate::sim::{ Ode, SimulationError, next_communication_point, next_regular_point};
+use crate::sim::{Ode, SimulationError, next_communication_point, next_regular_point};
 use crate::{
     fmi3::{FMU3, types::*},
     model_description::fmi3::{ModelVariable, VariableType},
@@ -174,7 +174,13 @@ pub fn simulate<S: SolverFactory>(
             .chain(residual_vrs)
             .collect();
 
-        let dae = Dae3::new(&fmu, input, known_vrs.clone(), unknown_vrs.clone(), algebraic_variable_nominal_vrs.clone())?;
+        let dae = Dae3::new(
+            &fmu,
+            input,
+            known_vrs.clone(),
+            unknown_vrs.clone(),
+            algebraic_variable_nominal_vrs.clone(),
+        )?;
 
         Some(dae)
     } else {
@@ -191,12 +197,7 @@ pub fn simulate<S: SolverFactory>(
         unknown_vrs: vec![],
     };
 
-    let mut solver = solver_factory.create(
-        time,
-        settings.tolerance,
-        Some(ode),
-        dae,
-    )?;
+    let mut solver = solver_factory.create(time, settings.tolerance, Some(ode), dae)?;
 
     let mut n_steps = 0;
 
@@ -240,7 +241,7 @@ pub fn simulate<S: SolverFactory>(
         let (time_reached, x, is_state_event) = solver.step(next_communication_point)?;
 
         time = time_reached;
-        
+
         call(fmu.setTime(time))?;
         call(fmu.setContinuousStates(x))?;
 
@@ -358,11 +359,11 @@ impl<'a> Ode for Ode3<'a> {
 
     fn f(&self, time: f64, x: &[f64], der_x: &mut [f64]) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.setTime(time));
-        
+
         if let Some(input) = self.input {
             input.set_continuous_inputs(time, true, self.fmu)?;
         }
-        
+
         if self.nx > 0 {
             expect_ok!(self.fmu.setContinuousStates(x));
             expect_ok!(self.fmu.getContinuousStateDerivatives(der_x));
@@ -370,7 +371,7 @@ impl<'a> Ode for Ode3<'a> {
 
         Ok(())
     }
-    
+
     fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError> {
         if self.nz > 0 {
             expect_ok!(self.fmu.setTime(time));
@@ -386,15 +387,15 @@ impl<'a> Ode for Ode3<'a> {
 
     fn jacobian(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.setTime(time));
-        
+
         if let Some(input) = self.input {
             input.set_continuous_inputs(time, true, self.fmu)?;
         }
-        
+
         expect_ok!(self.fmu.setContinuousStates(x));
 
         for i in 0..self.nx {
-            let mut seed = vec![0.0;self.nx];
+            let mut seed = vec![0.0; self.nx];
             seed[i] = 1.0;
             let column = &mut J[i * self.nx..(i + 1) * self.nx];
             expect_ok!(self.fmu.getDirectionalDerivative(

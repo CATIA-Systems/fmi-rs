@@ -1,6 +1,8 @@
 use crate::sim::fmi3::dae::Dae3;
 use crate::sim::{
-    GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn, GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, Ode, SetContinuousInputsFn, SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory,
+    GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn,
+    GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, Ode, SetContinuousInputsFn,
+    SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory,
 };
 use crate::sundials::cvode::CV_BDF;
 use crate::sundials::nvector_serial::{NV_DATA_S, NV_LENGTH_S};
@@ -95,13 +97,13 @@ impl SolverFactory for CVodeSolverFactory {
 
             let x = N_VNew_Serial(nx.max(1) as sunindextype, sunctx);
             expect_not_null!(x, "Failed to create N_Vector");
-            
+
             let abstol = N_VNew_Serial(NV_LENGTH_S(x), sunctx);
             expect_not_null!(abstol, "Failed to create N_Vector");
-            
+
             let x_slice = (*x).as_mut();
             let abstol_slice = (*abstol).as_mut();
-            
+
             if nx > 0 {
                 ode.init(x_slice, abstol_slice)?;
                 for value in abstol_slice.iter_mut() {
@@ -164,19 +166,19 @@ impl SolverFactory for CVodeSolverFactory {
 impl<T: Ode> Solver for CVodeSolver<T> {
     fn reset(&mut self, time: f64) -> Result<(), SimulationError> {
         unsafe {
-        //     if self.functions.nx > 0 {
-        //         (self.functions.get_continuous_states)((*self.x).as_mut())?;
-        //         (self.functions.get_nominals_of_continuous_states)((*self.abstol).as_mut())?;
-        //         for value in (*self.abstol).as_mut().iter_mut() {
-        //             *value *= self.functions.rtol;
-        //         }
-        //     } else {
-        //         (*self.x).as_mut().fill(0.0); // Dummy state for discrete systems
-        //         (*self.abstol).as_mut().fill(0.0); // Dummy tolerances for discrete systems
-        //     }
+            //     if self.functions.nx > 0 {
+            //         (self.functions.get_continuous_states)((*self.x).as_mut())?;
+            //         (self.functions.get_nominals_of_continuous_states)((*self.abstol).as_mut())?;
+            //         for value in (*self.abstol).as_mut().iter_mut() {
+            //             *value *= self.functions.rtol;
+            //         }
+            //     } else {
+            //         (*self.x).as_mut().fill(0.0); // Dummy state for discrete systems
+            //         (*self.abstol).as_mut().fill(0.0); // Dummy tolerances for discrete systems
+            //     }
             let x = (*self.x).as_mut();
             let abstol = (*self.abstol).as_mut();
-            
+
             if self.ode.nx() > 0 {
                 self.ode.init(x, abstol)?;
                 for v in abstol.iter_mut() {
@@ -215,13 +217,17 @@ impl<T: Ode> Solver for CVodeSolver<T> {
         unsafe {
             let mut tret = 0.0;
 
-            let flag =  CVode(self.cvode_mem, next_time, self.x, &mut tret, CV_NORMAL);
+            let flag = CVode(self.cvode_mem, next_time, self.x, &mut tret, CV_NORMAL);
 
             if flag < 0 {
                 return Err(SimulationError::Solver(format!("status {flag}")));
             }
 
-            let x: &[f64] = if self.ode.nx() > 0 { (*self.x).as_mut() } else { &[] };
+            let x: &[f64] = if self.ode.nx() > 0 {
+                (*self.x).as_mut()
+            } else {
+                &[]
+            };
 
             Ok((tret, x, flag == CV_ROOT_RETURN))
         }
@@ -242,7 +248,12 @@ impl<T: Ode> Drop for CVodeSolver<T> {
 }
 
 // Right-hand-side function
-extern "C" fn f<T: Ode>(t: sunrealtype, y: N_Vector, ydot: N_Vector, user_data: *mut c_void) -> i32 {
+extern "C" fn f<T: Ode>(
+    t: sunrealtype,
+    y: N_Vector,
+    ydot: N_Vector,
+    user_data: *mut c_void,
+) -> i32 {
     unsafe {
         if user_data.is_null() {
             return -1;
