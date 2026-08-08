@@ -3,7 +3,6 @@ use crate::{
         self, FMU2, ME,
         types::{fmi2False, fmi2Real, fmi2Status, fmi2ValueReference},
     },
-    model_description::fmi2::VariableType,
     sim::{
         Ode, SimulationError, SolverFactory,
         fmi2::{
@@ -171,7 +170,7 @@ pub fn simulate<S: SolverFactory>(
         time = time_reached;
 
         call(fmu.setTime(time))?;
-        
+
         if !x.is_empty() {
             call(fmu.setContinuousStates(x))?;
         }

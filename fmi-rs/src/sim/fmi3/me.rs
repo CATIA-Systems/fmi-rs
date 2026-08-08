@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::dae::DaeManifest;
 use crate::fmi3::log::DefaultLogger;
 use crate::sim::fmi3::dae::Dae3;
@@ -7,7 +5,6 @@ use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
 use crate::sim::{Ode, SimulationError, next_communication_point, next_regular_point};
 use crate::{
     fmi3::{FMU3, types::*},
-    model_description::fmi3::{ModelVariable, VariableType},
     sim::{
         SolverFactory,
         fmi3::{input::StaticInput, recorder::Recorder},

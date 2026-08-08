@@ -257,11 +257,11 @@ extern "C" fn f<T: Ode>(
     if user_data.is_null() {
         return -1;
     }
-    
+
     unsafe {
         let ode: &mut T = &mut *(user_data as *mut T);
         let der_x = (*ydot).as_mut();
-        
+
         if ode.nx() > 0 {
             ode.f(t, (*y).as_mut(), der_x).map_or(-1, |_| 0)
         } else {
