@@ -1,4 +1,7 @@
-use crate::sim::{Ode, SimulationError, Solver, SolverFactory, fmi3::dae::Dae3, relative_eq};
+use crate::{
+    sim::{Ode, SimulationError, Solver, SolverFactory, relative_eq},
+    sundials::solver::ida::Dae3,
+};
 
 pub struct ForwardEuler<T: Ode> {
     start_time: f64,

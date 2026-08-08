@@ -1,4 +1,3 @@
-use crate::sim::fmi3::dae::Dae3;
 use crate::sim::{
     GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn,
     GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, Ode, SetContinuousInputsFn,
@@ -6,6 +5,7 @@ use crate::sim::{
 };
 use crate::sundials::cvode::CV_BDF;
 use crate::sundials::nvector_serial::{NV_DATA_S, NV_LENGTH_S};
+use crate::sundials::solver::ida::Dae3;
 use crate::sundials::{
     cvode::{
         CV_NORMAL, CV_ROOT_RETURN, CVode, CVodeCreate, CVodeFree, CVodeInit, CVodeReInit,

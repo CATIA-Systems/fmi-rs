@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use approx::relative_eq;
 use thiserror::Error;
 
-use crate::{dae::DaeManifestError, sim::fmi3::dae::Dae3};
+use crate::{dae::DaeManifestError, sundials::solver::ida::Dae3};
 #[cfg(feature = "zip")]
 use crate::{model_description::ModelDescriptionError, zip::ZipError};
 
