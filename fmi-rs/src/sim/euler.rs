@@ -101,7 +101,7 @@ impl<T: Ode> Solver for ForwardEuler<T> {
         Ok(())
     }
 
-    fn step(&mut self, next_time: f64) -> Result<(f64, bool), SimulationError> {
+    fn step(&mut self, next_time: f64) -> Result<(f64, &[f64], bool), SimulationError> {
         let mut time = self.start_time + self.n_steps as f64 * self.fixed_step_size;
 
         if next_time - time < self.fixed_step_size
@@ -118,12 +118,12 @@ impl<T: Ode> Solver for ForwardEuler<T> {
             let (time_reached, state_event) = self.do_fixed_step()?;
 
             if state_event {
-                return Ok((time_reached, true));
+                return Ok((time_reached, &self.x, true));
             }
 
             time = time_reached;
         }
 
-        Ok((time, false))
+        Ok((time, &self.x, false))
     }
 }

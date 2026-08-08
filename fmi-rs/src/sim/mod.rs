@@ -91,8 +91,9 @@ pub type SetContinuousStatesFn<'a> = Box<dyn Fn(&[f64]) -> Result<(), Simulation
 
 pub trait Solver {
     fn reset(&mut self, time: f64) -> Result<(), SimulationError>;
-    fn step(&mut self, next_time: f64) -> Result<(f64, bool), SimulationError>;
+    fn step(&mut self, next_time: f64) -> Result<(f64, &[f64], bool), SimulationError>;
 }
+
 pub trait SolverFactory {
     fn create<'a, T: Ode + 'a>(
         &self,

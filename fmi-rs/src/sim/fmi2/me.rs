@@ -114,40 +114,11 @@ pub fn simulate<S: SolverFactory>(
         call(fmu.enterContinuousTimeMode())?;
     }
 
-    let derivative_indices: Vec<u32> = settings
-        .model_description
-        .derivatives
-        .iter()
-        .map(|d| d.index)
-        .collect();
-
-    let _derivative_vrs: Vec<u32> = derivative_indices
-        .iter()
-        .map(|i| settings.model_description.modelVariables[(*i - 1) as usize].valueReference)
-        .collect();
-
-    let _state_vrs: Vec<u32> = derivative_indices
-        .iter()
-        .map(|i| {
-            let variable = &settings.model_description.modelVariables[(*i - 1) as usize];
-            let state_index = if let VariableType::Real {
-                derivative: Some(index),
-                ..
-            } = variable.variableType
-            {
-                index
-            } else {
-                panic!("Derivative variables must be of type Real and have a derivative element.");
-            };
-            settings.model_description.modelVariables[(state_index - 1) as usize].valueReference
-        })
-        .collect();
-
     let ode2 = Ode2 {
         fmu: &fmu,
         input,
-        nx: 2usize,
-        nz: 1usize,
+        nx: settings.model_description.derivatives.len(),
+        nz: settings.model_description.numberOfEventIndicators as usize,
         supports_jacobian: false,
         known_vrs: vec![],
         unknown_vrs: vec![],
@@ -194,9 +165,12 @@ pub fn simulate<S: SolverFactory>(
         let is_time_event =
             next_event_time.is_some_and(|t| relative_eq(t, next_communication_point));
 
-        let (time_reached, is_state_event) = solver.step(next_communication_point)?;
+        let (time_reached, x, is_state_event) = solver.step(next_communication_point)?;
 
         time = time_reached;
+
+        call(fmu.setTime(time))?;
+        call(fmu.setContinuousStates(x))?;
 
         if is_input_event && let Some(input) = &input {
             input.set_continuous_inputs(time, false, &fmu)?;

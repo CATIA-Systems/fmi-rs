@@ -95,35 +95,22 @@ impl SolverFactory for CVodeSolverFactory {
 
             let x = N_VNew_Serial(nx.max(1) as sunindextype, sunctx);
             expect_not_null!(x, "Failed to create N_Vector");
-            let x_slice = (*x).as_mut();
-
-            // if nx > 0 {
-            //     (functions.get_continuous_states)((*x).as_mut())?;
-            // } else {
-            //     (*x).as_mut().fill(0.0); // Dummy state for discrete systems
-            // }
-
             
             let abstol = N_VNew_Serial(NV_LENGTH_S(x), sunctx);
             expect_not_null!(abstol, "Failed to create N_Vector");
+            
+            let x_slice = (*x).as_mut();
             let abstol_slice = (*abstol).as_mut();
             
-            ode.init(x_slice, abstol_slice);
-
-            for value in abstol_slice.iter_mut() {
-                *value *= rtol;
+            if nx > 0 {
+                ode.init(x_slice, abstol_slice)?;
+                for value in abstol_slice.iter_mut() {
+                    *value *= rtol;
+                }
+            } else {
+                x_slice.fill(0.0); // Dummy state for discrete systems
+                abstol_slice.fill(1.0);
             }
-
-
-            // if nx > 0 {
-            //     (functions.get_nominals_of_continuous_states)(abstol_slice)?;
-            // } else {
-                // abstol_slice.fill(1.0); // Dummy tolerances for discrete systems
-            // }
-
-            // for value in abstol_slice.iter_mut() {
-            //     *value *= rtol;
-            // }
 
             expect_no_error!(
                 CVodeInit(cvode_mem, f::<T>, start_time, x),
@@ -168,7 +155,6 @@ impl SolverFactory for CVodeSolverFactory {
                 A,
                 LS,
                 cvode_mem,
-                // functions,
                 ode,
             }))
         }
@@ -191,10 +177,14 @@ impl<T: Ode> Solver for CVodeSolver<T> {
             let x = (*self.x).as_mut();
             let abstol = (*self.abstol).as_mut();
             
-            self.ode.init(x, abstol)?;
-
-            for v in abstol.iter_mut() {
-                *v *= self.rtol;
+            if self.ode.nx() > 0 {
+                self.ode.init(x, abstol)?;
+                for v in abstol.iter_mut() {
+                    *v *= self.rtol;
+                }
+            } else {
+                x.fill(0.0);
+                abstol.fill(1.0);
             }
 
             expect_no_error!(
@@ -221,23 +211,20 @@ impl<T: Ode> Solver for CVodeSolver<T> {
         Ok(())
     }
 
-    fn step(&mut self, next_time: f64) -> Result<(f64, bool), SimulationError> {
-        let mut tret = 0.0;
+    fn step(&mut self, next_time: f64) -> Result<(f64, &[f64], bool), SimulationError> {
+        unsafe {
+            let mut tret = 0.0;
 
-        let flag = unsafe { CVode(self.cvode_mem, next_time, self.x, &mut tret, CV_NORMAL) };
+            let flag =  CVode(self.cvode_mem, next_time, self.x, &mut tret, CV_NORMAL);
 
-        if flag < 0 {
-            return Err(SimulationError::Solver(format!("status {flag}")));
+            if flag < 0 {
+                return Err(SimulationError::Solver(format!("status {flag}")));
+            }
+
+            let x: &[f64] = if self.ode.nx() > 0 { (*self.x).as_mut() } else { &[] };
+
+            Ok((tret, x, flag == CV_ROOT_RETURN))
         }
-
-        // (self.functions.set_time)(tret)?;
-        // (self.functions.set_continuous_inputs)(tret)?;
-
-        // if self.functions.nx > 0 {
-        //     (self.functions.set_continuous_states)(unsafe { (*self.x).as_mut() })?;
-        // }
-
-        Ok((tret, flag == CV_ROOT_RETURN))
     }
 }
 
@@ -263,28 +250,18 @@ extern "C" fn f<T: Ode>(t: sunrealtype, y: N_Vector, ydot: N_Vector, user_data: 
 
         let ode: &mut T = &mut *(user_data as *mut T);
 
-        let y_slice = (*y).as_mut();
-        let ydot_slice = (*ydot).as_mut();
+        let x = (*y).as_mut();
+        let der_x = (*ydot).as_mut();
 
-        ode.f(t, y_slice, ydot_slice);
+        if ode.nx() > 0 {
+            ode.f(t, x, der_x).map_or(-1, |_| 0)
+        } else {
+            der_x.fill(0.0); // Dummy derivative for discrete systems
+            let x_dummy = &[];
+            let der_x_dummy = &mut [];
+            ode.f(t, x_dummy, der_x_dummy).map_or(-1, |_| 0)
+        }
     }
-
-    // unsafe {
-    //     let functions: &Functions = &*(user_data as *const Functions);
-
-    //     expect_ok!((functions.set_time)(t));
-    //     expect_ok!((functions.set_continuous_inputs)(t));
-
-    //     let ydot_slice = (*ydot).as_mut();
-
-    //     if functions.nx > 0 {
-    //         expect_ok!((functions.set_continuous_states)((*y).as_mut()));
-    //         expect_ok!((functions.get_continuous_state_derivatives)(ydot_slice));
-    //     } else {
-    //         ydot_slice.fill(0.0); // Dummy derivative for discrete systems
-    //     }
-    // }
-    0
 }
 
 // Root function
@@ -304,7 +281,7 @@ extern "C" fn g<T: Ode>(
         let y_slice = (*y).as_mut();
         let gout_slice = from_raw_parts_mut(gout, ode.nz());
 
-        ode.g(t, y_slice, gout_slice);
+        ode.g(t, y_slice, gout_slice).map_or(-1, |_| 0);
 
         // let functions: &Functions = &*(user_data as *const Functions);
 

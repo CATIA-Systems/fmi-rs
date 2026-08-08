@@ -102,45 +102,6 @@ pub fn simulate<S: SolverFactory>(
 
     call(fmu.enterContinuousTimeMode())?;
 
-    // create a HashMap value reference -> variable
-    let variables_map: HashMap<u32, &ModelVariable> = settings
-        .model_description
-        .modelVariables
-        .iter()
-        .map(|v| (v.valueReference, v))
-        .collect();
-
-    // Get Continuous States and Derivatives dynamically to ensure correct order
-    let derivative_vrs: Vec<u32> = settings
-        .model_description
-        .derivatives
-        .iter()
-        .map(|d| d.valueReference)
-        .collect();
-
-    let _state_vrs: Vec<u32> = derivative_vrs
-        .iter()
-        .map(|s| {
-            let derivative_variable = variables_map[s];
-            if let VariableType::Float64 {
-                derivative: Some(vr),
-                ..
-            }
-            | VariableType::Float32 {
-                derivative: Some(vr),
-                ..
-            } = derivative_variable.variableType
-            {
-                vr
-            } else {
-                panic!(
-                    "Derivative variable with value reference {} is not of type Float32 or Float64",
-                    s
-                );
-            }
-        })
-        .collect();
-
     let mut nx = 0;
     let mut nz = 0;
 
@@ -276,9 +237,12 @@ pub fn simulate<S: SolverFactory>(
             false
         };
 
-        let (time_reached, is_state_event) = solver.step(next_communication_point)?;
+        let (time_reached, x, is_state_event) = solver.step(next_communication_point)?;
 
         time = time_reached;
+        
+        call(fmu.setTime(time))?;
+        call(fmu.setContinuousStates(x))?;
 
         if is_input_event && let Some(input) = &input {
             input.set_continuous_inputs(time, false, &fmu)?;
@@ -393,16 +357,17 @@ impl<'a> Ode for Ode3<'a> {
     }
 
     fn f(&self, time: f64, x: &[f64], der_x: &mut [f64]) -> Result<(), SimulationError> {
+        expect_ok!(self.fmu.setTime(time));
+        
+        if let Some(input) = self.input {
+            input.set_continuous_inputs(time, true, self.fmu)?;
+        }
+        
         if self.nx > 0 {
-            expect_ok!(self.fmu.setTime(time));
-            
-            if let Some(input) = self.input {
-                input.set_continuous_inputs(time, true, self.fmu)?;
-            }
-            
             expect_ok!(self.fmu.setContinuousStates(x));
             expect_ok!(self.fmu.getContinuousStateDerivatives(der_x));
         }
+
         Ok(())
     }
     

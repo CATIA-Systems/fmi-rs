@@ -6,7 +6,7 @@ use crate::sim::{
      Ode, SimulationError, Solver, SolverFactory,
 };
 use crate::sundials::ida::{
-    IDA_NORMAL, IDA_ROOT_RETURN, IDA_SUCCESS, IDA_TSTOP_RETURN, IDACreate, IDAFree, IDAInit, IDARootInit, IDASVtolerances, IDASetUserData, IDASolve,
+    IDA_NORMAL, IDA_ROOT_RETURN, IDA_SUCCESS, IDA_TSTOP_RETURN, IDACreate, IDAFree, IDAInit, IDAReInit, IDARootInit, IDASVtolerances, IDASetUserData, IDASolve,
 };
 use crate::sundials::ida_ls::{IDASetJacFn, IDASetLinearSolver};
 use crate::sundials::nvector_serial::N_VNew_Serial;
@@ -26,6 +26,7 @@ pub struct Ida<'a> {
     sunctx: SUNContext,
     yy: N_Vector,
     yp: N_Vector,
+    rtol: sunrealtype,
     avtol: N_Vector,
     A: SUNMatrix,
     LS: SUNLinearSolver,
@@ -157,7 +158,12 @@ impl<'a,> Ida<'a> {
             expect_not_null!(A, "Failed to create A matrix");
 
             // Initialize vectors
-            dae.init((*yy).as_mut(), (*avtol).as_mut(), (*yp).as_mut())?;
+            let nominals = (*avtol).as_mut();
+            dae.init((*yy).as_mut(), nominals, (*yp).as_mut())?;
+
+            for nominal in nominals.iter_mut() {
+                *nominal *= rtol;
+            }
 
             expect_no_error!(
                 IDAInit(ida_mem, residuals_cb, t0, yy, yp),
@@ -202,6 +208,7 @@ impl<'a,> Ida<'a> {
                 sunctx,
                 yy,
                 yp,
+                rtol,
                 avtol,
                 A,
                 LS,
@@ -213,7 +220,7 @@ impl<'a,> Ida<'a> {
 }
 
 impl<'a> Solver for Ida<'a> {
-    fn step(&mut self, next_time: f64) -> Result<(f64, bool), SimulationError> {
+    fn step(&mut self, next_time: f64) -> Result<(f64, &[f64], bool), SimulationError> {
         unsafe {
             let mut tret = 0.0;
 
@@ -236,14 +243,32 @@ impl<'a> Solver for Ida<'a> {
                 )));
             }
             
-            Ok((next_time, retval == IDA_ROOT_RETURN))
+            Ok((next_time, (*self.yy).as_mut(), retval == IDA_ROOT_RETURN))
         }
     }
 
-    fn reset(&mut self, _time: f64) -> Result<(), SimulationError> {
-        // Err(SimulationError::Parameter("Not implemented".to_owned()))
+    fn reset(&mut self, time: f64) -> Result<(), SimulationError> {
+        unsafe {
+            let knowns = (*self.yy).as_mut();
+            let absolut_tolerances = (*self.avtol).as_mut();
+            let unknowns = (*self.yp).as_mut();
+            
+            self.dae.init(knowns, absolut_tolerances, unknowns)?;
+            
+            for absolut_tolerance in absolut_tolerances.iter_mut() {
+                *absolut_tolerance *= self.rtol;
+            }
 
-        IdaRe
+            expect_no_error!(
+                IDAReInit(self.ida_mem, time, self.yy, self.yp),
+                ""
+            );
+
+            expect_no_error!(
+                IDASVtolerances(self.ida_mem, self.rtol, self.avtol),
+                "Failed to set tolerances"
+            );
+        }
 
         Ok(())
     }
