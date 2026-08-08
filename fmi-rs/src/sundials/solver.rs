@@ -254,23 +254,19 @@ extern "C" fn f<T: Ode>(
     ydot: N_Vector,
     user_data: *mut c_void,
 ) -> i32 {
+    if user_data.is_null() {
+        return -1;
+    }
+    
     unsafe {
-        if user_data.is_null() {
-            return -1;
-        }
-
         let ode: &mut T = &mut *(user_data as *mut T);
-
-        let x = (*y).as_mut();
         let der_x = (*ydot).as_mut();
-
+        
         if ode.nx() > 0 {
-            ode.f(t, x, der_x).map_or(-1, |_| 0)
+            ode.f(t, (*y).as_mut(), der_x).map_or(-1, |_| 0)
         } else {
             der_x.fill(0.0); // Dummy derivative for discrete systems
-            let x_dummy = &[];
-            let der_x_dummy = &mut [];
-            ode.f(t, x_dummy, der_x_dummy).map_or(-1, |_| 0)
+            0
         }
     }
 }
@@ -292,21 +288,8 @@ extern "C" fn g<T: Ode>(
         let y_slice = (*y).as_mut();
         let gout_slice = from_raw_parts_mut(gout, ode.nz());
 
-        ode.g(t, y_slice, gout_slice).map_or(-1, |_| 0);
-
-        // let functions: &Functions = &*(user_data as *const Functions);
-
-        // expect_ok!((functions.set_time)(t));
-        // expect_ok!((functions.set_continuous_inputs)(t));
-
-        // if functions.nx > 0 {
-        //     expect_ok!((functions.set_continuous_states)((*y).as_mut()));
-        // }
-
-        // let z = from_raw_parts_mut(gout, functions.nz);
-        // expect_ok!((functions.get_event_indicators)(z));
+        ode.g(t, y_slice, gout_slice).map_or(-1, |_| 0)
     }
-    0
 }
 
 // Jacobian function
@@ -330,41 +313,4 @@ extern "C" fn jac<T: Ode>(
         let J = (*Jac).as_mut();
         ode.jacobian(t, y, J).map_or(-1, |_| 0)
     }
-
-    // unsafe {
-    //     let functions: &Functions = &*(user_data as *const Functions);
-
-    //     expect_ok!((functions.set_time)(t));
-    //     expect_ok!((functions.set_continuous_inputs)(t));
-    //     expect_ok!((functions.set_continuous_states)((*y).as_mut()));
-
-    //     let get_directional_derivative = functions
-    //         .get_directional_derivative
-    //         .as_ref()
-    //         .expect("Directional derivative function not provided");
-
-    //     let mut seed_v = vec![0.0; NV_LENGTH_S(y) as usize]; // The 'direction' vector
-
-    //     for j in 0..functions.nx {
-    //         if j > 0 {
-    //             seed_v[j - 1] = 0.0; // reset previous column's seed
-    //         }
-
-    //         // set seed for the j-th column
-    //         seed_v[j] = 1.0;
-
-    //         // copy the result into the SUNMatrix
-    //         let column_j = SM_COLUMN_D(Jac, j);
-    //         let colmn_j_slice = from_raw_parts_mut(column_j, NV_LENGTH_S(y) as usize);
-
-    //         // get the j-th column of the Jacobian
-    //         expect_ok!(get_directional_derivative(
-    //             &functions.unknowns,
-    //             &functions.knowns,
-    //             &seed_v,
-    //             colmn_j_slice
-    //         ));
-    //     }
-    // }
-    // 0
 }

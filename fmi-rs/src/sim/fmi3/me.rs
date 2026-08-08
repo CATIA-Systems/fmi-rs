@@ -243,7 +243,10 @@ pub fn simulate<S: SolverFactory>(
         time = time_reached;
 
         call(fmu.setTime(time))?;
-        call(fmu.setContinuousStates(x))?;
+
+        if !x.is_empty() {
+            call(fmu.setContinuousStates(x))?;
+        }
 
         if is_input_event && let Some(input) = &input {
             input.set_continuous_inputs(time, false, &fmu)?;
