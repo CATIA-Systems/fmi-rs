@@ -1,12 +1,12 @@
 use crate::dae::DaeManifest;
 use crate::fmi3::log::DefaultLogger;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
-use crate::sim::{Ode, SimulationError, next_communication_point, next_regular_point};
+use crate::sim::solver::{Ode, SolverFactory};
+use crate::sim::{SimulationError, next_communication_point, next_regular_point};
 use crate::sundials::solver::ida::Dae3;
 use crate::{
     fmi3::{FMU3, types::*},
     sim::{
-        SolverFactory,
         fmi3::{input::StaticInput, recorder::Recorder},
         relative_eq, relative_ge, relative_le,
     },

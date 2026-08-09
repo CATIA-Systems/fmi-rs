@@ -2,7 +2,8 @@ use std::ffi::c_void;
 use std::slice::from_raw_parts_mut;
 
 use crate::fmi3::types::{fmi3Status, fmi3ValueReference};
-use crate::sim::{Ode, SimulationError, Solver, SolverFactory};
+use crate::sim::SimulationError;
+use crate::sim::solver::{Ode, Solver, SolverFactory};
 use crate::sundials::ida::{
     IDA_NORMAL, IDA_ROOT_RETURN, IDA_SUCCESS, IDA_TSTOP_RETURN, IDACreate, IDAFree, IDAInit,
     IDAReInit, IDARootInit, IDASVtolerances, IDASetUserData, IDASolve,
@@ -286,7 +287,8 @@ impl SolverFactory for IdaSolverFactory {
         _ode: T,
         dae: Option<Dae3<'a>>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
-        let ida = Ida::new(start_time, rtol, dae.unwrap())?;
+        let dae = dae.ok_or_else(|| SimulationError::Solver("No DAE provided".to_owned()))?;
+        let ida = Ida::new(start_time, rtol, dae)?;
         Ok(Box::new(ida))
     }
 }

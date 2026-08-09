@@ -5,16 +5,16 @@
     clippy::too_many_arguments
 )]
 
-pub mod euler;
 pub mod fmi2;
 pub mod fmi3;
+pub mod solver;
 
 use std::path::PathBuf;
 
 use approx::relative_eq;
 use thiserror::Error;
 
-use crate::{dae::DaeManifestError, sundials::solver::ida::Dae3};
+use crate::dae::DaeManifestError;
 #[cfg(feature = "zip")]
 use crate::{model_description::ModelDescriptionError, zip::ZipError};
 
@@ -88,21 +88,6 @@ pub type GetContinuousStateDerivativesFn<'a> =
 pub type GetDirectionalDerivativeFn<'a> =
     Box<dyn Fn(&[u32], &[u32], &[f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
 pub type SetContinuousStatesFn<'a> = Box<dyn Fn(&[f64]) -> Result<(), SimulationError> + 'a>;
-
-pub trait Solver {
-    fn reset(&mut self, time: f64) -> Result<(), SimulationError>;
-    fn step(&mut self, next_time: f64) -> Result<(f64, &[f64], bool), SimulationError>;
-}
-
-pub trait SolverFactory {
-    fn create<'a, T: Ode + 'a>(
-        &self,
-        start_time: f64,
-        rtol: f64,
-        ode: T,
-        dae: Option<Dae3<'a>>,
-    ) -> Result<Box<dyn Solver + 'a>, SimulationError>;
-}
 
 /// Approximate equality using both the absolute difference and relative based comparisons.
 pub fn relative_eq(lhs: f64, rhs: f64) -> bool {
@@ -204,14 +189,4 @@ pub fn next_regular_point(
     } else {
         start_time + (n_steps + 1) as f64 * output_interval
     }
-}
-
-pub trait Ode {
-    fn nx(&self) -> usize;
-    fn nz(&self) -> usize;
-    fn init(&self, x: &mut [f64], nominals: &mut [f64]) -> Result<(), SimulationError>;
-    fn f(&self, time: f64, x: &[f64], der_x: &mut [f64]) -> Result<(), SimulationError>;
-    fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError>;
-    fn supports_jacobian(&self) -> bool;
-    fn jacobian(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError>;
 }

@@ -1,7 +1,8 @@
+use crate::sim::solver::{Ode, Solver, SolverFactory};
 use crate::sim::{
     GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn,
-    GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, Ode, SetContinuousInputsFn,
-    SetContinuousStatesFn, SetTimeFn, SimulationError, Solver, SolverFactory,
+    GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, SetContinuousInputsFn,
+    SetContinuousStatesFn, SetTimeFn, SimulationError,
 };
 use crate::sundials::cvode::CV_BDF;
 use crate::sundials::nvector_serial::{NV_DATA_S, NV_LENGTH_S};

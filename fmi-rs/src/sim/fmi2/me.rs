@@ -4,12 +4,13 @@ use crate::{
         types::{fmi2False, fmi2Real, fmi2Status, fmi2ValueReference},
     },
     sim::{
-        Ode, SimulationError, SolverFactory,
+        SimulationError,
         fmi2::{
             SimulationSettings, call, input::StaticInput, read_initial_fmu_state,
             recorder::Recorder, set_start_values, write_final_fmu_state,
         },
         next_communication_point, next_regular_point, relative_eq, relative_ge, relative_le,
+        solver::{Ode, SolverFactory},
         validate_simulation_steps,
     },
 };

@@ -1,7 +1,32 @@
 use crate::{
-    sim::{Ode, SimulationError, Solver, SolverFactory, relative_eq},
+    sim::{SimulationError, relative_eq},
     sundials::solver::ida::Dae3,
 };
+
+pub trait Ode {
+    fn nx(&self) -> usize;
+    fn nz(&self) -> usize;
+    fn init(&self, x: &mut [f64], nominals: &mut [f64]) -> Result<(), SimulationError>;
+    fn f(&self, time: f64, x: &[f64], der_x: &mut [f64]) -> Result<(), SimulationError>;
+    fn g(&self, time: f64, x: &[f64], z: &mut [f64]) -> Result<(), SimulationError>;
+    fn supports_jacobian(&self) -> bool;
+    fn jacobian(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError>;
+}
+
+pub trait Solver {
+    fn reset(&mut self, time: f64) -> Result<(), SimulationError>;
+    fn step(&mut self, next_time: f64) -> Result<(f64, &[f64], bool), SimulationError>;
+}
+
+pub trait SolverFactory {
+    fn create<'a, T: Ode + 'a>(
+        &self,
+        start_time: f64,
+        rtol: f64,
+        ode: T,
+        dae: Option<Dae3<'a>>,
+    ) -> Result<Box<dyn Solver + 'a>, SimulationError>;
+}
 
 pub struct ForwardEuler<T: Ode> {
     start_time: f64,
