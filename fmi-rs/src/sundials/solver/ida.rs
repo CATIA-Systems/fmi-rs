@@ -51,7 +51,15 @@ macro_rules! expect_not_null {
     };
 }
 
-extern "C" fn residuals_cb(
+macro_rules! expect_ok {
+    ($result:expr) => {
+        if $result != fmi3Status::fmi3OK {
+            return Err(SimulationError::FMICall);
+        }
+    };
+}
+
+extern "C" fn res(
     tt: sunrealtype,
     yy: N_Vector,
     yp: N_Vector,
@@ -69,15 +77,7 @@ extern "C" fn residuals_cb(
     }
 }
 
-macro_rules! expect_ok {
-    ($result:expr) => {
-        if $result != fmi3Status::fmi3OK {
-            return Err(SimulationError::FMICall);
-        }
-    };
-}
-
-extern "C" fn grob(
+extern "C" fn g(
     t: sunrealtype,
     yy: N_Vector,
     _yp: N_Vector,
@@ -96,7 +96,7 @@ extern "C" fn grob(
     }
 }
 
-extern "C" fn jacrob(
+extern "C" fn jac(
     tt: sunrealtype,
     cj: sunrealtype,
     yy: N_Vector,
@@ -158,13 +158,13 @@ impl<'a> Ida<'a> {
             }
 
             expect_no_error!(
-                IDAInit(ida_mem, residuals_cb, t0, yy, yp),
+                IDAInit(ida_mem, res, t0, yy, yp),
                 "Failed to initilalize IDA"
             );
 
             if dae.nz > 0 {
                 expect_no_error!(
-                    IDARootInit(ida_mem, dae.nz as i32, grob),
+                    IDARootInit(ida_mem, dae.nz as i32, g),
                     "Failed to set root function"
                 );
             }
@@ -183,7 +183,7 @@ impl<'a> Ida<'a> {
             );
 
             expect_no_error!(
-                IDASetJacFn(ida_mem, jacrob),
+                IDASetJacFn(ida_mem, jac),
                 "Failed to set Jacobian routine"
             );
 
