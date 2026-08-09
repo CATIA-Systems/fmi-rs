@@ -283,7 +283,7 @@ impl SolverFactory for IdaSolverFactory {
         &self,
         start_time: f64,
         rtol: f64,
-        _ode: Option<T>,
+        _ode: T,
         dae: Option<Dae3<'a>>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         let ida = Ida::new(start_time, rtol, dae.unwrap())?;

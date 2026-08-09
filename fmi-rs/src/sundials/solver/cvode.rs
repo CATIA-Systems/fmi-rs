@@ -68,7 +68,7 @@ impl SolverFactory for CVodeSolverFactory {
         &self,
         start_time: f64,
         rtol: f64,
-        ode: Option<T>,
+        ode: T,
         _dae: Option<Dae3>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         unsafe {
@@ -82,7 +82,7 @@ impl SolverFactory for CVodeSolverFactory {
             let cvode_mem = CVodeCreate(CV_BDF, sunctx);
             expect_not_null!(cvode_mem, "Failed to create CVODE memory");
 
-            let ode = Box::new(ode.unwrap());
+            let ode = Box::new(ode);
 
             let nx = ode.nx();
             let nz = ode.nz();

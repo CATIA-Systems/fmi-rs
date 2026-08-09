@@ -129,7 +129,7 @@ pub fn simulate<S: SolverFactory>(
         unknown_vrs: vec![],
     };
 
-    let mut solver = solver_factory.create(time, settings.tolerance, Some(ode2), None)?;
+    let mut solver = solver_factory.create(time, settings.tolerance, ode2, None)?;
 
     let mut n_steps = 0;
 

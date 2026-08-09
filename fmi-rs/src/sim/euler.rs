@@ -16,7 +16,7 @@ pub struct ForwardEuler<T: Ode> {
 }
 
 pub struct ForwardEulerFactory {
-    pub fixes_step_size: f64,
+    pub fixed_step_size: f64,
 }
 
 impl SolverFactory for ForwardEulerFactory {
@@ -24,11 +24,9 @@ impl SolverFactory for ForwardEulerFactory {
         &self,
         start_time: f64,
         _rtol: f64,
-        ode: Option<T>,
+        ode: T,
         _dae: Option<Dae3>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
-        let ode = ode.unwrap();
-
         let nx = ode.nx();
         let nz = ode.nz();
 
@@ -44,7 +42,7 @@ impl SolverFactory for ForwardEulerFactory {
         Ok(Box::new({
             ForwardEuler {
                 start_time,
-                fixed_step_size: self.fixes_step_size,
+                fixed_step_size: self.fixed_step_size,
                 n_steps: 0,
                 x,
                 nominals,

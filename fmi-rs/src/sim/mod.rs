@@ -99,7 +99,7 @@ pub trait SolverFactory {
         &self,
         start_time: f64,
         rtol: f64,
-        ode: Option<T>,
+        ode: T,
         dae: Option<Dae3<'a>>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError>;
 }
