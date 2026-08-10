@@ -5,15 +5,16 @@
     clippy::too_many_arguments
 )]
 
-pub mod euler;
 pub mod fmi2;
 pub mod fmi3;
+pub mod solver;
 
 use std::path::PathBuf;
 
 use approx::relative_eq;
 use thiserror::Error;
 
+use crate::dae::DaeManifestError;
 #[cfg(feature = "zip")]
 use crate::{model_description::ModelDescriptionError, zip::ZipError};
 
@@ -21,6 +22,9 @@ use crate::{model_description::ModelDescriptionError, zip::ZipError};
 pub enum SimulationError {
     #[error("Failed to load model description: {0}")]
     ModelDescription(#[from] ModelDescriptionError),
+
+    #[error("Failed to load FMI-LS-DAE manifest: {0}")]
+    DaeManifest(#[from] DaeManifestError),
 
     #[error("Failed to load platform binary '{path}': {source}")]
     Library {
@@ -84,30 +88,6 @@ pub type GetContinuousStateDerivativesFn<'a> =
 pub type GetDirectionalDerivativeFn<'a> =
     Box<dyn Fn(&[u32], &[u32], &[f64], &mut [f64]) -> Result<(), SimulationError> + 'a>;
 pub type SetContinuousStatesFn<'a> = Box<dyn Fn(&[f64]) -> Result<(), SimulationError> + 'a>;
-
-pub trait Solver {
-    fn reset(&mut self, time: f64) -> Result<(), SimulationError>;
-    fn step(&mut self, next_time: f64) -> Result<(f64, bool), SimulationError>;
-}
-pub trait SolverFactory {
-    fn create<'a>(
-        &self,
-        start_time: f64,
-        nx: usize,
-        nz: usize,
-        rtol: f64,
-        unknowns: Vec<u32>,
-        knowns: Vec<u32>,
-        set_time: SetTimeFn<'a>,
-        set_continuous_inputs: SetContinuousInputsFn<'a>,
-        get_event_indicators: GetEventIndicatorsFn<'a>,
-        get_continuous_states: GetContinuousStatesFn<'a>,
-        get_nominals_of_continuous_states: GetNominalsOfContinuousStatesFn<'a>,
-        get_continuous_state_derivatives: GetContinuousStateDerivativesFn<'a>,
-        get_directional_derivative: Option<GetDirectionalDerivativeFn<'a>>,
-        set_continuous_states: SetContinuousStatesFn<'a>,
-    ) -> Result<Box<dyn Solver + 'a>, SimulationError>;
-}
 
 /// Approximate equality using both the absolute difference and relative based comparisons.
 pub fn relative_eq(lhs: f64, rhs: f64) -> bool {
@@ -195,4 +175,18 @@ pub fn next_communication_point(
     }
 
     next_communication_point
+}
+
+/// Calculates the next regular sample point
+pub fn next_regular_point(
+    log_time_scale: bool,
+    start_time: f64,
+    output_interval: f64,
+    n_steps: i32,
+) -> f64 {
+    if log_time_scale {
+        start_time * output_interval.powi(n_steps + 1)
+    } else {
+        start_time + (n_steps + 1) as f64 * output_interval
+    }
 }

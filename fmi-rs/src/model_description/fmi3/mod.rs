@@ -436,6 +436,25 @@ impl VariableType {
             VariableType::Enumeration { previous, .. } => *previous,
         }
     }
+
+    /// Returns the nominal value as an f64 if the nominal attribute is set.
+    pub fn nominal(&self) -> Option<f64> {
+        match self {
+            VariableType::Float32 { nominal, .. } => nominal.map(f64::from),
+            VariableType::Float64 { nominal, .. } => *nominal,
+            _ => None,
+        }
+    }
+
+    /// Returns the value reference of the variable this variable is the derivative of.
+    pub fn derivative(&self) -> Option<u32> {
+        match self {
+            VariableType::Float32 { derivative, .. } | VariableType::Float64 { derivative, .. } => {
+                *derivative
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -660,6 +679,14 @@ impl ModelDescription {
         vr: fmi3ValueReference,
     ) -> Option<&ModelVariable> {
         self.modelVariables.iter().find(|v| v.valueReference == vr)
+    }
+
+    pub fn fetch_variable_by_value_reference(
+        &self,
+        vr: fmi3ValueReference,
+    ) -> Result<&ModelVariable, ModelDescriptionError> {
+        self.get_variable_by_value_reference(vr)
+            .ok_or(ModelDescriptionError::ValueReference(vr))
     }
 
     /// Returns the variable with the given name.

@@ -126,11 +126,10 @@ pub unsafe fn IDACreate(sunctx: SUNContext) -> *mut c_void;
 pub unsafe fn IDAInit(ida_mem: *mut c_void, res: IDAResFn, t0: sunrealtype,
     yy0: N_Vector, yp0: N_Vector) -> i32;
 
-
-// pub unsafe fn CVodeInit(cvode_mem: *mut std::ffi::c_void, f: CVRhsFn, t0: sunrealtype, y0: N_Vector) -> i32;
-
 // SUNDIALS_EXPORT int IDAReInit(void* ida_mem, sunrealtype t0, N_Vector yy0,
 //                               N_Vector yp0);
+pub unsafe fn IDAReInit(ida_mem: *mut c_void, t0: sunrealtype, yy0: N_Vector, 
+    yp0: N_Vector) -> i32;
 
 // /* Tolerance input functions */
 
@@ -164,6 +163,8 @@ pub unsafe fn IDASVtolerances(ida_mem: *mut c_void, reltol: sunrealtype,
 
 // SUNDIALS_EXPORT int IDASetDeltaCjLSetup(void* ida_max, sunrealtype dcj);
 // SUNDIALS_EXPORT int IDASetUserData(void* ida_mem, void* user_data);
+pub unsafe fn IDASetUserData(ida_mem: *mut c_void, user_data: *mut c_void) -> i32;
+
 // SUNDIALS_EXPORT int IDASetMaxOrd(void* ida_mem, int maxord);
 // SUNDIALS_EXPORT int IDASetMaxNumSteps(void* ida_mem, long int mxsteps);
 // SUNDIALS_EXPORT int IDASetInitStep(void* ida_mem, sunrealtype hin);

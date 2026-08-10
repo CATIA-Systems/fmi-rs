@@ -6,6 +6,7 @@ use crate::sim::SimulationError;
 
 pub mod build_description;
 pub mod cmake;
+pub mod dae;
 pub mod fmi2;
 pub mod fmi3;
 pub mod model_description;

@@ -6,7 +6,8 @@ use crate::{
             SimulationSettings, call, input::StaticInput, read_initial_fmu_state,
             recorder::Recorder, set_start_values, write_final_fmu_state,
         },
-        next_communication_point, relative_eq, relative_lt, validate_simulation_steps,
+        next_communication_point, next_regular_point, relative_eq, relative_lt,
+        validate_simulation_steps,
     },
 };
 
@@ -59,7 +60,11 @@ pub fn simulate(
         set_start_values(&settings.start_values, settings.model_description, &fmu)?;
 
         call(fmu.setupExperiment(
-            settings.tolerance,
+            if settings.set_tolerance {
+                Some(settings.tolerance)
+            } else {
+                None
+            },
             time,
             if set_stop_time { Some(stop_time) } else { None },
         ))?;
@@ -79,7 +84,13 @@ pub fn simulate(
     let mut n_steps = 0;
 
     while relative_lt(time, stop_time) {
-        let next_regular_point = start_time + (n_steps + 1) as f64 * output_interval;
+        let next_regular_point = next_regular_point(
+            settings.log_time_scale,
+            start_time,
+            output_interval,
+            n_steps,
+        );
+
         let next_input_event_time = input.and_then(|i| i.next_event_time(time));
 
         let next_communication_point = if can_handle_variable_communication_step_size {
