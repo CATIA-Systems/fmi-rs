@@ -182,10 +182,7 @@ impl<'a> Ida<'a> {
                 "Failed to attach the matrix and linear solver"
             );
 
-            expect_no_error!(
-                IDASetJacFn(ida_mem, jac),
-                "Failed to set Jacobian routine"
-            );
+            expect_no_error!(IDASetJacFn(ida_mem, jac), "Failed to set Jacobian routine");
 
             let dae = Box::new(dae);
 

@@ -1,5 +1,6 @@
 use crate::dae::DaeManifest;
 use crate::fmi3::log::DefaultLogger;
+use crate::model_description::ModelDescriptionError;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
 use crate::sim::solver::{Ode, SolverFactory};
 use crate::sim::{SimulationError, next_communication_point, next_regular_point};
@@ -53,6 +54,13 @@ pub fn simulate<S: SolverFactory>(
 
     set_start_values(&settings.start_values, settings.model_description, &fmu)?;
 
+    let (dae, algebraic_variable_vrs) = if settings.enable_dae {
+        let (dae, vrs) = create_dae(settings, input, &fmu)?;
+        (Some(dae), vrs)
+    } else {
+        (None, vec![])
+    };
+
     call(fmu.enterInitializationMode(
         if settings.set_tolerance {
             Some(settings.tolerance)
@@ -99,100 +107,7 @@ pub fn simulate<S: SolverFactory>(
 
     call(fmu.enterContinuousTimeMode())?;
 
-    let mut nx = 0;
-    let mut nz = 0;
-
-    call(fmu.getNumberOfContinuousStates(&mut nx))?;
-    call(fmu.getNumberOfEventIndicators(&mut nz))?;
-
-    let dae_manifest_path = settings
-        .unzipdir
-        .join("extra")
-        .join("org.fmi-standard.fmi-ls-dae")
-        .join("fmi-ls-manifest.xml");
-
-    let dae = if dae_manifest_path.is_file() {
-        let dae_manifest = DaeManifest::from_file(dae_manifest_path)?;
-
-        let mut continuous_state_vrs = vec![];
-        let mut continuous_state_derivative_vrs = vec![];
-        let mut algebraic_variable_vrs = vec![];
-        let mut algebraic_variable_nominal_vrs = vec![];
-
-        for derivative in dae_manifest.modelStructure.continuousStateDerivatives {
-            continuous_state_derivative_vrs.push(derivative.valueReference);
-
-            let derivative_variable = settings
-                .model_description
-                .fetch_variable_by_value_reference(derivative.valueReference)?;
-
-            let continuous_state_vr =
-                derivative_variable
-                    .variableType
-                    .derivative()
-                    .ok_or_else(|| {
-                        SimulationError::Parameter(format!(
-                            "Variable '{}' is missing the derivative attribute",
-                            derivative_variable.name
-                        ))
-                    })?;
-
-            continuous_state_vrs.push(continuous_state_vr);
-        }
-
-        for algebraic_variable in &dae_manifest.algebraicVariables.algebraicVariables {
-            algebraic_variable_vrs.push(algebraic_variable.valueReference);
-            algebraic_variable_nominal_vrs.push(algebraic_variable.nominal);
-        }
-
-        let residual_vrs = dae_manifest
-            .modelStructure
-            .residuals
-            .iter()
-            .enumerate()
-            .map(|(i, residual)| match residual.formulations.as_slice() {
-                [first] => Ok(first.valueReference),
-                _ => Err(SimulationError::Parameter(format!(
-                    "Residual {} must have exactly one formuation",
-                    i + 1
-                ))),
-            })
-            .collect::<Result<Vec<u32>, SimulationError>>()?;
-
-        let known_vrs: Vec<u32> = continuous_state_vrs
-            .clone()
-            .into_iter()
-            .chain(algebraic_variable_vrs)
-            .collect();
-
-        let unknown_vrs: Vec<u32> = continuous_state_derivative_vrs
-            .clone()
-            .into_iter()
-            .chain(residual_vrs)
-            .collect();
-
-        let dae = Dae3::new(
-            &fmu,
-            input,
-            known_vrs.clone(),
-            unknown_vrs.clone(),
-            algebraic_variable_nominal_vrs.clone(),
-        )?;
-
-        Some(dae)
-    } else {
-        None
-    };
-
-    let ode = Ode3 {
-        fmu: &fmu,
-        input,
-        nx,
-        nz,
-        supports_jacobian: false,
-        known_vrs: vec![],
-        unknown_vrs: vec![],
-    };
+    let ode = create_ode(settings, input, &fmu)?;
 
     let mut solver = solver_factory.create(time, settings.tolerance, ode, dae)?;
 
@@ -235,14 +150,18 @@ pub fn simulate<S: SolverFactory>(
             false
         };
 
-        let (time_reached, x, is_state_event) = solver.step(next_communication_point)?;
+        let (time_reached, knowns, is_state_event) = solver.step(next_communication_point)?;
 
         time = time_reached;
 
         call(fmu.setTime(time))?;
 
-        if !x.is_empty() {
-            call(fmu.setContinuousStates(x))?;
+        if !knowns.is_empty() {
+            let nx = knowns.len() - algebraic_variable_vrs.len();
+            call(fmu.setContinuousStates(&knowns[..nx]))?;
+            if !algebraic_variable_vrs.is_empty() {
+                call(fmu.setFloat64(&algebraic_variable_vrs, &knowns[nx..]))?;
+            }
         }
 
         if is_input_event && let Some(input) = &input {
@@ -408,4 +327,138 @@ impl<'a> Ode for Ode3<'a> {
 
         Ok(())
     }
+}
+
+fn create_ode<'a>(
+    settings: &SimulationSettings<'_>,
+    input: Option<&'a StaticInput>,
+    fmu: &'a FMU3,
+) -> Result<Ode3<'a>, SimulationError> {
+    let mut nx = 0;
+    let mut nz = 0;
+
+    call(fmu.getNumberOfContinuousStates(&mut nx))?;
+    call(fmu.getNumberOfEventIndicators(&mut nz))?;
+
+    let mut known_vrs = vec![];
+    let mut unknown_vrs = vec![];
+
+    let supports_jacobian: bool = settings
+        .model_description
+        .modelExchange
+        .as_ref()
+        .ok_or(SimulationError::InterfaceType)?
+        .providesDirectionalDerivatives;
+
+    for unknown in &settings.model_description.derivatives {
+        unknown_vrs.push(unknown.valueReference);
+        known_vrs.push(
+            settings
+                .model_description
+                .get_variable_by_value_reference(unknown.valueReference)
+                .ok_or(ModelDescriptionError::ValueReference(
+                    unknown.valueReference,
+                ))?
+                .variableType
+                .derivative()
+                .ok_or(ModelDescriptionError::ValueReference(
+                    unknown.valueReference,
+                ))?,
+        );
+    }
+
+    let ode = Ode3 {
+        fmu,
+        input,
+        nx,
+        nz,
+        supports_jacobian,
+        known_vrs,
+        unknown_vrs,
+    };
+
+    Ok(ode)
+}
+
+fn create_dae<'a>(
+    settings: &SimulationSettings<'_>,
+    input: Option<&'a StaticInput>,
+    fmu: &'a FMU3,
+) -> Result<(Dae3<'a>, Vec<u32>), SimulationError> {
+    let dae_manifest_path = settings
+        .unzipdir
+        .join("extra")
+        .join("org.fmi-standard.fmi-ls-dae")
+        .join("fmi-ls-manifest.xml");
+    let dae_manifest = DaeManifest::from_file(dae_manifest_path)?;
+
+    let mut continuous_state_vrs = vec![];
+    let mut continuous_state_derivative_vrs = vec![];
+    let mut algebraic_variable_vrs = vec![];
+    let mut algebraic_variable_nominal_vrs = vec![];
+
+    for derivative in dae_manifest.modelStructure.continuousStateDerivatives {
+        continuous_state_derivative_vrs.push(derivative.valueReference);
+
+        let derivative_variable = settings
+            .model_description
+            .fetch_variable_by_value_reference(derivative.valueReference)?;
+
+        let continuous_state_vr =
+            derivative_variable
+                .variableType
+                .derivative()
+                .ok_or_else(|| {
+                    SimulationError::Parameter(format!(
+                        "Variable '{}' is missing the derivative attribute",
+                        derivative_variable.name
+                    ))
+                })?;
+
+        continuous_state_vrs.push(continuous_state_vr);
+    }
+
+    for algebraic_variable in &dae_manifest.algebraicVariables.algebraicVariables {
+        algebraic_variable_vrs.push(algebraic_variable.valueReference);
+        algebraic_variable_nominal_vrs.push(algebraic_variable.nominal);
+    }
+
+    let residual_vrs = dae_manifest
+        .modelStructure
+        .residuals
+        .iter()
+        .enumerate()
+        .map(|(i, residual)| match residual.formulations.as_slice() {
+            [first] => Ok(first.valueReference),
+            _ => Err(SimulationError::Parameter(format!(
+                "Residual {} must have exactly one formuation",
+                i + 1
+            ))),
+        })
+        .collect::<Result<Vec<u32>, SimulationError>>()?;
+
+    let known_vrs: Vec<u32> = continuous_state_vrs
+        .clone()
+        .into_iter()
+        .chain(algebraic_variable_vrs.clone())
+        .collect();
+
+    let unknown_vrs: Vec<u32> = continuous_state_derivative_vrs
+        .clone()
+        .into_iter()
+        .chain(residual_vrs)
+        .collect();
+
+    let dae = Dae3::new(
+        fmu,
+        input,
+        known_vrs.clone(),
+        unknown_vrs.clone(),
+        algebraic_variable_nominal_vrs.clone(),
+    )?;
+    call(fmu.enterConfigurationMode())?;
+    call(fmu.setBoolean(&[dae_manifest.enableDae.valueReference], &[true]))?;
+    call(fmu.exitConfigurationMode())?;
+
+    Ok((dae, algebraic_variable_vrs))
 }

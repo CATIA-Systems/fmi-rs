@@ -120,17 +120,9 @@ pub fn simulate<S: SolverFactory>(
         call(fmu.enterContinuousTimeMode())?;
     }
 
-    let ode2 = Ode2 {
-        fmu: &fmu,
-        input,
-        nx: settings.model_description.derivatives.len(),
-        nz: settings.model_description.numberOfEventIndicators as usize,
-        supports_jacobian: false,
-        known_vrs: vec![],
-        unknown_vrs: vec![],
-    };
+    let ode = create_ode(settings, input, &fmu)?;
 
-    let mut solver = solver_factory.create(time, settings.tolerance, ode2, None)?;
+    let mut solver = solver_factory.create(time, settings.tolerance, ode, None)?;
 
     let mut n_steps = 0;
 
@@ -260,6 +252,46 @@ pub fn simulate<S: SolverFactory>(
     call(fmu.terminate())?;
 
     Ok(())
+}
+
+fn create_ode<'a>(
+    settings: &SimulationSettings<'_>,
+    input: Option<&'a StaticInput>,
+    fmu: &'a FMU2<ME>,
+) -> Result<Ode2<'a>, SimulationError> {
+    let mut known_vrs = vec![];
+    let mut unknown_vrs = vec![];
+
+    let supports_jacobian: bool = settings
+        .model_description
+        .modelExchange
+        .as_ref()
+        .ok_or(SimulationError::InterfaceType)?
+        .providesDirectionalDerivative;
+
+    for unknown in &settings.model_description.derivatives {
+        let unknown_variable = settings
+            .model_description
+            .try_get_variable_by_index(unknown.index)?;
+        unknown_vrs.push(unknown_variable.valueReference);
+        let known_index = unknown_variable.variableType.derivative()?;
+        let known_variable = settings
+            .model_description
+            .try_get_variable_by_index(known_index)?;
+        known_vrs.push(known_variable.valueReference);
+    }
+
+    let ode = Ode2 {
+        fmu,
+        input,
+        nx: settings.model_description.derivatives.len(),
+        nz: settings.model_description.numberOfEventIndicators as usize,
+        supports_jacobian,
+        known_vrs,
+        unknown_vrs,
+    };
+
+    Ok(ode)
 }
 
 pub struct Ode2<'a> {

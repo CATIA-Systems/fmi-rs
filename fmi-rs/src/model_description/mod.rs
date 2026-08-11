@@ -40,6 +40,9 @@ pub enum ModelDescriptionError {
 
     #[error("Illegal value reference: {0}")]
     ValueReference(u32),
+
+    #[error("Illegal variable index: {0}")]
+    VariableIndex(u32),
 }
 
 #[derive(Debug)]

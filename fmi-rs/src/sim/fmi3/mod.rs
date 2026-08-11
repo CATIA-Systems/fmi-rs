@@ -19,6 +19,7 @@ use std::path::{Path, PathBuf};
 pub struct SimulationSettings<'a> {
     pub unzipdir: &'a Path,
     pub model_description: &'a ModelDescription,
+    pub enable_dae: bool,
     pub start_time: f64,
     pub stop_time: f64,
     pub logging_on: bool,

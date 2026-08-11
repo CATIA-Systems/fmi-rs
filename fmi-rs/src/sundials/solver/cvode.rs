@@ -136,12 +136,12 @@ impl SolverFactory for CVodeSolverFactory {
                 "Failed to set linear solver"
             );
 
-            // if nx > 0 && functions.get_directional_derivative.is_some() {
-            //     expect_no_error!(
-            //         CVodeSetJacFn(cvode_mem, jac),
-            //         "Failed to set Jacobian function"
-            //     );
-            // }
+            if nx > 0 && ode.supports_jacobian() {
+                expect_no_error!(
+                    CVodeSetJacFn(cvode_mem, jac::<T>),
+                    "Failed to set Jacobian function"
+                );
+            }
 
             if nz > 0 {
                 expect_no_error!(
@@ -167,16 +167,6 @@ impl SolverFactory for CVodeSolverFactory {
 impl<T: Ode> Solver for CVodeSolver<T> {
     fn reset(&mut self, time: f64) -> Result<(), SimulationError> {
         unsafe {
-            //     if self.functions.nx > 0 {
-            //         (self.functions.get_continuous_states)((*self.x).as_mut())?;
-            //         (self.functions.get_nominals_of_continuous_states)((*self.abstol).as_mut())?;
-            //         for value in (*self.abstol).as_mut().iter_mut() {
-            //             *value *= self.functions.rtol;
-            //         }
-            //     } else {
-            //         (*self.x).as_mut().fill(0.0); // Dummy state for discrete systems
-            //         (*self.abstol).as_mut().fill(0.0); // Dummy tolerances for discrete systems
-            //     }
             let x = (*self.x).as_mut();
             let abstol = (*self.abstol).as_mut();
 
@@ -195,22 +185,7 @@ impl<T: Ode> Solver for CVodeSolver<T> {
                 "CVodeReInit failed"
             );
         }
-        // unsafe {
-        //     if self.functions.nx > 0 {
-        //         (self.functions.get_continuous_states)((*self.x).as_mut())?;
-        //         (self.functions.get_nominals_of_continuous_states)((*self.abstol).as_mut())?;
-        //         for value in (*self.abstol).as_mut().iter_mut() {
-        //             *value *= self.functions.rtol;
-        //         }
-        //     } else {
-        //         (*self.x).as_mut().fill(0.0); // Dummy state for discrete systems
-        //         (*self.abstol).as_mut().fill(0.0); // Dummy tolerances for discrete systems
-        //     }
-        //     expect_no_error!(
-        //         CVodeReInit(self.cvode_mem, time, self.x),
-        //         "CVodeReInit failed"
-        //     );
-        // }
+
         Ok(())
     }
 

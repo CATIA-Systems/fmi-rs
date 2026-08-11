@@ -73,6 +73,21 @@ impl VariableType {
             VariableType::Enumeration { start, .. } => start.is_some(),
         }
     }
+
+    /// Returns the index of the variable this variable is the derivative of.
+    pub fn derivative(&self) -> Result<u32, ModelDescriptionError> {
+        if let VariableType::Real {
+            derivative: Some(index),
+            ..
+        } = self
+        {
+            Ok(*index)
+        } else {
+            Err(ModelDescriptionError::MissingAttribute(
+                "derivative".to_owned(),
+            ))
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
@@ -350,14 +365,23 @@ impl ModelDescription {
         self.modelVariables.iter().find(|v| v.valueReference == vr)
     }
 
-    /// Returns the first variable found with the given name.
+    /// Returns the variable found with the given name.
     pub fn get_variable_by_name(&self, name: &str) -> Option<&ScalarVariable> {
         self.modelVariables.iter().find(|v| v.name == name)
     }
 
-    /// Returns the first variable found with the given index.
+    /// Returns the variable with the given index as an Option
     pub fn get_variable_by_index(&self, index: VariableIndex) -> Option<&ScalarVariable> {
         self.modelVariables.get((index - 1) as usize)
+    }
+
+    /// Returns the variable with the given index as a Result
+    pub fn try_get_variable_by_index(
+        &self,
+        index: VariableIndex,
+    ) -> Result<&ScalarVariable, ModelDescriptionError> {
+        self.get_variable_by_index(index)
+            .ok_or(ModelDescriptionError::VariableIndex(index))
     }
 
     pub fn get_unit<'a>(&'a self, variable: &'a ScalarVariable) -> Option<&'a str> {

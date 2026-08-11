@@ -12,11 +12,20 @@ use thiserror::Error;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DaeManifest {
+    #[serde(rename = "EnableDAE")]
+    pub enableDae: EnableDAE,
+
     #[serde(rename = "AlgebraicVariables")]
     pub algebraicVariables: AlgebraicVariables,
 
     #[serde(rename = "ModelStructure")]
     pub modelStructure: ModelStructure,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EnableDAE {
+    #[serde(rename = "@valueReference")]
+    pub valueReference: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
