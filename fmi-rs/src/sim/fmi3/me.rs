@@ -125,7 +125,7 @@ pub fn simulate<S: SolverFactory>(
             start_time,
             settings.output_interval,
             n_steps,
-        );
+        )?;
 
         let next_input_event_time = input.and_then(|i| i.next_event_time(time));
 

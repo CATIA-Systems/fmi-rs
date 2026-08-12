@@ -183,10 +183,22 @@ pub fn next_regular_point(
     start_time: f64,
     output_interval: f64,
     n_steps: i32,
-) -> f64 {
+) -> Result<f64, SimulationError> {
     if log_time_scale {
-        start_time * output_interval.powi(n_steps + 1)
+        if output_interval <= 1.0 {
+            Err(SimulationError::Parameter(format!(
+                "Expected output_interval > 1 for logarithmic time scale but got {output_interval}"
+            )))
+        } else {
+            Ok(start_time * output_interval.powi(n_steps + 1))
+        }
     } else {
-        start_time + (n_steps + 1) as f64 * output_interval
+        if output_interval <= 0.0 {
+            Err(SimulationError::Parameter(format!(
+                "Expected output_interval > 0 but got {output_interval}"
+            )))
+        } else {
+            Ok(start_time + (n_steps + 1) as f64 * output_interval)
+        }
     }
 }

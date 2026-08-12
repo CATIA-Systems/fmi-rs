@@ -89,7 +89,7 @@ pub fn simulate(
             start_time,
             output_interval,
             n_steps,
-        );
+        )?;
 
         let next_input_event_time = input.and_then(|i| i.next_event_time(time));
 
