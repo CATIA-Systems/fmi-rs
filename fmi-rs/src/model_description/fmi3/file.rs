@@ -403,6 +403,16 @@ impl ModelDescription {
                     .attribute_as("canHandleMultipleSetPerTimeInstant")?
                     .unwrap_or_default();
 
+                let clocks = if let Some(list) = child.attribute("clocks") {
+                    list
+                    .split_whitespace()
+                    .map(|s| s.parse::<u32>())
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| ModelDescriptionError::Parse(e.to_string()))?
+                } else {
+                    vec![]
+                };
+
                 Ok(ModelVariable {
                     variableType: variable_type,
                     name: child.required_attribute("name")?,
@@ -411,7 +421,7 @@ impl ModelDescription {
                     causality,
                     variability,
                     canHandleMultipleSetPerTimeInstant,
-                    clocks: vec![],
+                    clocks,
                     initial,
                     dimensions: Self::get_dimensions(&child)?,
                     range: child.range(),
