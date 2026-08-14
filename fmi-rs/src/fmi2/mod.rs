@@ -458,11 +458,17 @@ impl<T> FMU2<T> {
                 instanceName, fmuType, guid, url, callbacks, visible, loggingOn, component
             );
 
-            if component.is_null() {
-                self.log_call(fmi2Status::fmi2Error, &message);
+            let status = if component.is_null() {
+                fmi2Status::fmi2Error
             } else {
-                self.log_call(fmi2Status::fmi2OK, &message);
-            }
+                fmi2Status::fmi2OK
+            };
+
+            self.log_call(status, &message);
+        }
+
+        if component.is_null() {
+            return Err(SimulationError::FMICall);
         }
 
         self.component = component;
