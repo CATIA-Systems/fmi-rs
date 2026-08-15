@@ -192,13 +192,11 @@ pub fn next_regular_point(
         } else {
             Ok(start_time * output_interval.powi(n_steps + 1))
         }
+    } else if output_interval <= 0.0 {
+        Err(SimulationError::Parameter(format!(
+            "Expected output_interval > 0 but got {output_interval}"
+        )))
     } else {
-        if output_interval <= 0.0 {
-            Err(SimulationError::Parameter(format!(
-                "Expected output_interval > 0 but got {output_interval}"
-            )))
-        } else {
-            Ok(start_time + (n_steps + 1) as f64 * output_interval)
-        }
+        Ok(start_time + (n_steps + 1) as f64 * output_interval)
     }
 }

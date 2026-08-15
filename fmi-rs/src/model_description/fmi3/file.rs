@@ -404,11 +404,10 @@ impl ModelDescription {
                     .unwrap_or_default();
 
                 let clocks = if let Some(list) = child.attribute("clocks") {
-                    list
-                    .split_whitespace()
-                    .map(|s| s.parse::<u32>())
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|e| ModelDescriptionError::Parse(e.to_string()))?
+                    list.split_whitespace()
+                        .map(|s| s.parse::<u32>())
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|e| ModelDescriptionError::Parse(e.to_string()))?
                 } else {
                     vec![]
                 };
