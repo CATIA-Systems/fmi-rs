@@ -52,15 +52,6 @@ fn fetch_and_build_libxml2(install_dir: &Path, target: &str) {
         version
     );
 
-    // Determine CMake generator based on the Rust target
-    let generator = if target.contains("msvc") {
-        "Visual Studio 18 2026"
-    } else if target.contains("windows-gnu") {
-        "MinGW Makefiles"
-    } else {
-        "Unix Makefiles"
-    };
-
     // 1. Download source using curl (standard on modern Windows)
     let url = format!(
         "https://github.com/GNOME/libxml2/archive/refs/tags/v{}.tar.gz",
@@ -89,28 +80,32 @@ fn fetch_and_build_libxml2(install_dir: &Path, target: &str) {
     let build_dir = out_path.join("libxml2-build");
 
     // 3. Configure with CMake
-    let status = Command::new("cmake")
-        .args([
-            "-S",
-            src_dir.to_str().unwrap(),
-            "-B",
-            build_dir.to_str().unwrap(),
-            &format!("-DCMAKE_INSTALL_PREFIX={}", install_dir.display()),
-            "-DBUILD_SHARED_LIBS=OFF",
-            "-DLIBXML2_WITH_PYTHON=OFF",
-            "-DLIBXML2_WITH_ZLIB=OFF",
-            "-DLIBXML2_WITH_LZMA=OFF",
-            "-DLIBXML2_WITH_ICONV=OFF",
-            "-G",
-            generator,
-        ])
+    let mut command = Command::new("cmake");
+
+    command.args([
+        "-S",
+        src_dir.to_str().unwrap(),
+        "-B",
+        build_dir.to_str().unwrap(),
+        &format!("-DCMAKE_INSTALL_PREFIX={}", install_dir.display()),
+        "-DBUILD_SHARED_LIBS=OFF",
+        "-DLIBXML2_WITH_PYTHON=OFF",
+        "-DLIBXML2_WITH_ZLIB=OFF",
+        "-DLIBXML2_WITH_LZMA=OFF",
+        "-DLIBXML2_WITH_ICONV=OFF",
+    ]);
+
+    if let Ok(generator) = std::env::var("CMAKE_GENERATOR") {
+        command.arg("-G").arg(generator);
+    }
+
+    let status = command
         .output()
         .expect("Failed to execute cmake. Ensure it is installed and in your PATH.");
 
     if !status.status.success() {
         panic!(
-            "Failed to configure libxml2 with generator {}: {}",
-            generator,
+            "Failed to configure libxml2: {}",
             String::from_utf8_lossy(&status.stderr)
         );
     }

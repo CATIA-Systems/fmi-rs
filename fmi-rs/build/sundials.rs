@@ -46,15 +46,6 @@ fn fetch_and_build_sundials(install_dir: &Path, target: &str) {
         "cargo:warning=Sundials not found. Downloading and building SUNDIALS v{version} for {target}..."
     );
 
-    // Determine CMake generator based on the Rust target
-    let generator = if target.contains("msvc") {
-        "Visual Studio 18 2026"
-    } else if target.contains("windows-gnu") {
-        "MinGW Makefiles"
-    } else {
-        "Unix Makefiles"
-    };
-
     // 1. Download source using curl (standard on modern Windows)
     let url = format!(
         "https://github.com/llnl/sundials/releases/download/v{version}/sundials-{version}.tar.gz"
@@ -90,31 +81,34 @@ fn fetch_and_build_sundials(install_dir: &Path, target: &str) {
     let build_dir = out_path.join("sundials-build");
 
     // 3. Configure with CMake
-    let status = Command::new("cmake")
-        .args([
-            "-S",
-            src_dir.to_str().unwrap(),
-            "-B",
-            build_dir.to_str().unwrap(),
-            &format!("-DCMAKE_INSTALL_PREFIX={}", install_dir.display()),
-            "-DBUILD_SHARED_LIBS=OFF",
-            "-DBUILD_TESTING=OFF",
-            "-DSUNDIALS_ENABLE_ARKODE=OFF",
-            "-DSUNDIALS_ENABLE_CVODES=OFF",
-            "-DSUNDIALS_ENABLE_C_EXAMPLES=OFF",
-            // "-DSUNDIALS_ENABLE_IDA=OFF",
-            "-DSUNDIALS_ENABLE_IDAS=OFF",
-            "-DSUNDIALS_ENABLE_KINSOL=OFF",
-            "-G",
-            generator,
-        ])
+    let mut command = Command::new("cmake");
+
+    command.args([
+        "-S",
+        src_dir.to_str().unwrap(),
+        "-B",
+        build_dir.to_str().unwrap(),
+        &format!("-DCMAKE_INSTALL_PREFIX={}", install_dir.display()),
+        "-DBUILD_SHARED_LIBS=OFF",
+        "-DBUILD_TESTING=OFF",
+        "-DSUNDIALS_ENABLE_ARKODE=OFF",
+        "-DSUNDIALS_ENABLE_CVODES=OFF",
+        "-DSUNDIALS_ENABLE_C_EXAMPLES=OFF",
+        "-DSUNDIALS_ENABLE_IDAS=OFF",
+        "-DSUNDIALS_ENABLE_KINSOL=OFF",
+    ]);
+
+    if let Ok(generator) = std::env::var("CMAKE_GENERATOR") {
+        command.arg("-G").arg(generator);
+    }
+
+    let status = command
         .output()
         .expect("Failed to execute cmake. Ensure it is installed and in your PATH.");
 
     if !status.status.success() {
         panic!(
-            "Failed to configure SUNDIALS with generator {}: {}",
-            generator,
+            "Failed to configure SUNDIALS: {}",
             String::from_utf8_lossy(&status.stderr)
         );
     }
