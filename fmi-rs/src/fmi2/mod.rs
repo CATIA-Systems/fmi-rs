@@ -15,7 +15,6 @@ use crate::{get_symbol, load_platform_binary};
 use libloading::Library;
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
-use std::os::raw::c_void;
 use std::path::Path;
 use std::ptr;
 use types::*;
@@ -393,33 +392,15 @@ impl<T> FMU2<T> {
         let componentEnvironment =
             &*self.logger as *const RefCell<Box<dyn Logger>> as fmi2ComponentEnvironment;
 
-        unsafe extern "C" fn allocateMemory(nobj: usize, size: usize) -> *mut c_void {
-            unsafe {
-                let layout = std::alloc::Layout::from_size_align_unchecked(nobj * size, 1);
-                std::alloc::alloc(layout) as *mut c_void
-            }
-        }
-
-        unsafe extern "C" fn freeMemory(obj: *mut c_void) {
-            if !obj.is_null() {
-                unsafe {
-                    std::alloc::dealloc(
-                        obj as *mut u8,
-                        std::alloc::Layout::from_size_align_unchecked(1, 1),
-                    );
-                }
-            }
-        }
-
         let mut callbacks = fmi2CallbackFunctions {
             logger,
             allocateMemory: if provideMemoryManagementFunctions {
-                Some(allocateMemory)
+                Some(libc::calloc)
             } else {
                 None
             },
             freeMemory: if provideMemoryManagementFunctions {
-                Some(freeMemory)
+                Some(libc::free)
             } else {
                 None
             },
