@@ -2,9 +2,8 @@ use crate::dae::DaeManifest;
 use crate::fmi3::log::DefaultLogger;
 use crate::model_description::ModelDescriptionError;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
-use crate::sim::solver::{Ode, SolverFactory};
+use crate::sim::solver::{Dae, Ode, SolverFactory};
 use crate::sim::{SimulationError, next_communication_point, next_regular_point};
-use crate::sundials::solver::ida::Dae3;
 use crate::{
     fmi3::{FMU3, types::*},
     sim::{
@@ -378,6 +377,144 @@ fn create_ode<'a>(
     };
 
     Ok(ode)
+}
+
+pub struct Dae3<'a> {
+    fmu: &'a FMU3,
+    input: Option<&'a StaticInput<'a>>,
+    nx: usize,
+    nz: usize,
+    known_vrs: Vec<fmi3ValueReference>,
+    unknown_vrs: Vec<fmi3ValueReference>,
+    algebraic_variable_nominal_vrs: Vec<fmi3ValueReference>,
+}
+
+impl<'a> Dae3<'a> {
+    pub fn new(
+        fmu: &'a FMU3,
+        input: Option<&'a StaticInput<'a>>,
+        known_vrs: Vec<fmi3ValueReference>,
+        unknown_vrs: Vec<fmi3ValueReference>,
+        algebraic_variable_nominal_vrs: Vec<fmi3ValueReference>,
+    ) -> Result<Self, SimulationError> {
+        let mut nx = 0;
+        expect_ok!(fmu.getNumberOfContinuousStates(&mut nx));
+
+        let mut nz = 0;
+        expect_ok!(fmu.getNumberOfEventIndicators(&mut nz));
+
+        Ok(Self {
+            fmu,
+            input,
+            nx,
+            nz,
+            known_vrs,
+            unknown_vrs,
+            algebraic_variable_nominal_vrs,
+        })
+    }
+}
+
+impl<'a> Dae for Dae3<'a> {
+    fn neq(&self) -> usize {
+        self.known_vrs.len()
+    }
+
+    fn nx(&self) -> usize {
+        self.nx
+    }
+
+    fn nz(&self) -> usize {
+        self.nz
+    }
+
+    fn init(
+        &self,
+        knowns: &mut [f64],
+        nominals: &mut [f64],
+        unknowns: &mut [f64],
+    ) -> Result<(), SimulationError> {
+        expect_ok!(self.fmu.getFloat64(&self.known_vrs, knowns));
+        expect_ok!(self.fmu.getFloat64(&self.unknown_vrs, unknowns));
+        expect_ok!(
+            self.fmu
+                .getNominalsOfContinuousStates(&mut nominals[..self.nx])
+        );
+        expect_ok!(self.fmu.getFloat64(
+            &self.algebraic_variable_nominal_vrs,
+            &mut nominals[self.nx..]
+        ));
+        Ok(())
+    }
+
+    fn residuals(
+        &self,
+        time: f64,
+        knowns: &[f64],
+        unknowns: &[f64],
+        residuals: &mut [f64],
+    ) -> Result<(), SimulationError> {
+        expect_ok!(self.fmu.setTime(time));
+
+        if let Some(input) = self.input {
+            input.set_continuous_inputs(time, true, self.fmu)?;
+        }
+
+        expect_ok!(self.fmu.setFloat64(&self.known_vrs, knowns));
+
+        expect_ok!(self.fmu.getFloat64(&self.unknown_vrs, residuals));
+
+        for i in 0..self.nx {
+            residuals[i] -= unknowns[i];
+        }
+
+        Ok(())
+    }
+
+    fn root(&self, time: f64, knowns: &[f64], z: &mut [f64]) -> Result<(), SimulationError> {
+        expect_ok!(self.fmu.setTime(time));
+        if let Some(input) = self.input {
+            input.set_continuous_inputs(time, true, self.fmu)?;
+        }
+        expect_ok!(self.fmu.setFloat64(&self.known_vrs, knowns));
+        expect_ok!(self.fmu.getEventIndicators(z));
+        Ok(())
+    }
+
+    fn jacobian(
+        &self,
+        time: f64,
+        knowns: &[f64],
+        alpha: f64,
+        J: &mut [f64],
+    ) -> Result<(), SimulationError> {
+        expect_ok!(self.fmu.setTime(time));
+
+        if let Some(input) = self.input {
+            input.set_continuous_inputs(time, true, self.fmu)?;
+        }
+
+        expect_ok!(self.fmu.setFloat64(&self.known_vrs, knowns));
+
+        let n = self.known_vrs.len();
+
+        for i in 0..n {
+            let mut seed = vec![0.0; n];
+            seed[i] = 1.0;
+            let column = &mut J[i * n..(i + 1) * n];
+            expect_ok!(self.fmu.getDirectionalDerivative(
+                &self.unknown_vrs,
+                &self.known_vrs,
+                &seed,
+                column
+            ));
+            if i < self.nx {
+                column[i] -= alpha;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 fn create_dae<'a>(

@@ -10,7 +10,7 @@ use crate::{
             recorder::Recorder, set_start_values, write_final_fmu_state,
         },
         next_communication_point, next_regular_point, relative_eq, relative_ge, relative_le,
-        solver::{Ode, SolverFactory},
+        solver::{DummyDae, Ode, SolverFactory},
         validate_simulation_steps,
     },
 };
@@ -122,7 +122,7 @@ pub fn simulate<S: SolverFactory>(
 
     let ode = create_ode(settings, input, &fmu)?;
 
-    let mut solver = solver_factory.create(time, settings.tolerance, ode, None)?;
+    let mut solver = solver_factory.create(time, settings.tolerance, ode, None::<DummyDae>)?;
 
     let mut n_steps = 0;
 

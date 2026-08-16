@@ -1,7 +1,4 @@
-use crate::{
-    sim::{SimulationError, relative_eq},
-    sundials::solver::ida::Dae3,
-};
+use crate::sim::{SimulationError, relative_eq};
 
 pub trait Ode {
     fn nx(&self) -> usize;
@@ -13,18 +10,94 @@ pub trait Ode {
     fn jacobian(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError>;
 }
 
+pub trait Dae {
+    fn neq(&self) -> usize;
+    fn nx(&self) -> usize;
+    fn nz(&self) -> usize;
+    fn init(
+        &self,
+        knowns: &mut [f64],
+        nominals: &mut [f64],
+        unknowns: &mut [f64],
+    ) -> Result<(), SimulationError>;
+    fn residuals(
+        &self,
+        time: f64,
+        knowns: &[f64],
+        unknowns: &[f64],
+        residuals: &mut [f64],
+    ) -> Result<(), SimulationError>;
+    fn root(&self, time: f64, knowns: &[f64], z: &mut [f64]) -> Result<(), SimulationError>;
+    fn jacobian(
+        &self,
+        time: f64,
+        knowns: &[f64],
+        alpha: f64,
+        J: &mut [f64],
+    ) -> Result<(), SimulationError>;
+}
+
+pub struct DummyDae;
+
+impl Dae for DummyDae {
+    fn neq(&self) -> usize {
+        todo!()
+    }
+
+    fn nx(&self) -> usize {
+        todo!()
+    }
+
+    fn nz(&self) -> usize {
+        todo!()
+    }
+
+    fn init(
+        &self,
+        _knowns: &mut [f64],
+        _nominals: &mut [f64],
+        _unknowns: &mut [f64],
+    ) -> Result<(), SimulationError> {
+        todo!()
+    }
+
+    fn residuals(
+        &self,
+        _time: f64,
+        _knowns: &[f64],
+        _unknowns: &[f64],
+        _residuals: &mut [f64],
+    ) -> Result<(), SimulationError> {
+        todo!()
+    }
+
+    fn root(&self, _time: f64, _knowns: &[f64], _z: &mut [f64]) -> Result<(), SimulationError> {
+        todo!()
+    }
+
+    fn jacobian(
+        &self,
+        _time: f64,
+        _knowns: &[f64],
+        _alpha: f64,
+        _J: &mut [f64],
+    ) -> Result<(), SimulationError> {
+        todo!()
+    }
+}
+
 pub trait Solver {
     fn reset(&mut self, time: f64) -> Result<(), SimulationError>;
     fn step(&mut self, next_time: f64) -> Result<(f64, &[f64], bool), SimulationError>;
 }
 
 pub trait SolverFactory {
-    fn create<'a, T: Ode + 'a>(
+    fn create<'a, O: Ode + 'a, D: Dae + 'a>(
         &self,
         start_time: f64,
         rtol: f64,
-        ode: T,
-        dae: Option<Dae3<'a>>,
+        ode: O,
+        dae: Option<D>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError>;
 }
 
@@ -45,12 +118,12 @@ pub struct ForwardEulerFactory {
 }
 
 impl SolverFactory for ForwardEulerFactory {
-    fn create<'a, T: Ode + 'a>(
+    fn create<'a, O: Ode + 'a, D: Dae + 'a>(
         &self,
         start_time: f64,
         _rtol: f64,
-        ode: T,
-        _dae: Option<Dae3>,
+        ode: O,
+        _dae: Option<D>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         let nx = ode.nx();
         let nz = ode.nz();

@@ -3,7 +3,7 @@ use std::slice::from_raw_parts_mut;
 
 use crate::fmi3::types::{fmi3Status, fmi3ValueReference};
 use crate::sim::SimulationError;
-use crate::sim::solver::{Ode, Solver, SolverFactory};
+use crate::sim::solver::{Dae, Ode, Solver, SolverFactory};
 use crate::sundials::ida::{
     IDA_NORMAL, IDA_ROOT_RETURN, IDA_SUCCESS, IDA_TSTOP_RETURN, IDACreate, IDAFree, IDAInit,
     IDAReInit, IDARootInit, IDASVtolerances, IDASetUserData, IDASolve,
@@ -19,7 +19,7 @@ use crate::sundials::sunlinsol_dense::SUNLinSol_Dense;
 use crate::sundials::sunmatrix_dense::SUNDenseMatrix;
 use crate::{fmi3::FMU3, sim::fmi3::input::StaticInput};
 
-pub struct Ida<'a> {
+pub struct Ida<D: Dae> {
     sunctx: SUNContext,
     yy: N_Vector,
     yp: N_Vector,
@@ -28,8 +28,7 @@ pub struct Ida<'a> {
     A: SUNMatrix,
     LS: SUNLinearSolver,
     ida_mem: *mut c_void,
-    #[allow(dead_code)]
-    dae: Box<Dae3<'a>>,
+    dae: Box<D>,
 }
 
 macro_rules! expect_no_error {
@@ -59,7 +58,7 @@ macro_rules! expect_ok {
     };
 }
 
-extern "C" fn res(
+extern "C" fn res<D: Dae>(
     tt: sunrealtype,
     yy: N_Vector,
     yp: N_Vector,
@@ -71,13 +70,13 @@ extern "C" fn res(
     }
 
     unsafe {
-        let dae: &Dae3 = &*(user_data as *const Dae3);
+        let dae: &D = &*(user_data as *const D);
         dae.residuals(tt, (*yy).as_mut(), (*yp).as_mut(), (*rr).as_mut())
             .map_or(-1, |_| 0)
     }
 }
 
-extern "C" fn g(
+extern "C" fn g<D: Dae>(
     t: sunrealtype,
     yy: N_Vector,
     _yp: N_Vector,
@@ -89,14 +88,14 @@ extern "C" fn g(
     }
 
     unsafe {
-        let dae: &Dae3 = &*(user_data as *const Dae3);
+        let dae: &D = &*(user_data as *const D);
         let knowns = (*yy).as_mut();
-        let gout_slice = from_raw_parts_mut(gout, dae.nz);
+        let gout_slice = from_raw_parts_mut(gout, dae.nz());
         dae.root(t, knowns, gout_slice).map_or(-1, |_| 0)
     }
 }
 
-extern "C" fn jac(
+extern "C" fn jac<D: Dae>(
     tt: sunrealtype,
     cj: sunrealtype,
     yy: N_Vector,
@@ -113,102 +112,14 @@ extern "C" fn jac(
     }
 
     unsafe {
-        let dae: &Dae3 = &*(user_data as *const Dae3);
+        let dae: &D = &*(user_data as *const D);
         let y = (*yy).as_mut();
         let J = (*JJ).as_mut();
         dae.jacobian(tt, y, cj, J).map_or(-1, |_| 0)
     }
 }
 
-impl<'a> Ida<'a> {
-    pub fn new(t0: f64, rtol: f64, dae: Dae3<'a>) -> Result<Self, SimulationError> {
-        let neq = dae.known_vrs.len() as i64;
-
-        unsafe {
-            let mut sunctx = std::ptr::null_mut();
-
-            expect_no_error!(
-                SUNContext_Create(SUN_COMM_NULL, &mut sunctx),
-                "Failed to create SUNDIALS context"
-            );
-
-            let ida_mem = IDACreate(sunctx);
-            expect_not_null!(ida_mem, "Failed to create IDA memory");
-
-            // Allocate N-vectors
-            let yy: *mut crate::sundials::sundials_nvector::_generic_N_Vector =
-                N_VNew_Serial(neq, sunctx);
-            expect_not_null!(yy, "Failed to create yy vector");
-
-            let yp = N_VNew_Serial(neq, sunctx);
-            expect_not_null!(yp, "Failed to create yp vector");
-
-            let avtol = N_VNew_Serial(neq, sunctx);
-            expect_not_null!(avtol, "Failed to create avtol vector");
-
-            let A = SUNDenseMatrix(neq, neq, sunctx);
-            expect_not_null!(A, "Failed to create A matrix");
-
-            // Initialize vectors
-            let nominals = (*avtol).as_mut();
-            dae.init((*yy).as_mut(), nominals, (*yp).as_mut())?;
-
-            for nominal in nominals.iter_mut() {
-                *nominal *= rtol;
-            }
-
-            expect_no_error!(
-                IDAInit(ida_mem, res, t0, yy, yp),
-                "Failed to initilalize IDA"
-            );
-
-            if dae.nz > 0 {
-                expect_no_error!(
-                    IDARootInit(ida_mem, dae.nz as i32, g),
-                    "Failed to set root function"
-                );
-            }
-
-            expect_no_error!(
-                IDASVtolerances(ida_mem, rtol, avtol),
-                "Failed to set tolerances"
-            );
-
-            let LS = SUNLinSol_Dense(yy, A, sunctx);
-            expect_not_null!(LS, "Failed to create dense SUNLinearSolver");
-
-            expect_no_error!(
-                IDASetLinearSolver(ida_mem, LS, A),
-                "Failed to attach the matrix and linear solver"
-            );
-
-            expect_no_error!(IDASetJacFn(ida_mem, jac), "Failed to set Jacobian routine");
-
-            let dae = Box::new(dae);
-
-            let user_data: *const Dae3 = &*dae;
-
-            expect_no_error!(
-                IDASetUserData(ida_mem, user_data as *mut c_void),
-                "Failed to set user data"
-            );
-
-            Ok(Ida {
-                sunctx,
-                yy,
-                yp,
-                rtol,
-                avtol,
-                A,
-                LS,
-                ida_mem,
-                dae,
-            })
-        }
-    }
-}
-
-impl<'a> Solver for Ida<'a> {
+impl<D: Dae> Solver for Ida<D> {
     fn step(&mut self, next_time: f64) -> Result<(f64, &[f64], bool), SimulationError> {
         unsafe {
             let mut tret = 0.0;
@@ -260,7 +171,7 @@ impl<'a> Solver for Ida<'a> {
     }
 }
 
-impl<'a> Drop for Ida<'a> {
+impl<D: Dae> Drop for Ida<D> {
     fn drop(&mut self) {
         unsafe {
             IDAFree(&mut self.ida_mem);
@@ -277,139 +188,101 @@ impl<'a> Drop for Ida<'a> {
 pub struct IdaSolverFactory;
 
 impl SolverFactory for IdaSolverFactory {
-    fn create<'a, T: Ode + 'a>(
+    fn create<'a, O: Ode + 'a, D: Dae + 'a>(
         &self,
         start_time: f64,
         rtol: f64,
-        _ode: T,
-        dae: Option<Dae3<'a>>,
+        _ode: O,
+        dae: Option<D>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         let dae = dae.ok_or_else(|| SimulationError::Solver("No DAE provided".to_owned()))?;
-        let ida = Ida::new(start_time, rtol, dae)?;
-        Ok(Box::new(ida))
-    }
-}
+        let neq = dae.neq() as i64;
 
-pub struct Dae3<'a> {
-    fmu: &'a FMU3,
-    input: Option<&'a StaticInput<'a>>,
-    nx: usize,
-    nz: usize,
-    known_vrs: Vec<fmi3ValueReference>,
-    unknown_vrs: Vec<fmi3ValueReference>,
-    algebraic_variable_nominal_vrs: Vec<fmi3ValueReference>,
-}
+        unsafe {
+            let mut sunctx = std::ptr::null_mut();
 
-impl<'a> Dae3<'a> {
-    pub fn new(
-        fmu: &'a FMU3,
-        input: Option<&'a StaticInput<'a>>,
-        known_vrs: Vec<fmi3ValueReference>,
-        unknown_vrs: Vec<fmi3ValueReference>,
-        algebraic_variable_nominal_vrs: Vec<fmi3ValueReference>,
-    ) -> Result<Self, SimulationError> {
-        let mut nx = 0;
-        expect_ok!(fmu.getNumberOfContinuousStates(&mut nx));
+            expect_no_error!(
+                SUNContext_Create(SUN_COMM_NULL, &mut sunctx),
+                "Failed to create SUNDIALS context"
+            );
 
-        let mut nz = 0;
-        expect_ok!(fmu.getNumberOfEventIndicators(&mut nz));
+            let ida_mem = IDACreate(sunctx);
+            expect_not_null!(ida_mem, "Failed to create IDA memory");
 
-        Ok(Self {
-            fmu,
-            input,
-            nx,
-            nz,
-            known_vrs,
-            unknown_vrs,
-            algebraic_variable_nominal_vrs,
-        })
-    }
+            // Allocate N-vectors
+            let yy: *mut crate::sundials::sundials_nvector::_generic_N_Vector =
+                N_VNew_Serial(neq, sunctx);
+            expect_not_null!(yy, "Failed to create yy vector");
 
-    pub fn init(
-        &self,
-        knowns: &mut [f64],
-        nominals: &mut [f64],
-        unknowns: &mut [f64],
-    ) -> Result<(), SimulationError> {
-        expect_ok!(self.fmu.getFloat64(&self.known_vrs, knowns));
-        expect_ok!(self.fmu.getFloat64(&self.unknown_vrs, unknowns));
-        expect_ok!(
-            self.fmu
-                .getNominalsOfContinuousStates(&mut nominals[..self.nx])
-        );
-        expect_ok!(self.fmu.getFloat64(
-            &self.algebraic_variable_nominal_vrs,
-            &mut nominals[self.nx..]
-        ));
-        Ok(())
-    }
+            let yp = N_VNew_Serial(neq, sunctx);
+            expect_not_null!(yp, "Failed to create yp vector");
 
-    pub fn residuals(
-        &self,
-        time: f64,
-        knowns: &[f64],
-        unknowns: &[f64],
-        residuals: &mut [f64],
-    ) -> Result<(), SimulationError> {
-        expect_ok!(self.fmu.setTime(time));
+            let avtol = N_VNew_Serial(neq, sunctx);
+            expect_not_null!(avtol, "Failed to create avtol vector");
 
-        if let Some(input) = self.input {
-            input.set_continuous_inputs(time, true, self.fmu)?;
-        }
+            let A = SUNDenseMatrix(neq, neq, sunctx);
+            expect_not_null!(A, "Failed to create A matrix");
 
-        expect_ok!(self.fmu.setFloat64(&self.known_vrs, knowns));
+            // Initialize vectors
+            let nominals = (*avtol).as_mut();
+            dae.init((*yy).as_mut(), nominals, (*yp).as_mut())?;
 
-        expect_ok!(self.fmu.getFloat64(&self.unknown_vrs, residuals));
-
-        for i in 0..self.nx {
-            residuals[i] -= unknowns[i];
-        }
-
-        Ok(())
-    }
-
-    pub fn root(&self, time: f64, knowns: &[f64], z: &mut [f64]) -> Result<(), SimulationError> {
-        expect_ok!(self.fmu.setTime(time));
-        if let Some(input) = self.input {
-            input.set_continuous_inputs(time, true, self.fmu)?;
-        }
-        expect_ok!(self.fmu.setFloat64(&self.known_vrs, knowns));
-        expect_ok!(self.fmu.getEventIndicators(z));
-        Ok(())
-    }
-
-    pub fn jacobian(
-        &self,
-        time: f64,
-        knowns: &[f64],
-        alpha: f64,
-        J: &mut [f64],
-    ) -> Result<(), SimulationError> {
-        expect_ok!(self.fmu.setTime(time));
-
-        if let Some(input) = self.input {
-            input.set_continuous_inputs(time, true, self.fmu)?;
-        }
-
-        expect_ok!(self.fmu.setFloat64(&self.known_vrs, knowns));
-
-        let n = self.known_vrs.len();
-
-        for i in 0..n {
-            let mut seed = vec![0.0; n];
-            seed[i] = 1.0;
-            let column = &mut J[i * n..(i + 1) * n];
-            expect_ok!(self.fmu.getDirectionalDerivative(
-                &self.unknown_vrs,
-                &self.known_vrs,
-                &seed,
-                column
-            ));
-            if i < self.nx {
-                column[i] -= alpha;
+            for nominal in nominals.iter_mut() {
+                *nominal *= rtol;
             }
-        }
 
-        Ok(())
+            expect_no_error!(
+                IDAInit(ida_mem, res::<D>, start_time, yy, yp),
+                "Failed to initilalize IDA"
+            );
+
+            if dae.nz() > 0 {
+                expect_no_error!(
+                    IDARootInit(ida_mem, dae.nz() as i32, g::<D>),
+                    "Failed to set root function"
+                );
+            }
+
+            expect_no_error!(
+                IDASVtolerances(ida_mem, rtol, avtol),
+                "Failed to set tolerances"
+            );
+
+            let LS = SUNLinSol_Dense(yy, A, sunctx);
+            expect_not_null!(LS, "Failed to create dense SUNLinearSolver");
+
+            expect_no_error!(
+                IDASetLinearSolver(ida_mem, LS, A),
+                "Failed to attach the matrix and linear solver"
+            );
+
+            expect_no_error!(
+                IDASetJacFn(ida_mem, jac::<D>),
+                "Failed to set Jacobian routine"
+            );
+
+            let dae = Box::new(dae);
+
+            let user_data: *const D = &*dae;
+
+            expect_no_error!(
+                IDASetUserData(ida_mem, user_data as *mut c_void),
+                "Failed to set user data"
+            );
+
+            let ida = Ida {
+                sunctx,
+                yy,
+                yp,
+                rtol,
+                avtol,
+                A,
+                LS,
+                ida_mem,
+                dae,
+            };
+
+            Ok(Box::new(ida))
+        }
     }
 }

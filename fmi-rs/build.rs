@@ -1,5 +1,7 @@
 mod build {
+    #[cfg(feature = "schema")]
     pub mod schema;
+    #[cfg(feature = "sundials")]
     pub mod sundials;
 }
 

@@ -48,7 +48,7 @@ fn fetch_and_build_libxml2(install_dir: &Path, target: &str) {
     let out_path = std::path::Path::new(&out_dir);
 
     println!(
-        "cargo:warning=libxml2 not found. Downloading and building libxml2 v{}...",
+        "cargo:warning=libxml2 not found. Downloading and building libxml2 v{} for {target}...",
         version
     );
 

@@ -1,4 +1,4 @@
-use crate::sim::solver::{Ode, Solver, SolverFactory};
+use crate::sim::solver::{Dae, Ode, Solver, SolverFactory};
 use crate::sim::{
     GetContinuousStateDerivativesFn, GetContinuousStatesFn, GetDirectionalDerivativeFn,
     GetEventIndicatorsFn, GetNominalsOfContinuousStatesFn, SetContinuousInputsFn,
@@ -6,7 +6,6 @@ use crate::sim::{
 };
 use crate::sundials::cvode::CV_BDF;
 use crate::sundials::nvector_serial::{NV_DATA_S, NV_LENGTH_S};
-use crate::sundials::solver::ida::Dae3;
 use crate::sundials::{
     cvode::{
         CV_NORMAL, CV_ROOT_RETURN, CVode, CVodeCreate, CVodeFree, CVodeInit, CVodeReInit,
@@ -51,7 +50,7 @@ macro_rules! expect_not_null {
     };
 }
 
-pub struct CVodeSolver<T: Ode> {
+pub struct CVodeSolver<O: Ode> {
     sunctx: SUNContext,
     x: N_Vector,
     rtol: f64,
@@ -59,18 +58,18 @@ pub struct CVodeSolver<T: Ode> {
     A: SUNMatrix,
     LS: SUNLinearSolver,
     cvode_mem: *mut c_void,
-    ode: Box<T>,
+    ode: Box<O>,
 }
 
 pub struct CVodeSolverFactory;
 
 impl SolverFactory for CVodeSolverFactory {
-    fn create<'a, T: Ode + 'a>(
+    fn create<'a, T: Ode + 'a, D: Dae + 'a>(
         &self,
         start_time: f64,
         rtol: f64,
         ode: T,
-        _dae: Option<Dae3>,
+        _dae: Option<D>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
         unsafe {
             let mut sunctx = std::ptr::null_mut();
