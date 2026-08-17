@@ -43,6 +43,9 @@ pub enum ModelDescriptionError {
 
     #[error("Illegal variable index: {0}")]
     VariableIndex(u32),
+
+    #[error("Illegal variable name: {0}")]
+    VariableName(String),
 }
 
 #[derive(Debug)]

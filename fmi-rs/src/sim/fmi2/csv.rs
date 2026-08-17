@@ -1,21 +1,21 @@
 use crate::{
-    model_description::fmi2::{ModelDescription, ScalarVariable},
+    model_description::fmi2::ModelDescription,
     sim::{
         SimulationError,
         fmi2::{Trajectories, parse_variable_value},
     },
 };
-use std::{collections::HashMap, io::Read, path::Path};
+use std::{io::Read, path::Path, sync::Arc};
 
 pub fn write_csv<P: AsRef<Path>>(
-    trajectories: &Trajectories<'_>,
+    trajectories: &Trajectories,
     output_file: P,
 ) -> std::io::Result<()> {
     let mut writer = csv::Writer::from_path(output_file)?;
 
     let mut header = vec!["time".to_string()];
 
-    for variable in trajectories.variables.iter() {
+    for variable in trajectories.variables() {
         header.push(variable.name.clone());
     }
 
@@ -36,17 +36,10 @@ pub fn write_csv<P: AsRef<Path>>(
     Ok(())
 }
 
-pub fn read_csv<'a, R: Read>(
+pub fn read_csv<R: Read>(
     reader: R,
-    model_description: &'a ModelDescription,
-) -> Result<Trajectories<'a>, SimulationError> {
-    // Create a map for quick lookup of variables by name
-    let variable_map: HashMap<&str, &ScalarVariable> = model_description
-        .modelVariables
-        .iter()
-        .map(|var| (var.name.as_str(), var))
-        .collect();
-
+    model_description: Arc<ModelDescription>,
+) -> Result<Trajectories, SimulationError> {
     let mut reader = csv::Reader::from_reader(reader);
 
     let headers = match reader.headers() {
@@ -58,16 +51,12 @@ pub fn read_csv<'a, R: Read>(
         }
     };
 
-    let mut variables: Vec<&ScalarVariable> = vec![];
+    let mut variable_indices = vec![];
+    let mut variable_types = vec![];
 
     for name in headers.iter().skip(1) {
-        if let Some(variable) = variable_map.get(name) {
-            variables.push(variable);
-        } else {
-            return Err(SimulationError::Parse(format!(
-                "Variable {name:?} does not exist in the FMU."
-            )));
-        }
+        variable_indices.push(model_description.variable_index_by_name(name)?);
+        variable_types.push(&model_description.variable_by_name(name)?.variableType);
     }
 
     let mut time = vec![];
@@ -98,7 +87,7 @@ pub fn read_csv<'a, R: Read>(
 
                 for (j, literal) in it.enumerate() {
                     row.push(
-                        parse_variable_value(&variables[j].variableType, literal).map_err(|e| {
+                        parse_variable_value(variable_types[j], literal).map_err(|e| {
                             SimulationError::Parse(format!(
                                 "Failed to parse '{literal:?}' (row {}, column {}): {e}",
                                 i + 2,
@@ -118,8 +107,8 @@ pub fn read_csv<'a, R: Read>(
 
     let trajectories = Trajectories {
         model_description,
+        variable_indices,
         time,
-        variables,
         rows,
     };
 

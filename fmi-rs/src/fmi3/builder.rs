@@ -1,7 +1,14 @@
 #![allow(non_snake_case)]
 
-use crate::{fmi3, sim::SimulationError, zip::extract_zip_archive};
-use std::path::{Path, PathBuf};
+use crate::{
+    fmi3::{self, FMU3, log::DefaultLogger},
+    sim::SimulationError,
+    zip::extract_zip_archive,
+};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tempfile::TempDir;
 
 pub struct FMU3Builder {
@@ -61,13 +68,12 @@ impl FMU3Builder {
         self
     }
 
-    pub fn instantiate_me(&self, instanceName: &str) -> Result<fmi3::FMU3, SimulationError> {
+    pub fn instantiate_me(&self, instanceName: &str) -> Result<Arc<FMU3>, SimulationError> {
         if let Some(me) = &self.model_description.modelExchange {
             let logger = if let Some(log_file) = &self.logFile {
-                fmi3::log::DefaultLogger::from_path(log_file)
-                    .map_err(SimulationError::io(&log_file))?
+                DefaultLogger::from_path(log_file).map_err(SimulationError::io(&log_file))?
             } else {
-                fmi3::log::DefaultLogger::default()
+                DefaultLogger::default()
             };
 
             fmi3::FMU3::instantiateModelExchange(
@@ -85,16 +91,15 @@ impl FMU3Builder {
         }
     }
 
-    pub fn instantiate_cs(&self, instanceName: &str) -> Result<fmi3::FMU3, SimulationError> {
+    pub fn instantiate_cs(&self, instanceName: &str) -> Result<Arc<FMU3>, SimulationError> {
         if let Some(cs) = &self.model_description.coSimulation {
             let logger = if let Some(log_file) = &self.logFile {
-                fmi3::log::DefaultLogger::from_path(log_file)
-                    .map_err(SimulationError::io(&log_file))?
+                DefaultLogger::from_path(log_file).map_err(SimulationError::io(&log_file))?
             } else {
-                fmi3::log::DefaultLogger::default()
+                DefaultLogger::default()
             };
 
-            fmi3::FMU3::instantiateCoSimulation(
+            FMU3::instantiateCoSimulation(
                 self.unzipdir.path(),
                 &cs.modelIdentifier,
                 instanceName,
@@ -103,9 +108,9 @@ impl FMU3Builder {
                 self.loggingOn,
                 self.eventModeUsed,
                 self.earlyReturnAllowed,
-                &self.requiredIntermediateVariables,
                 Box::new(logger),
                 self.logCalls,
+                None,
             )
         } else {
             Err(SimulationError::InterfaceType)

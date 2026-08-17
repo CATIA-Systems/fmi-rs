@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use crate::{
     fmi2::FMU2,
     model_description::fmi2::VariableType,
@@ -7,21 +9,26 @@ use crate::{
     },
 };
 
-pub struct Recorder<'res, 'md> {
-    pub simulation_result: &'res mut Trajectories<'md>,
+#[derive(Debug)]
+pub struct Recorder {
+    pub trajectories: RefCell<Trajectories>,
 }
 
-impl<'res, 'md> Recorder<'res, 'md> {
-    pub fn new(simulation_result: &'res mut Trajectories<'md>) -> Self {
-        Recorder { simulation_result }
+impl Recorder {
+    pub fn new(trajectories: Trajectories) -> Self {
+        Recorder {
+            trajectories: RefCell::new(trajectories),
+        }
     }
 
-    pub fn sample<I>(&mut self, time: f64, fmu: &FMU2<I>) -> Result<(), SimulationError> {
-        self.simulation_result.time.push(time);
+    pub fn sample<I>(&self, time: f64, fmu: &FMU2<I>) -> Result<(), SimulationError> {
+        let mut trajectories = self.trajectories.borrow_mut();
+
+        trajectories.time.push(time);
 
         let mut row = vec![];
 
-        for variable in self.simulation_result.variables.iter() {
+        for variable in trajectories.variables() {
             let value_references = [variable.valueReference];
 
             let variable_value = match variable.variableType {
@@ -50,8 +57,12 @@ impl<'res, 'md> Recorder<'res, 'md> {
             row.push(variable_value);
         }
 
-        self.simulation_result.rows.push(row);
+        trajectories.rows.push(row);
 
         Ok(())
+    }
+
+    pub fn into_trajectories(self) -> Trajectories {
+        self.trajectories.into_inner()
     }
 }

@@ -17,12 +17,12 @@ fn call(status: fmi3Status) -> Result<fmi3Status, SimulationError> {
 }
 
 #[derive(Debug)]
-pub struct StaticInput<'a> {
-    trajectories: Trajectories<'a>,
+pub struct StaticInput {
+    pub trajectories: Trajectories,
 }
 
-impl<'a> StaticInput<'a> {
-    pub fn new(trajectories: Trajectories<'a>) -> Self {
+impl StaticInput {
+    pub fn new(trajectories: Trajectories) -> Self {
         StaticInput { trajectories }
     }
 
@@ -43,7 +43,8 @@ impl<'a> StaticInput<'a> {
             let row0 = &self.trajectories.rows[i];
             let row1 = &self.trajectories.rows[i + 1];
 
-            for (j, variable) in self.trajectories.variables.iter().enumerate() {
+            for (j, variable_index) in self.trajectories.variable_indices.iter().enumerate() {
+                let variable = &self.trajectories.model_description.modelVariables[*variable_index];
                 if variable.variability == Variability::Continuous {
                     continue; // skip continuous variables
                 }
@@ -77,7 +78,8 @@ impl<'a> StaticInput<'a> {
 
         let row = &self.trajectories.rows[index];
 
-        for (variable, value) in self.trajectories.variables.iter().zip(row.iter()) {
+        for (variable_index, value) in self.trajectories.variable_indices.iter().zip(row.iter()) {
+            let variable = &self.trajectories.model_description.modelVariables[*variable_index];
             if variable.variability == Variability::Continuous {
                 continue;
             }
@@ -126,7 +128,8 @@ impl<'a> StaticInput<'a> {
             let row0 = &self.trajectories.rows[row_index];
             let row1 = &self.trajectories.rows[row_index + 1];
 
-            for (i, variable) in self.trajectories.variables.iter().enumerate() {
+            for (i, variable_index) in self.trajectories.variable_indices.iter().enumerate() {
+                let variable = &self.trajectories.model_description.modelVariables[*variable_index];
                 if variable.variability != Variability::Continuous {
                     continue;
                 }
@@ -171,7 +174,9 @@ impl<'a> StaticInput<'a> {
         } else {
             let row = &self.trajectories.rows[row_index];
 
-            for (variable, value) in self.trajectories.variables.iter().zip(row.iter()) {
+            for (variable_index, value) in self.trajectories.variable_indices.iter().zip(row.iter())
+            {
+                let variable = &self.trajectories.model_description.modelVariables[*variable_index];
                 if variable.variability != Variability::Continuous {
                     continue;
                 }

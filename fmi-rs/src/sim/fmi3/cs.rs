@@ -1,4 +1,8 @@
+use std::sync::Arc;
+
+use crate::fmi3::IntermediateUpdateHandler;
 use crate::fmi3::log::DefaultLogger;
+use crate::fmi3::types::{fmi3Boolean, fmi3Float64, fmi3ValueReference};
 use crate::sim::fmi3::{
     SimulationSettings, call, read_initial_fmu_state, set_start_values, write_final_fmu_state,
 };
@@ -13,10 +17,55 @@ use crate::{
     },
 };
 
+struct IntermediateValueRecorder {
+    input: Option<Arc<StaticInput>>,
+    recorder: Arc<Recorder>,
+}
+
+impl IntermediateUpdateHandler for IntermediateValueRecorder {
+    fn required_intermediate_variables(&self) -> Vec<fmi3ValueReference> {
+        let mut value_references = vec![];
+
+        if let Some(input) = &self.input {
+            value_references.extend(input.trajectories.value_references());
+        }
+
+        value_references.extend(self.recorder.trajectories.borrow().value_references());
+
+        value_references
+    }
+
+    fn intermediate_update(
+        &self,
+        fmu: &FMU3,
+        intermediateUpdateTime: fmi3Float64,
+        intermediateVariableSetRequested: fmi3Boolean,
+        intermediateVariableGetAllowed: fmi3Boolean,
+        intermediateStepFinished: fmi3Boolean,
+        canReturnEarly: fmi3Boolean,
+    ) -> (fmi3Boolean, fmi3Float64) {
+        if intermediateVariableSetRequested
+            && let Some(input) = &self.input
+            && let Err(_) = input.set_continuous_inputs(intermediateUpdateTime, false, fmu)
+        {
+            return (canReturnEarly, intermediateUpdateTime);
+        }
+
+        if intermediateVariableGetAllowed
+            && intermediateStepFinished
+            && let Err(_) = self.recorder.sample(intermediateUpdateTime, fmu)
+        {
+            return (canReturnEarly, intermediateUpdateTime);
+        }
+
+        (false, 0.0)
+    }
+}
+
 pub fn simulate(
     settings: &SimulationSettings,
-    input: Option<&StaticInput>,
-    recorder: &mut Recorder,
+    input: Option<Arc<StaticInput>>,
+    recorder: Arc<Recorder>,
 ) -> Result<(), SimulationError> {
     let start_time = settings.start_time;
     let stop_time = settings.stop_time;
@@ -45,8 +94,18 @@ pub fn simulate(
         DefaultLogger::default()
     };
 
+    let intermediate_update_handler: Option<Box<dyn IntermediateUpdateHandler>> =
+        if settings.intermediate_update {
+            Some(Box::new(IntermediateValueRecorder {
+                input: input.clone(),
+                recorder: recorder.clone(),
+            }))
+        } else {
+            None
+        };
+
     let fmu = FMU3::instantiateCoSimulation(
-        settings.unzipdir,
+        &settings.unzipdir,
         &co_simulation.modelIdentifier,
         &settings.model_description.modelName,
         &settings.model_description.instantiationToken,
@@ -54,16 +113,24 @@ pub fn simulate(
         settings.logging_on,
         settings.event_mode_used,
         settings.early_return_allowed,
-        &[],
         Box::new(logger),
         settings.log_fmi_calls,
+        intermediate_update_handler,
     )?;
 
     if let Some(path) = &settings.initial_fmu_state_file {
         read_initial_fmu_state(&fmu, path)?;
-        set_start_values(&settings.start_values, settings.model_description, &fmu)?;
+        set_start_values(
+            &settings.start_values,
+            settings.model_description.as_ref(),
+            &fmu,
+        )?;
     } else {
-        set_start_values(&settings.start_values, settings.model_description, &fmu)?;
+        set_start_values(
+            &settings.start_values,
+            settings.model_description.as_ref(),
+            &fmu,
+        )?;
 
         call(fmu.enterInitializationMode(
             if settings.set_tolerance {
@@ -135,7 +202,7 @@ pub fn simulate(
             n_steps,
         )?;
 
-        let next_input_event_time = input.and_then(|i| i.next_event_time(time));
+        let next_input_event_time = input.as_ref().and_then(|i| i.next_event_time(time));
 
         let next_communication_point = if can_handle_variable_communication_step_size {
             next_communication_point(next_regular_point, next_input_event_time, None, stop_time)

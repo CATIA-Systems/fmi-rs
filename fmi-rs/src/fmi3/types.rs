@@ -85,15 +85,13 @@ pub type fmi3ClockUpdateCallback =
 pub type fmi3IntermediateUpdateCallback = unsafe extern "C" fn(
     instanceEnvironment: fmi3InstanceEnvironment,
     intermediateUpdateTime: fmi3Float64,
-    eventOccurred: fmi3Boolean,
-    clocksTicked: fmi3Boolean,
     intermediateVariableSetRequested: fmi3Boolean,
     intermediateVariableGetAllowed: fmi3Boolean,
     intermediateStepFinished: fmi3Boolean,
     canReturnEarly: fmi3Boolean,
     earlyReturnRequested: *mut fmi3Boolean,
     earlyReturnTime: *mut fmi3Float64,
-) -> fmi3Status;
+);
 
 pub type fmi3LockPreemptionCallback = unsafe extern "C" fn();
 

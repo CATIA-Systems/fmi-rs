@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::dae::DaeManifest;
 use crate::fmi3::log::DefaultLogger;
 use crate::model_description::ModelDescriptionError;
@@ -15,8 +17,8 @@ use crate::{
 pub fn simulate<S: SolverFactory>(
     settings: &SimulationSettings,
     solver_factory: &S,
-    input: Option<&StaticInput>,
-    recorder: &mut Recorder,
+    input: Option<Arc<StaticInput>>,
+    recorder: Arc<Recorder>,
 ) -> Result<(), SimulationError> {
     let start_time = settings.start_time;
     let stop_time = settings.stop_time;
@@ -41,7 +43,7 @@ pub fn simulate<S: SolverFactory>(
     };
 
     let fmu = FMU3::instantiateModelExchange(
-        settings.unzipdir,
+        &settings.unzipdir,
         &model_exchange.modelIdentifier,
         &settings.model_description.modelName,
         &settings.model_description.instantiationToken,
@@ -51,10 +53,14 @@ pub fn simulate<S: SolverFactory>(
         settings.log_fmi_calls,
     )?;
 
-    set_start_values(&settings.start_values, settings.model_description, &fmu)?;
+    set_start_values(
+        &settings.start_values,
+        settings.model_description.as_ref(),
+        &fmu,
+    )?;
 
     let (dae, algebraic_variable_vrs) = if settings.enable_dae {
-        let (dae, vrs) = create_dae(settings, input, &fmu)?;
+        let (dae, vrs) = create_dae(settings, input.clone(), fmu.clone())?;
         (Some(dae), vrs)
     } else {
         (None, vec![])
@@ -70,7 +76,7 @@ pub fn simulate<S: SolverFactory>(
         if set_stop_time { Some(stop_time) } else { None },
     ))?;
 
-    if let Some(input) = &input {
+    if let Some(input) = input.as_deref() {
         input.set_discrete_inputs(time, &fmu)?;
         input.set_continuous_inputs(time, false, &fmu)?;
     }
@@ -106,7 +112,7 @@ pub fn simulate<S: SolverFactory>(
 
     call(fmu.enterContinuousTimeMode())?;
 
-    let ode = create_ode(settings, input, &fmu)?;
+    let ode = create_ode(settings, input.clone(), fmu.clone())?;
 
     let mut solver = solver_factory.create(time, settings.tolerance, ode, dae)?;
 
@@ -126,7 +132,7 @@ pub fn simulate<S: SolverFactory>(
             n_steps,
         )?;
 
-        let next_input_event_time = input.and_then(|i| i.next_event_time(time));
+        let next_input_event_time = input.as_ref().and_then(|i| i.next_event_time(time));
 
         let next_communication_point = next_communication_point(
             next_regular_point,
@@ -242,9 +248,9 @@ pub fn simulate<S: SolverFactory>(
     Ok(())
 }
 
-pub struct Ode3<'a> {
-    fmu: &'a FMU3,
-    input: Option<&'a StaticInput<'a>>,
+pub struct Ode3 {
+    fmu: Arc<FMU3>,
+    input: Option<Arc<StaticInput>>,
     nx: usize,
     nz: usize,
     supports_jacobian: bool,
@@ -260,7 +266,7 @@ macro_rules! expect_ok {
     };
 }
 
-impl<'a> Ode for Ode3<'a> {
+impl Ode for Ode3 {
     fn nx(&self) -> usize {
         self.nx
     }
@@ -278,8 +284,8 @@ impl<'a> Ode for Ode3<'a> {
     fn f(&self, time: f64, x: &[f64], der_x: &mut [f64]) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.setTime(time));
 
-        if let Some(input) = self.input {
-            input.set_continuous_inputs(time, true, self.fmu)?;
+        if let Some(input) = &self.input {
+            input.set_continuous_inputs(time, true, &self.fmu)?;
         }
 
         if self.nx > 0 {
@@ -306,8 +312,8 @@ impl<'a> Ode for Ode3<'a> {
     fn jacobian(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.setTime(time));
 
-        if let Some(input) = self.input {
-            input.set_continuous_inputs(time, true, self.fmu)?;
+        if let Some(input) = &self.input {
+            input.set_continuous_inputs(time, true, &self.fmu)?;
         }
 
         expect_ok!(self.fmu.setContinuousStates(x));
@@ -328,11 +334,11 @@ impl<'a> Ode for Ode3<'a> {
     }
 }
 
-fn create_ode<'a>(
-    settings: &SimulationSettings<'_>,
-    input: Option<&'a StaticInput>,
-    fmu: &'a FMU3,
-) -> Result<Ode3<'a>, SimulationError> {
+fn create_ode(
+    settings: &SimulationSettings,
+    input: Option<Arc<StaticInput>>,
+    fmu: Arc<FMU3>,
+) -> Result<Ode3, SimulationError> {
     let mut nx = 0;
     let mut nz = 0;
 
@@ -379,9 +385,9 @@ fn create_ode<'a>(
     Ok(ode)
 }
 
-pub struct Dae3<'a> {
-    fmu: &'a FMU3,
-    input: Option<&'a StaticInput<'a>>,
+pub struct Dae3 {
+    fmu: Arc<FMU3>,
+    input: Option<Arc<StaticInput>>,
     nx: usize,
     nz: usize,
     known_vrs: Vec<fmi3ValueReference>,
@@ -389,10 +395,10 @@ pub struct Dae3<'a> {
     algebraic_variable_nominal_vrs: Vec<fmi3ValueReference>,
 }
 
-impl<'a> Dae3<'a> {
+impl Dae3 {
     pub fn new(
-        fmu: &'a FMU3,
-        input: Option<&'a StaticInput<'a>>,
+        fmu: Arc<FMU3>,
+        input: Option<Arc<StaticInput>>,
         known_vrs: Vec<fmi3ValueReference>,
         unknown_vrs: Vec<fmi3ValueReference>,
         algebraic_variable_nominal_vrs: Vec<fmi3ValueReference>,
@@ -415,7 +421,7 @@ impl<'a> Dae3<'a> {
     }
 }
 
-impl<'a> Dae for Dae3<'a> {
+impl Dae for Dae3 {
     fn neq(&self) -> usize {
         self.known_vrs.len()
     }
@@ -456,8 +462,8 @@ impl<'a> Dae for Dae3<'a> {
     ) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.setTime(time));
 
-        if let Some(input) = self.input {
-            input.set_continuous_inputs(time, true, self.fmu)?;
+        if let Some(input) = &self.input {
+            input.set_continuous_inputs(time, true, &self.fmu)?;
         }
 
         expect_ok!(self.fmu.setFloat64(&self.known_vrs, knowns));
@@ -473,8 +479,8 @@ impl<'a> Dae for Dae3<'a> {
 
     fn root(&self, time: f64, knowns: &[f64], z: &mut [f64]) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.setTime(time));
-        if let Some(input) = self.input {
-            input.set_continuous_inputs(time, true, self.fmu)?;
+        if let Some(input) = &self.input {
+            input.set_continuous_inputs(time, true, &self.fmu)?;
         }
         expect_ok!(self.fmu.setFloat64(&self.known_vrs, knowns));
         expect_ok!(self.fmu.getEventIndicators(z));
@@ -490,8 +496,8 @@ impl<'a> Dae for Dae3<'a> {
     ) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.setTime(time));
 
-        if let Some(input) = self.input {
-            input.set_continuous_inputs(time, true, self.fmu)?;
+        if let Some(input) = &self.input {
+            input.set_continuous_inputs(time, true, &self.fmu)?;
         }
 
         expect_ok!(self.fmu.setFloat64(&self.known_vrs, knowns));
@@ -517,11 +523,11 @@ impl<'a> Dae for Dae3<'a> {
     }
 }
 
-fn create_dae<'a>(
-    settings: &SimulationSettings<'_>,
-    input: Option<&'a StaticInput>,
-    fmu: &'a FMU3,
-) -> Result<(Dae3<'a>, Vec<u32>), SimulationError> {
+fn create_dae(
+    settings: &SimulationSettings,
+    input: Option<Arc<StaticInput>>,
+    fmu: Arc<FMU3>,
+) -> Result<(Dae3, Vec<u32>), SimulationError> {
     let dae_manifest_path = settings
         .unzipdir
         .join("extra")
@@ -586,6 +592,10 @@ fn create_dae<'a>(
         .chain(residual_vrs)
         .collect();
 
+    call(fmu.enterConfigurationMode())?;
+    call(fmu.setBoolean(&[dae_manifest.enableDae.valueReference], &[true]))?;
+    call(fmu.exitConfigurationMode())?;
+
     let dae = Dae3::new(
         fmu,
         input,
@@ -593,9 +603,6 @@ fn create_dae<'a>(
         unknown_vrs.clone(),
         algebraic_variable_nominal_vrs.clone(),
     )?;
-    call(fmu.enterConfigurationMode())?;
-    call(fmu.setBoolean(&[dae_manifest.enableDae.valueReference], &[true]))?;
-    call(fmu.exitConfigurationMode())?;
 
     Ok((dae, algebraic_variable_vrs))
 }

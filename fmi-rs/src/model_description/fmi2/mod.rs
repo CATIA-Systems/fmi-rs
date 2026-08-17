@@ -370,9 +370,25 @@ impl ModelDescription {
         self.modelVariables.iter().find(|v| v.name == name)
     }
 
+    /// Returns the variable found with the given name.
+    pub fn variable_by_name(&self, name: &str) -> Result<&ScalarVariable, ModelDescriptionError> {
+        self.modelVariables
+            .iter()
+            .find(|v| v.name == name)
+            .ok_or_else(|| ModelDescriptionError::VariableName(name.to_owned()))
+    }
+
     /// Returns the variable with the given index as an Option
     pub fn get_variable_by_index(&self, index: VariableIndex) -> Option<&ScalarVariable> {
         self.modelVariables.get((index - 1) as usize)
+    }
+
+    /// Returns the index for the given variable name
+    pub fn variable_index_by_name(&self, name: &str) -> Result<usize, ModelDescriptionError> {
+        self.modelVariables
+            .iter()
+            .position(|v| v.name == name)
+            .ok_or_else(|| ModelDescriptionError::VariableName(name.to_owned()))
     }
 
     /// Returns the variable with the given index as a Result

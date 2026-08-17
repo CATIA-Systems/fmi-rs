@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     fmi2::{self, CS, FMU2, types::fmi2Status},
     sim::{
@@ -13,8 +15,8 @@ use crate::{
 
 pub fn simulate(
     settings: &SimulationSettings,
-    input: Option<&StaticInput>,
-    recorder: &mut Recorder,
+    input: Option<Arc<StaticInput>>,
+    recorder: Arc<Recorder>,
 ) -> Result<(), SimulationError> {
     let start_time = settings.start_time;
     let stop_time = settings.stop_time;
@@ -42,7 +44,7 @@ pub fn simulate(
     };
 
     let fmu = FMU2::<CS>::new(
-        settings.unzipdir,
+        &settings.unzipdir,
         &co_simulation.modelIdentifier,
         &settings.model_description.modelName,
         &settings.model_description.guid,
@@ -55,9 +57,9 @@ pub fn simulate(
 
     if let Some(path) = &settings.initial_fmu_state_file {
         read_initial_fmu_state(&fmu, path)?;
-        set_start_values(&settings.start_values, settings.model_description, &fmu)?;
+        set_start_values(&settings.start_values, &settings.model_description, &fmu)?;
     } else {
-        set_start_values(&settings.start_values, settings.model_description, &fmu)?;
+        set_start_values(&settings.start_values, &settings.model_description, &fmu)?;
 
         call(fmu.setupExperiment(
             if settings.set_tolerance {
@@ -91,7 +93,7 @@ pub fn simulate(
             n_steps,
         )?;
 
-        let next_input_event_time = input.and_then(|i| i.next_event_time(time));
+        let next_input_event_time = input.as_ref().and_then(|i| i.next_event_time(time));
 
         let next_communication_point = if can_handle_variable_communication_step_size {
             next_communication_point(next_regular_point, next_input_event_time, None, stop_time)

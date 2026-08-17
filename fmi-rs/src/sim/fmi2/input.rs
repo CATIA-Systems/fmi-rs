@@ -17,12 +17,12 @@ fn call(status: fmi2Status) -> Result<fmi2Status, SimulationError> {
 }
 
 #[derive(Debug)]
-pub struct StaticInput<'a> {
-    trajectories: Trajectories<'a>,
+pub struct StaticInput {
+    trajectories: Trajectories,
 }
 
-impl<'a> StaticInput<'a> {
-    pub fn new(trajectories: Trajectories<'a>) -> Self {
+impl StaticInput {
+    pub fn new(trajectories: Trajectories) -> Self {
         StaticInput { trajectories }
     }
 
@@ -43,7 +43,7 @@ impl<'a> StaticInput<'a> {
             let row0 = &self.trajectories.rows[i];
             let row1 = &self.trajectories.rows[i + 1];
 
-            for (j, variable) in self.trajectories.variables.iter().enumerate() {
+            for (j, variable) in self.trajectories.variables().enumerate() {
                 if variable.variability == Variability::Continuous {
                     continue; // skip continuous variables
                 }
@@ -76,7 +76,7 @@ impl<'a> StaticInput<'a> {
 
         let row = &self.trajectories.rows[index];
 
-        for (variable, value) in self.trajectories.variables.iter().zip(row.iter()) {
+        for (variable, value) in self.trajectories.variables().zip(row.iter()) {
             if variable.variability == Variability::Continuous {
                 continue;
             }
@@ -125,7 +125,7 @@ impl<'a> StaticInput<'a> {
             let row0 = &self.trajectories.rows[row_index];
             let row1 = &self.trajectories.rows[row_index + 1];
 
-            for (i, variable) in self.trajectories.variables.iter().enumerate() {
+            for (i, variable) in self.trajectories.variables().enumerate() {
                 if variable.variability != Variability::Continuous {
                     continue;
                 }
@@ -150,7 +150,7 @@ impl<'a> StaticInput<'a> {
         } else {
             let row = &self.trajectories.rows[row_index];
 
-            for (variable, value) in self.trajectories.variables.iter().zip(row.iter()) {
+            for (variable, value) in self.trajectories.variables().zip(row.iter()) {
                 if variable.variability != Variability::Continuous {
                     continue;
                 }

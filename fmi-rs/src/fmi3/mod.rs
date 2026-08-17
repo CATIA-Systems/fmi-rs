@@ -13,11 +13,11 @@ use crate::fmi3::log::Logger;
 use crate::sim::SimulationError::{self};
 use crate::{get_symbol, load_platform_binary};
 use libloading::Library;
-use std::cell::RefCell;
 use std::ffi::{CStr, CString};
-use std::os::raw::{c_uint, c_void};
+use std::os::raw::c_void;
 use std::path::Path;
 use std::ptr::{self, null, null_mut};
+use std::sync::Arc;
 use types::*;
 
 #[cfg(all(target_arch = "aarch64", target_os = "linux"))]
@@ -128,7 +128,8 @@ pub struct Message {
 }
 
 pub struct FMU3 {
-    logger: Box<RefCell<Box<dyn Logger>>>,
+    logger: Box<dyn Logger>,
+    intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
 
     logCalls: bool,
 
@@ -234,10 +235,77 @@ pub extern "C" fn logMessage(
     };
 
     if !instanceEnvironment.is_null() {
-        let logger = unsafe { &*(instanceEnvironment as *const RefCell<Box<dyn Logger>>) };
-        logger
-            .borrow()
-            .log_message(status, &category_str, &message_str);
+        let fmu: &FMU3 = unsafe { &*(instanceEnvironment as *const FMU3) };
+        fmu.logger.log_message(status, &category_str, &message_str);
+    }
+}
+
+pub trait IntermediateUpdateHandler {
+    fn required_intermediate_variables(&self) -> Vec<fmi3ValueReference>;
+    fn intermediate_update(
+        &self,
+        fmu: &FMU3,
+        intermediateUpdateTime: fmi3Float64,
+        intermediateVariableSetRequested: fmi3Boolean,
+        intermediateVariableGetAllowed: fmi3Boolean,
+        intermediateStepFinished: fmi3Boolean,
+        canReturnEarly: fmi3Boolean,
+    ) -> (fmi3Boolean, fmi3Float64);
+}
+
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
+pub extern "C" fn intermediateUpdate(
+    instanceEnvironment: fmi3InstanceEnvironment,
+    intermediateUpdateTime: fmi3Float64,
+    intermediateVariableSetRequested: fmi3Boolean,
+    intermediateVariableGetAllowed: fmi3Boolean,
+    intermediateStepFinished: fmi3Boolean,
+    canReturnEarly: fmi3Boolean,
+    earlyReturnRequested: *mut fmi3Boolean,
+    earlyReturnTime: *mut fmi3Float64,
+) {
+    if instanceEnvironment.is_null() {
+        return;
+    }
+
+    let fmu: &FMU3 = unsafe { &*(instanceEnvironment as *const FMU3) };
+
+    if let Some(handler) = &fmu.intermediateUpdateHandler {
+        let (early_return_requested, early_return_time) = handler.intermediate_update(
+            fmu,
+            intermediateUpdateTime,
+            intermediateVariableSetRequested,
+            intermediateVariableGetAllowed,
+            intermediateStepFinished,
+            canReturnEarly,
+        );
+
+        if !earlyReturnRequested.is_null() {
+            unsafe {
+                *earlyReturnRequested = early_return_requested;
+            }
+        }
+
+        if !earlyReturnTime.is_null() {
+            unsafe {
+                *earlyReturnTime = early_return_time;
+            }
+        }
+
+        if fmu.logCalls {
+            let message = format!(
+                "fmi3IntermediateUpdateCallback(\
+                intermediateUpdateTime={intermediateUpdateTime}, \
+                intermediateVariableSetRequested={intermediateVariableSetRequested}, \
+                intermediateVariableGetAllowed={intermediateVariableGetAllowed}, \
+                intermediateStepFinished={intermediateStepFinished}, \
+                canReturnEarly={canReturnEarly}, \
+                earlyReturnRequested={early_return_requested}, \
+                earlyReturnTime={early_return_time}\
+            )"
+            );
+            fmu.logger.log_call(fmi3Status::fmi3OK, &message);
+        }
     }
 }
 
@@ -247,6 +315,7 @@ impl FMU3 {
         modelIdentifier: &str,
         logger: Box<dyn Logger>,
         logCalls: bool,
+        intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
     ) -> Result<FMU3, SimulationError> {
         let library = load_platform_binary(unzipdir, PLATFORM_TUPLE, modelIdentifier)?;
 
@@ -396,7 +465,8 @@ impl FMU3 {
             *get_symbol::<fmi3ActivateModelPartitionTYPE>(&library, b"fmi3ActivateModelPartition")?;
 
         Ok(FMU3 {
-            logger: Box::new(RefCell::new(logger)),
+            logger,
+            intermediateUpdateHandler,
             logCalls,
             _lib: library,
             fmi3GetVersion,
@@ -479,7 +549,7 @@ impl FMU3 {
     }
 
     fn log_call(&self, status: fmi3Status, message: &str) {
-        self.logger.borrow().log_call(status, message);
+        self.logger.log_call(status, message);
     }
 
     pub fn getVersion(&self) -> String {
@@ -503,8 +573,14 @@ impl FMU3 {
         loggingOn: bool,
         logger: Box<dyn Logger>,
         logCalls: bool,
-    ) -> Result<FMU3, SimulationError> {
-        let mut fmu = FMU3::new(unzipdir, modelIdentifier, logger, logCalls)?;
+    ) -> Result<Arc<FMU3>, SimulationError> {
+        let fmu = Arc::new(FMU3::new(
+            unzipdir,
+            modelIdentifier,
+            logger,
+            logCalls,
+            None,
+        )?);
 
         let resource_path = unzipdir.join("resources").join("");
 
@@ -514,65 +590,36 @@ impl FMU3 {
             None
         };
 
-        fmu.instance = fmu._instantiateModelExchange(
-            instanceName,
-            instantiationToken,
-            resourcePath,
-            visible,
-            loggingOn,
-        );
-
-        if fmu.instance.is_null() {
-            Err(SimulationError::FMICall)
-        } else {
-            Ok(fmu)
-        }
-    }
-
-    fn _instantiateModelExchange(
-        &mut self,
-        instanceName: &str,
-        instantiationToken: &str,
-        resourcePath: Option<&Path>,
-        visible: bool,
-        loggingOn: bool,
-    ) -> fmi3Instance {
         let instance_name_cstr = CString::new(instanceName).unwrap();
-
         let instantiation_token_cstr = CString::new(instantiationToken).unwrap();
-
         let resource_path_cstr =
             resourcePath.and_then(|path| CString::new(path.to_string_lossy().as_ref()).ok());
-
         let path_ptr = resource_path_cstr
             .as_ref()
             .map(|cstr| cstr.as_ptr())
             .unwrap_or(ptr::null());
-
         let log_message = logMessage as *const fmi3LogMessageCallback;
-
-        let instanceEnvironment =
-            &*self.logger as *const RefCell<Box<dyn Logger>> as fmi3InstanceEnvironment;
+        let instanceEnvironment = Arc::as_ptr(&fmu).cast::<c_void>() as *mut c_void;
 
         let instance = unsafe {
-            (self.fmi3InstantiateModelExchange)(
-                /* instanceName */ instance_name_cstr.as_ptr(),
-                /* instantiationToken */ instantiation_token_cstr.as_ptr(),
-                /* resourcePath */ path_ptr,
-                /* visible */ visible,
-                /* loggingOn */ loggingOn,
-                /* instanceEnvironment */ instanceEnvironment,
-                /* logMessage */ log_message,
+            (fmu.fmi3InstantiateModelExchange)(
+                instance_name_cstr.as_ptr(),
+                instantiation_token_cstr.as_ptr(),
+                path_ptr,
+                visible,
+                loggingOn,
+                instanceEnvironment,
+                log_message,
             )
         };
 
-        let status = if instance.is_null() {
-            fmi3Status::fmi3Error
-        } else {
-            fmi3Status::fmi3OK
-        };
+        if fmu.logCalls {
+            let status = if instance.is_null() {
+                fmi3Status::fmi3Error
+            } else {
+                fmi3Status::fmi3OK
+            };
 
-        if self.logCalls {
             let message = format!(
                 "fmi3InstantiateModelExchange(instanceName=\"{}\", instantiationToken=\"{}\", resourcePath={:?}, visible={}, loggingOn={}, instanceEnvironment={:p}, logMessage={:p}) -> {:?}",
                 instanceName,
@@ -584,10 +631,17 @@ impl FMU3 {
                 log_message,
                 instance
             );
-            self.log_call(status, &message);
+            fmu.log_call(status, &message);
         }
 
-        instance
+        if fmu.instance.is_null() {
+            Err(SimulationError::FMICall)
+        } else {
+            let fmu_ptr = instanceEnvironment as *mut FMU3;
+            let mut_fmu: &mut FMU3 = unsafe { &mut *fmu_ptr };
+            mut_fmu.instance = instance;
+            Ok(fmu)
+        }
     }
 
     pub fn instantiateCoSimulation(
@@ -599,12 +653,10 @@ impl FMU3 {
         loggingOn: bool,
         eventModeUsed: bool,
         earlyReturnAllowed: bool,
-        requiredIntermediateVariables: &[c_uint],
         logger: Box<dyn Logger>,
         logCalls: bool,
-    ) -> Result<FMU3, SimulationError> {
-        let mut fmu = FMU3::new(unzipdir, modelIdentifier, logger, logCalls)?;
-
+        intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
+    ) -> Result<Arc<FMU3>, SimulationError> {
         let resource_path = unzipdir.join("resources").join("");
 
         let resourcePath = if resource_path.is_dir() {
@@ -613,68 +665,53 @@ impl FMU3 {
             None
         };
 
-        fmu.instance = fmu._instantiateCoSimulation(
-            instanceName,
-            instantiationToken,
-            resourcePath,
-            visible,
-            loggingOn,
-            eventModeUsed,
-            earlyReturnAllowed,
-            requiredIntermediateVariables,
-        );
-
-        if fmu.instance.is_null() {
-            Err(SimulationError::FMICall)
-        } else {
-            Ok(fmu)
-        }
-    }
-
-    fn _instantiateCoSimulation(
-        &mut self,
-        instanceName: &str,
-        instantiationToken: &str,
-        resourcePath: Option<&Path>,
-        visible: bool,
-        loggingOn: bool,
-        eventModeUsed: bool,
-        earlyReturnAllowed: bool,
-        requiredIntermediateVariables: &[c_uint],
-    ) -> fmi3Instance {
         let instance_name_cstr = CString::new(instanceName).unwrap();
-
         let instantiation_token_cstr = CString::new(instantiationToken).unwrap();
-
         let resource_path_cstr =
             resourcePath.and_then(|path| CString::new(path.to_string_lossy().as_ref()).ok());
-
         let path_ptr = resource_path_cstr
             .as_ref()
             .map(|cstr| cstr.as_ptr())
             .unwrap_or(ptr::null());
-
         let log_message = logMessage as *const fmi3LogMessageCallback;
 
-        let instanceEnvironment =
-            &*self.logger as *const RefCell<Box<dyn Logger>> as fmi3InstanceEnvironment;
+        let (requiredIntermediateVariables, intermediate_update) =
+            if let Some(handler) = intermediateUpdateHandler.as_ref() {
+                (
+                    handler.required_intermediate_variables(),
+                    intermediateUpdate as *const fmi3IntermediateUpdateCallback,
+                )
+            } else {
+                (
+                    vec![],
+                    ptr::null_mut() as *const fmi3IntermediateUpdateCallback,
+                )
+            };
 
-        let intermediate_update = ptr::null();
+        let fmu = Arc::new(FMU3::new(
+            unzipdir,
+            modelIdentifier,
+            logger,
+            logCalls,
+            intermediateUpdateHandler,
+        )?);
+
+        let instanceEnvironment = Arc::as_ptr(&fmu).cast::<c_void>() as *mut c_void;
 
         let instance = unsafe {
-            (self.fmi3InstantiateCoSimulation)(
-                /* instanceName */ instance_name_cstr.as_ptr(),
-                /* instantiationToken */ instantiation_token_cstr.as_ptr(),
-                /* resourcePath */ path_ptr,
-                /* visible */ visible,
-                /* loggingOn */ loggingOn,
-                /* eventModeUsed */ eventModeUsed,
-                /* earlyReturnAllowed */ earlyReturnAllowed,
-                /* requiredIntermediateVariables */ requiredIntermediateVariables.as_ptr(),
-                /* nRequiredIntermediateVariables */ requiredIntermediateVariables.len(),
-                /* instanceEnvironment */ instanceEnvironment,
-                /* logMessage */ log_message,
-                /* intermediateUpdate */ intermediate_update,
+            (fmu.fmi3InstantiateCoSimulation)(
+                instance_name_cstr.as_ptr(),
+                instantiation_token_cstr.as_ptr(),
+                path_ptr,
+                visible,
+                loggingOn,
+                eventModeUsed,
+                earlyReturnAllowed,
+                requiredIntermediateVariables.as_ptr(),
+                requiredIntermediateVariables.len(),
+                instanceEnvironment,
+                log_message,
+                intermediate_update,
             )
         };
 
@@ -684,9 +721,9 @@ impl FMU3 {
             fmi3Status::fmi3OK
         };
 
-        if self.logCalls {
+        if fmu.logCalls {
             let message = format!(
-                "fmi3InstantiateCoSimulation(instanceName=\"{}\", instantiationToken=\"{}\", resourcePath={:?}, visible={}, loggingOn={}, eventModeUsed={}, earlyReturnAllowed={}, nRequiredIntermediateVariables={}, instanceEnvironment={:p}, logMessage={:p}, intermediateUpdate={:p}) -> {:p}",
+                "fmi3InstantiateCoSimulation(instanceName=\"{}\", instantiationToken=\"{}\", resourcePath={:?}, visible={}, loggingOn={}, eventModeUsed={}, earlyReturnAllowed={}, requiredIntermediateVariables={:?}, nRequiredIntermediateVariables={}, instanceEnvironment={:p}, logMessage={:p}, intermediateUpdate={:p}) -> {:p}",
                 instanceName,
                 instantiationToken,
                 resourcePath,
@@ -694,16 +731,24 @@ impl FMU3 {
                 loggingOn,
                 eventModeUsed,
                 earlyReturnAllowed,
+                requiredIntermediateVariables,
                 requiredIntermediateVariables.len(),
                 instanceEnvironment,
                 log_message,
-                ptr::null() as *const c_void,
+                intermediate_update,
                 instance
             );
-            self.log_call(status, &message);
+            fmu.log_call(status, &message);
         }
 
-        instance
+        if instance.is_null() {
+            Err(SimulationError::FMICall)
+        } else {
+            let fmu_ptr = instanceEnvironment as *mut FMU3;
+            let mut_fmu: &mut FMU3 = unsafe { &mut *fmu_ptr };
+            mut_fmu.instance = instance;
+            Ok(fmu)
+        }
     }
 
     pub fn terminate(&self) -> fmi3Status {

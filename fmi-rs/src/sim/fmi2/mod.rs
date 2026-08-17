@@ -17,13 +17,13 @@ use crate::{
     sim::SimulationError,
 };
 
-use std::{collections::HashMap, fs, ptr};
+use std::{collections::HashMap, fs, ptr, sync::Arc};
 
 use std::path::{Path, PathBuf};
 
-pub struct SimulationSettings<'a> {
-    pub unzipdir: &'a Path,
-    pub model_description: &'a ModelDescription,
+pub struct SimulationSettings {
+    pub unzipdir: PathBuf,
+    pub model_description: Arc<ModelDescription>,
     pub start_time: f64,
     pub stop_time: f64,
     pub logging_on: bool,
@@ -77,27 +77,30 @@ impl VariableValue {
 }
 
 #[derive(Debug)]
-pub struct Trajectories<'a> {
-    pub model_description: &'a ModelDescription,
-    pub variables: Vec<&'a ScalarVariable>,
+pub struct Trajectories {
+    pub model_description: Arc<ModelDescription>,
+    pub variable_indices: Vec<usize>,
     pub time: Vec<f64>,
     pub rows: Vec<Vec<VariableValue>>,
 }
 
-impl<'a> Trajectories<'a> {
-    pub fn new(
-        model_description: &'a ModelDescription,
-        variables: Vec<&'a ScalarVariable>,
-    ) -> Self {
+impl Trajectories {
+    pub fn new(model_description: Arc<ModelDescription>, variable_indices: Vec<usize>) -> Self {
         Trajectories {
             model_description,
-            variables,
+            variable_indices,
             time: vec![],
             rows: vec![],
         }
     }
 
-    /// Validates the structural integrity and data consistency of the trajectories.
+    pub fn variables(&self) -> impl Iterator<Item = &ScalarVariable> {
+        self.variable_indices
+            .iter()
+            .copied()
+            .filter_map(|idx| self.model_description.modelVariables.get(idx))
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         if self.time.len() != self.rows.len() {
             return Err(format!(
@@ -119,12 +122,12 @@ impl<'a> Trajectories<'a> {
         }
 
         for (i, row) in self.rows.iter().enumerate() {
-            if row.len() != self.variables.len() {
+            if row.len() != self.variable_indices.len() {
                 return Err(format!(
                     "Row {} has {} columns, but {} variables are defined.",
                     i,
                     row.len(),
-                    self.variables.len()
+                    self.variable_indices.len()
                 ));
             }
         }
@@ -132,7 +135,6 @@ impl<'a> Trajectories<'a> {
         Ok(())
     }
 
-    /// Return a list of all event times
     pub fn events(&self) -> Vec<f64> {
         let mut events = vec![];
 
@@ -143,6 +145,18 @@ impl<'a> Trajectories<'a> {
         }
 
         events
+    }
+
+    pub fn len(&self) -> usize {
+        self.variable_indices.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.variable_indices.is_empty()
+    }
+
+    pub fn step_count(&self) -> usize {
+        self.time.len()
     }
 }
 

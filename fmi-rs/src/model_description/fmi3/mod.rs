@@ -694,6 +694,14 @@ impl ModelDescription {
         self.modelVariables.iter().find(|v| v.name == name)
     }
 
+    /// Returns the index for the given variable name
+    pub fn variable_index_by_name(&self, name: &str) -> Result<usize, ModelDescriptionError> {
+        self.modelVariables
+            .iter()
+            .position(|v| v.name == name)
+            .ok_or_else(|| ModelDescriptionError::VariableName(name.to_owned()))
+    }
+
     pub fn get_unit<'a>(&'a self, variable: &'a ModelVariable) -> Option<&'a str> {
         if let VariableType::Float32 {
             unit, declaredType, ..

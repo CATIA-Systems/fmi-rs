@@ -5,6 +5,7 @@ pub mod input;
 pub mod me;
 pub mod recorder;
 
+use std::sync::Arc;
 use std::{fs, ptr};
 
 use crate::model_description::fmi3::{Causality, ModelDescription};
@@ -16,9 +17,9 @@ use crate::{
 
 use std::path::{Path, PathBuf};
 
-pub struct SimulationSettings<'a> {
-    pub unzipdir: &'a Path,
-    pub model_description: &'a ModelDescription,
+pub struct SimulationSettings {
+    pub unzipdir: PathBuf,
+    pub model_description: Arc<ModelDescription>,
     pub enable_dae: bool,
     pub start_time: f64,
     pub stop_time: f64,
@@ -30,6 +31,7 @@ pub struct SimulationSettings<'a> {
     pub set_tolerance: bool,
     pub start_values: Vec<(String, String)>,
     pub log_fmi_calls: bool,
+    pub intermediate_update: bool,
     pub input_file: Option<PathBuf>,
     pub early_return_allowed: bool,
     pub event_mode_used: bool,
@@ -184,21 +186,49 @@ impl VariableValue {
 }
 
 #[derive(Debug)]
-pub struct Trajectories<'a> {
-    pub model_description: &'a ModelDescription,
-    pub variables: Vec<&'a ModelVariable>,
+pub struct Trajectories {
+    pub model_description: Arc<ModelDescription>,
+    pub variable_indices: Vec<usize>,
     pub time: Vec<f64>,
     pub rows: Vec<Vec<VariableValue>>,
 }
 
-impl<'a> Trajectories<'a> {
-    pub fn new(model_description: &'a ModelDescription, variables: Vec<&'a ModelVariable>) -> Self {
+impl Trajectories {
+    pub fn new(model_description: Arc<ModelDescription>, variable_indices: Vec<usize>) -> Self {
         Trajectories {
             model_description,
-            variables,
+            variable_indices,
             time: vec![],
             rows: vec![],
         }
+    }
+
+    pub fn value_references(&self) -> impl Iterator<Item = fmi3ValueReference> {
+        self.variable_indices.iter().copied().filter_map(|idx| {
+            self.model_description
+                .modelVariables
+                .get(idx)
+                .map(|v| v.valueReference)
+        })
+    }
+
+    pub fn variables(&self) -> impl Iterator<Item = &ModelVariable> {
+        self.variable_indices
+            .iter()
+            .copied()
+            .filter_map(|idx| self.model_description.modelVariables.get(idx))
+    }
+
+    pub fn len(&self) -> usize {
+        self.variable_indices.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.variable_indices.is_empty()
+    }
+
+    pub fn step_count(&self) -> usize {
+        self.time.len()
     }
 
     /// Validates the structural integrity and data consistency of the trajectories.
@@ -223,12 +253,12 @@ impl<'a> Trajectories<'a> {
         }
 
         for (i, row) in self.rows.iter().enumerate() {
-            if row.len() != self.variables.len() {
+            if row.len() != self.variable_indices.len() {
                 return Err(format!(
                     "Row {} has {} columns, but {} variables are defined.",
                     i,
                     row.len(),
-                    self.variables.len()
+                    self.variable_indices.len()
                 ));
             }
         }

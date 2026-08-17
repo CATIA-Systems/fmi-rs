@@ -1,6 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case)]
 
 use core::f64;
+use std::sync::Arc;
 use fmi_rs::fmi2::log::DefaultLogger;
 use fmi_rs::fmi2::*;
 use fmi_rs::model_description::fmi2::{Causality, ModelDescription};
@@ -71,11 +72,11 @@ fn test_csv_input() {
     let unzipdir = resources_dir.join("fmi2").join("Feedthrough");
 
     let model_description =
-        ModelDescription::from_path(&unzipdir.join("modelDescription.xml")).unwrap();
+        Arc::new(ModelDescription::from_path(&unzipdir.join("modelDescription.xml")).unwrap());
 
     let settings = SimulationSettings {
-        unzipdir: &unzipdir,
-        model_description: &model_description,
+        unzipdir: unzipdir,
+        model_description: model_description.clone(),
         start_time: 0.0,
         stop_time: 1.0,
         logging_on: true,
@@ -98,14 +99,16 @@ fn test_csv_input() {
         .model_description
         .modelVariables
         .iter()
-        .filter(|var| var.causality == Causality::Output)
+        .enumerate()
+        .filter(|(_i, v)| v.causality == Causality::Output)
+        .map(|(i, _v)| i)
         .collect();
 
-    let mut output = Trajectories::new(&model_description, output_variables);
+    let output = Trajectories::new(model_description, output_variables);
 
-    let mut recorder = Recorder::new(&mut output);
+    let recorder = Arc::new(Recorder::new(output));
 
-    simulate(&settings, None, &mut recorder).unwrap();
+    simulate(&settings, None, recorder).unwrap();
 }
 
 #[test]

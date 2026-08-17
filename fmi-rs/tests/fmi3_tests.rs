@@ -2,6 +2,7 @@
 
 use fmi_rs::fmi3::*;
 use fmi_rs::fmi3::{log::DefaultLogger, types::*};
+use std::sync::Arc;
 use std::{env, path::PathBuf};
 
 use fmi_rs::test_fixtures::download_reference_fmus;
@@ -13,7 +14,7 @@ macro_rules! assert_ok {
     };
 }
 
-fn create_fmu() -> FMU3 {
+fn create_fmu() -> Arc<FMU3> {
     let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/resources/");
 
     let reference_fmus_dir = resources_dir.join("Reference-FMUs");
@@ -38,9 +39,9 @@ fn create_fmu() -> FMU3 {
         true,
         false,
         false,
-        &[],
         Box::new(DefaultLogger::default()),
         true,
+        None,
     )
     .unwrap();
 

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     fmi2::{
         self, FMU2, ME,
@@ -18,8 +20,8 @@ use crate::{
 pub fn simulate<S: SolverFactory>(
     settings: &SimulationSettings,
     solver_factory: &S,
-    input: Option<&StaticInput>,
-    recorder: &mut Recorder,
+    input: Option<Arc<StaticInput>>,
+    recorder: Arc<Recorder>,
 ) -> Result<(), SimulationError> {
     let start_time = settings.start_time;
     let stop_time = settings.stop_time;
@@ -46,7 +48,7 @@ pub fn simulate<S: SolverFactory>(
     };
 
     let fmu = FMU2::<ME>::new(
-        settings.unzipdir,
+        &settings.unzipdir,
         &model_exchange.modelIdentifier,
         &settings.model_description.modelName,
         &settings.model_description.guid,
@@ -61,9 +63,9 @@ pub fn simulate<S: SolverFactory>(
 
     if let Some(path) = &settings.initial_fmu_state_file {
         read_initial_fmu_state(&fmu, path)?;
-        set_start_values(&settings.start_values, settings.model_description, &fmu)?;
+        set_start_values(&settings.start_values, &settings.model_description, &fmu)?;
     } else {
-        set_start_values(&settings.start_values, settings.model_description, &fmu)?;
+        set_start_values(&settings.start_values, &settings.model_description, &fmu)?;
 
         call(fmu.setupExperiment(
             if settings.set_tolerance {
@@ -120,7 +122,7 @@ pub fn simulate<S: SolverFactory>(
         call(fmu.enterContinuousTimeMode())?;
     }
 
-    let ode = create_ode(settings, input, &fmu)?;
+    let ode = create_ode(settings, input.clone(), &fmu)?;
 
     let mut solver = solver_factory.create(time, settings.tolerance, ode, None::<DummyDae>)?;
 
@@ -140,7 +142,7 @@ pub fn simulate<S: SolverFactory>(
             n_steps,
         )?;
 
-        let next_input_event_time = input.and_then(|i| i.next_event_time(time));
+        let next_input_event_time = input.as_ref().and_then(|i| i.next_event_time(time));
 
         let next_communication_point = next_communication_point(
             next_regular_point,
@@ -255,8 +257,8 @@ pub fn simulate<S: SolverFactory>(
 }
 
 fn create_ode<'a>(
-    settings: &SimulationSettings<'_>,
-    input: Option<&'a StaticInput>,
+    settings: &SimulationSettings,
+    input: Option<Arc<StaticInput>>,
     fmu: &'a FMU2<ME>,
 ) -> Result<Ode2<'a>, SimulationError> {
     let mut known_vrs = vec![];
@@ -296,7 +298,7 @@ fn create_ode<'a>(
 
 pub struct Ode2<'a> {
     fmu: &'a FMU2<ME>,
-    input: Option<&'a StaticInput<'a>>,
+    input: Option<Arc<StaticInput>>,
     nx: usize,
     nz: usize,
     supports_jacobian: bool,
@@ -331,7 +333,7 @@ impl<'a> Ode for Ode2<'a> {
         if self.nx > 0 {
             expect_ok!(self.fmu.setTime(time));
 
-            if let Some(input) = self.input {
+            if let Some(input) = &self.input {
                 input.set_continuous_inputs(time, true, self.fmu)?;
             }
 
@@ -357,7 +359,7 @@ impl<'a> Ode for Ode2<'a> {
     fn jacobian(&self, time: f64, x: &[f64], J: &mut [f64]) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.setTime(time));
 
-        if let Some(input) = self.input {
+        if let Some(input) = &self.input {
             input.set_continuous_inputs(time, true, self.fmu)?;
         }
 
