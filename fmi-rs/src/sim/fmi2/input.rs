@@ -3,8 +3,7 @@ use crate::{
     model_description::fmi2::Variability,
     sim::{
         SimulationError,
-        fmi2::{Trajectories, VariableValue, set_variable_value},
-        relative_eq,
+        fmi2::{Trajectories, VariableValue, set_variable_value}, relative_ge, relative_gt,
     },
 };
 
@@ -99,67 +98,44 @@ impl StaticInput {
         let mut row_index = 0;
 
         // find the index
-        while row_index < self.trajectories.time.len() - 1 {
+        while row_index < self.trajectories.time.len() - 2 {
             let next_time = self.trajectories.time[row_index + 1];
 
-            if !after_event && (relative_eq(next_time, time) || next_time > time) {
-                break;
-            }
-
-            if after_event && (next_time > time && !relative_eq(next_time, time)) {
+            if (!after_event && relative_ge(next_time, time))
+                || (after_event && relative_gt(next_time, time))
+            {
                 break;
             }
 
             row_index += 1;
         }
 
-        let time_s = self.trajectories.time[0];
-        let time_e = self.trajectories.time[self.trajectories.time.len() - 1];
+        let row0 = &self.trajectories.rows[row_index];
+        let row1 = &self.trajectories.rows[row_index + 1];
 
-        let interpolate = time > time_s
-            && !relative_eq(time, time_s)
-            && time < time_e
-            && !relative_eq(time, time_e);
-
-        if interpolate {
-            let row0 = &self.trajectories.rows[row_index];
-            let row1 = &self.trajectories.rows[row_index + 1];
-
-            for (i, variable) in self.trajectories.variables().enumerate() {
-                if variable.variability != Variability::Continuous {
-                    continue;
-                }
-
-                let t0 = self.trajectories.time[row_index];
-                let t1 = self.trajectories.time[row_index + 1];
-                let t = (time - t0) / (t1 - t0);
-
-                let value0 = &row0[i];
-                let value1 = &row1[i];
-
-                match value0 {
-                    VariableValue::Real(value0) => {
-                        if let VariableValue::Real(value1) = value1 {
-                            let interpolated_value = value0 + t * (value1 - value0);
-                            call(fmu.setReal(&[variable.valueReference], &[interpolated_value]))?;
-                        }
-                    }
-                    _ => panic!("Cannot set {value0:?}!"),
-                }
+        for (i, variable) in self.trajectories.variables().enumerate() {
+            if variable.variability != Variability::Continuous {
+                continue;
             }
-        } else {
-            let row = &self.trajectories.rows[row_index];
 
-            for (variable, value) in self.trajectories.variables().zip(row.iter()) {
-                if variable.variability != Variability::Continuous {
-                    continue;
-                }
+            let t0 = self.trajectories.time[row_index];
+            let t1 = self.trajectories.time[row_index + 1];
+            let t = ((time - t0) / (t1 - t0)).clamp(0.0, 1.0);
 
-                match value {
-                    VariableValue::Real(value) => {
-                        call(fmu.setReal(&[variable.valueReference], &[*value]))?;
+            let value0 = &row0[i];
+            let value1 = &row1[i];
+
+            match value0 {
+                VariableValue::Real(value0) => {
+                    if let VariableValue::Real(value1) = value1 {
+                        let interpolated_value = value0 + t * (value1 - value0);
+                        call(fmu.setReal(&[variable.valueReference], &[interpolated_value]))?;
                     }
-                    _ => panic!("Cannot set {value:?}!"),
+                }
+                _ => {
+                    return Err(SimulationError::Parameter(
+                        "Illegal type for continuous input".to_owned(),
+                    ));
                 }
             }
         }
