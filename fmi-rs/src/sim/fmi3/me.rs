@@ -23,7 +23,7 @@ pub fn simulate<S: SolverFactory>(
     let start_time = settings.start_time;
     let stop_time = settings.stop_time;
     let set_stop_time = settings.set_stop_time;
-    let _output_interval = settings.output_interval;
+    let relative_tolerance = settings.tolerance;
 
     let mut time = start_time;
 
@@ -121,7 +121,7 @@ pub fn simulate<S: SolverFactory>(
     loop {
         recorder.sample(time, &fmu)?;
 
-        if relative_ge(time, stop_time) {
+        if relative_ge(time, stop_time, relative_tolerance) {
             break;
         }
 
@@ -139,17 +139,25 @@ pub fn simulate<S: SolverFactory>(
             next_input_event_time,
             next_event_time,
             stop_time,
+            relative_tolerance,
         );
 
         let is_input_event = if let Some(input_event_time) = next_input_event_time {
-            relative_eq(input_event_time, next_communication_point)
+            relative_eq(
+                input_event_time,
+                next_communication_point,
+                relative_tolerance,
+            )
         } else {
             false
         };
 
         let is_time_event = if let Some(next_event_time) = next_event_time
-            && relative_eq(next_event_time, next_communication_point)
-        {
+            && relative_eq(
+                next_event_time,
+                next_communication_point,
+                relative_tolerance,
+            ) {
             true
         } else {
             false
@@ -173,7 +181,7 @@ pub fn simulate<S: SolverFactory>(
             input.set_continuous_inputs(time, false, &fmu)?;
         }
 
-        if relative_eq(time, next_regular_point) {
+        if relative_eq(time, next_regular_point, relative_tolerance) {
             n_steps += 1;
         }
 
@@ -219,7 +227,7 @@ pub fn simulate<S: SolverFactory>(
                 ))?;
 
                 if let Some(next_event_time) = next_event_time
-                    && relative_le(next_event_time, time)
+                    && relative_le(next_event_time, time, relative_tolerance)
                 {
                     return Err(SimulationError::NextEventTime {
                         time,

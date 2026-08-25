@@ -95,7 +95,7 @@ pub trait SolverFactory {
     fn create<'a, O: Ode + 'a, D: Dae + 'a>(
         &self,
         start_time: f64,
-        rtol: f64,
+        relative_tolerance: f64,
         ode: O,
         dae: Option<D>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError>;
@@ -104,6 +104,7 @@ pub trait SolverFactory {
 pub struct ForwardEuler<T: Ode> {
     start_time: f64,
     fixed_step_size: f64,
+    relative_tolerance: f64,
     n_steps: usize,
     x: Vec<f64>,
     nominals: Vec<f64>,
@@ -121,7 +122,7 @@ impl SolverFactory for ForwardEulerFactory {
     fn create<'a, O: Ode + 'a, D: Dae + 'a>(
         &self,
         start_time: f64,
-        _rtol: f64,
+        relative_tolerance: f64,
         ode: O,
         _dae: Option<D>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
@@ -141,6 +142,7 @@ impl SolverFactory for ForwardEulerFactory {
             ForwardEuler {
                 start_time,
                 fixed_step_size: self.fixed_step_size,
+                relative_tolerance,
                 n_steps: 0,
                 x,
                 nominals,
@@ -199,7 +201,11 @@ impl<T: Ode> Solver for ForwardEuler<T> {
         let mut time = self.start_time + self.n_steps as f64 * self.fixed_step_size;
 
         if next_time - time < self.fixed_step_size
-            && !relative_eq(next_time, time + self.fixed_step_size)
+            && !relative_eq(
+                next_time,
+                time + self.fixed_step_size,
+                self.relative_tolerance,
+            )
         {
             return Err(SimulationError::Parameter(format!(
                 "Next time ({next_time}) is too close to current time ({time})"
@@ -207,7 +213,11 @@ impl<T: Ode> Solver for ForwardEuler<T> {
         }
 
         while time + self.fixed_step_size < next_time
-            || relative_eq(time + self.fixed_step_size, next_time)
+            || relative_eq(
+                time + self.fixed_step_size,
+                next_time,
+                self.relative_tolerance,
+            )
         {
             let (time_reached, state_event) = self.do_fixed_step()?;
 

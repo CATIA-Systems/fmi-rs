@@ -3,7 +3,8 @@ use crate::{
     model_description::fmi2::Variability,
     sim::{
         SimulationError,
-        fmi2::{Trajectories, VariableValue, set_variable_value}, relative_ge, relative_gt,
+        fmi2::{Trajectories, VariableValue, set_variable_value},
+        relative_ge, relative_gt,
     },
 };
 
@@ -18,11 +19,15 @@ fn call(status: fmi2Status) -> Result<fmi2Status, SimulationError> {
 #[derive(Debug)]
 pub struct StaticInput {
     trajectories: Trajectories,
+    relative_tolerance: f64,
 }
 
 impl StaticInput {
-    pub fn new(trajectories: Trajectories) -> Self {
-        StaticInput { trajectories }
+    pub fn new(trajectories: Trajectories, relative_tolerance: f64) -> Self {
+        StaticInput {
+            trajectories,
+            relative_tolerance,
+        }
     }
 
     pub fn next_event_time(&self, time: f64) -> Option<f64> {
@@ -101,8 +106,8 @@ impl StaticInput {
         while row_index < self.trajectories.time.len() - 2 {
             let next_time = self.trajectories.time[row_index + 1];
 
-            if (!after_event && relative_ge(next_time, time))
-                || (after_event && relative_gt(next_time, time))
+            if (!after_event && relative_ge(next_time, time, self.relative_tolerance))
+                || (after_event && relative_gt(next_time, time, self.relative_tolerance))
             {
                 break;
             }

@@ -90,28 +90,28 @@ pub type GetDirectionalDerivativeFn<'a> =
 pub type SetContinuousStatesFn<'a> = Box<dyn Fn(&[f64]) -> Result<(), SimulationError> + 'a>;
 
 /// Approximate equality using both the absolute difference and relative based comparisons.
-pub fn relative_eq(lhs: f64, rhs: f64) -> bool {
-    relative_eq!(lhs, rhs)
+pub fn relative_eq(lhs: f64, rhs: f64, relative_tolerance: f64) -> bool {
+    relative_eq!(lhs, rhs, max_relative = relative_tolerance)
 }
 
 /// Greater or approximate equality using both the absolute difference and relative based comparisons.
-pub fn relative_ge(lhs: f64, rhs: f64) -> bool {
-    lhs > rhs || relative_eq(lhs, rhs)
+pub fn relative_ge(lhs: f64, rhs: f64, relative_tolerance: f64) -> bool {
+    lhs > rhs || relative_eq(lhs, rhs, relative_tolerance)
 }
 
 /// Less or approximate equality using both the absolute difference and relative based comparisons.
-pub fn relative_le(lhs: f64, rhs: f64) -> bool {
-    lhs < rhs || relative_eq(lhs, rhs)
+pub fn relative_le(lhs: f64, rhs: f64, relative_tolerance: f64) -> bool {
+    lhs < rhs || relative_eq(lhs, rhs, relative_tolerance)
 }
 
 /// Less than and not approximate equality using both the absolute difference and relative based comparisons.
-pub fn relative_lt(lhs: f64, rhs: f64) -> bool {
-    lhs < rhs && !relative_eq(lhs, rhs)
+pub fn relative_lt(lhs: f64, rhs: f64, relative_tolerance: f64) -> bool {
+    lhs < rhs && !relative_eq(lhs, rhs, relative_tolerance)
 }
 
 /// Greater than and not approximate equality using both the absolute difference and relative based comparisons.
-pub fn relative_gt(lhs: f64, rhs: f64) -> bool {
-    lhs > rhs && !relative_eq(lhs, rhs)
+pub fn relative_gt(lhs: f64, rhs: f64, relative_tolerance: f64) -> bool {
+    lhs > rhs && !relative_eq(lhs, rhs, relative_tolerance)
 }
 
 /// Validates the simulation steps and returns an error message if any of the checks fail.
@@ -119,6 +119,7 @@ pub fn validate_simulation_steps(
     start_time: f64,
     stop_time: f64,
     output_interval: f64,
+    relative_tolerance: f64,
 ) -> Result<(), String> {
     if stop_time < start_time {
         return Err(format!(
@@ -138,7 +139,11 @@ pub fn validate_simulation_steps(
             output_interval,
             stop_time - start_time
         ));
-    } else if !relative_eq(((stop_time - start_time) / output_interval).fract(), 0.0) {
+    } else if !relative_eq(
+        ((stop_time - start_time) / output_interval).fract(),
+        0.0,
+        relative_tolerance,
+    ) {
         return Err(format!(
             "Output interval ({}) must be a divisor of the simulation duration ({}).",
             output_interval,
@@ -155,22 +160,31 @@ pub fn next_communication_point(
     next_input_event_time: Option<f64>,
     next_event_time: Option<f64>,
     stop_time: f64,
+    relative_tolerance: f64,
 ) -> f64 {
     let mut next_communication_point = next_regular_point;
 
     if let Some(next_input_event_time) = next_input_event_time
-        && relative_gt(next_regular_point, next_input_event_time)
+        && relative_gt(
+            next_regular_point,
+            next_input_event_time,
+            relative_tolerance,
+        )
     {
         next_communication_point = next_input_event_time;
     }
 
     if let Some(next_event_time) = next_event_time
-        && relative_gt(next_communication_point, next_event_time)
+        && relative_gt(
+            next_communication_point,
+            next_event_time,
+            relative_tolerance,
+        )
     {
         next_communication_point = next_event_time;
     }
 
-    if relative_gt(next_communication_point, stop_time) {
+    if relative_gt(next_communication_point, stop_time, relative_tolerance) {
         next_communication_point = stop_time;
     }
 

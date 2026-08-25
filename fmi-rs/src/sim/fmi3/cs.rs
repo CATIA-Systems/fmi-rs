@@ -72,8 +72,9 @@ pub fn simulate(
     let set_stop_time = settings.set_stop_time;
     let output_interval = settings.output_interval;
     let event_mode_used = settings.event_mode_used;
+    let relative_tolerance = settings.tolerance;
 
-    validate_simulation_steps(start_time, stop_time, output_interval)
+    validate_simulation_steps(start_time, stop_time, output_interval, relative_tolerance)
         .map_err(SimulationError::Parameter)?;
 
     let mut time = start_time;
@@ -166,7 +167,7 @@ pub fn simulate(
                 ))?;
 
                 if let Some(next_event_time) = nextEventTime
-                    && relative_le(next_event_time, time)
+                    && relative_le(next_event_time, time, relative_tolerance)
                 {
                     return Err(SimulationError::NextEventTime {
                         time,
@@ -194,7 +195,7 @@ pub fn simulate(
 
     let mut input_applied = false;
 
-    while relative_lt(time, stop_time) {
+    while relative_lt(time, stop_time, relative_tolerance) {
         let next_regular_point = next_regular_point(
             settings.log_time_scale,
             start_time,
@@ -205,7 +206,13 @@ pub fn simulate(
         let next_input_event_time = input.as_ref().and_then(|i| i.next_event_time(time));
 
         let next_communication_point = if can_handle_variable_communication_step_size {
-            next_communication_point(next_regular_point, next_input_event_time, None, stop_time)
+            next_communication_point(
+                next_regular_point,
+                next_input_event_time,
+                None,
+                stop_time,
+                relative_tolerance,
+            )
         } else {
             next_regular_point
         };
@@ -244,7 +251,7 @@ pub fn simulate(
             next_communication_point
         };
 
-        if relative_eq(time, next_regular_point) {
+        if relative_eq(time, next_regular_point, relative_tolerance) {
             n_steps += 1;
         }
 
@@ -256,7 +263,11 @@ pub fn simulate(
         }
 
         let input_event = if let Some(next_input_event_time) = next_input_event_time {
-            relative_eq(next_communication_point, next_input_event_time)
+            relative_eq(
+                next_communication_point,
+                next_input_event_time,
+                relative_tolerance,
+            )
         } else {
             false
         };
@@ -285,7 +296,7 @@ pub fn simulate(
                 ))?;
 
                 if let Some(next_event_time) = nextEventTime
-                    && relative_le(next_event_time, time)
+                    && relative_le(next_event_time, time, relative_tolerance)
                 {
                     return Err(SimulationError::NextEventTime {
                         time,

@@ -67,7 +67,7 @@ impl SolverFactory for CVodeSolverFactory {
     fn create<'a, T: Ode + 'a, D: Dae + 'a>(
         &self,
         start_time: f64,
-        rtol: f64,
+        relative_tolerance: f64,
         ode: T,
         _dae: Option<D>,
     ) -> Result<Box<dyn Solver + 'a>, SimulationError> {
@@ -107,7 +107,7 @@ impl SolverFactory for CVodeSolverFactory {
             if nx > 0 {
                 ode.init(x_slice, abstol_slice)?;
                 for value in abstol_slice.iter_mut() {
-                    *value *= rtol;
+                    *value *= relative_tolerance;
                 }
             } else {
                 x_slice.fill(0.0); // Dummy state for discrete systems
@@ -120,7 +120,7 @@ impl SolverFactory for CVodeSolverFactory {
             );
 
             expect_no_error!(
-                CVodeSVtolerances(cvode_mem, rtol, abstol),
+                CVodeSVtolerances(cvode_mem, relative_tolerance, abstol),
                 "Failed to set tolerances"
             );
 
@@ -152,7 +152,7 @@ impl SolverFactory for CVodeSolverFactory {
             Ok(Box::new(CVodeSolver {
                 sunctx,
                 x,
-                rtol,
+                rtol: relative_tolerance,
                 abstol,
                 A,
                 LS,
