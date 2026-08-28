@@ -634,7 +634,7 @@ impl FMU3 {
             fmu.log_call(status, &message);
         }
 
-        if fmu.instance.is_null() {
+        if instance.is_null() {
             Err(SimulationError::FMICall)
         } else {
             let fmu_ptr = instanceEnvironment as *mut FMU3;
