@@ -34,7 +34,6 @@ pub enum fmi3Status {
     fmi3Discard = 2,
     fmi3Error = 3,
     fmi3Fatal = 4,
-    fmi3Pending = 5,
 }
 
 impl TryFrom<i32> for fmi3Status {
@@ -47,7 +46,6 @@ impl TryFrom<i32> for fmi3Status {
             2 => Ok(fmi3Status::fmi3Discard),
             3 => Ok(fmi3Status::fmi3Error),
             4 => Ok(fmi3Status::fmi3Fatal),
-            5 => Ok(fmi3Status::fmi3Pending),
             _ => Err(()),
         }
     }

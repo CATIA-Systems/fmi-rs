@@ -63,7 +63,6 @@ impl Logger for DefaultLogger {
                 fmi3Status::fmi3Error => "[ERROR]".bright_red(),
                 fmi3Status::fmi3Discard => "[DISCARD]".bright_red(),
                 fmi3Status::fmi3Fatal => "[FATAL]".bright_red(),
-                fmi3Status::fmi3Pending => "[PENDING]".bright_red(),
             };
             writeln!(self.stream.borrow_mut(), "{prefix} [{category}] {message}")
                 .unwrap_or_else(|e| eprintln!("Failed to write log message: {e}"));
@@ -74,7 +73,6 @@ impl Logger for DefaultLogger {
                 fmi3Status::fmi3Error => "[ERROR]",
                 fmi3Status::fmi3Discard => "[DISCARD]",
                 fmi3Status::fmi3Fatal => "[FATAL]",
-                fmi3Status::fmi3Pending => "[PENDING]",
             };
             writeln!(self.stream.borrow_mut(), "{prefix} [{category}] {message}")
                 .unwrap_or_else(|e| eprintln!("Failed to write log message: {e}"));
