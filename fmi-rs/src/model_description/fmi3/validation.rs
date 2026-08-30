@@ -282,8 +282,6 @@ impl ModelDescription {
         }
 
         for derivative in &self.derivatives {
-            expected_initial_unknown_vrs.insert(derivative.valueReference);
-
             if let Some(derivative_variable) =
                 self.get_variable_by_value_reference(derivative.valueReference)
             {
@@ -294,17 +292,15 @@ impl ModelDescription {
                     expected_initial_unknown_vrs.insert(derivative_variable.valueReference);
                 }
 
-                if let VariableType::Float64 { derivative, .. }
-                | VariableType::Float32 { derivative, .. } = &derivative_variable.variableType
-                    && let Some(continuous_state_vr) = derivative
+                if let Some(continuous_state_vr) = derivative_variable.variableType.derivative()
                     && let Some(continuous_state_variable) =
-                        self.get_variable_by_value_reference(*continuous_state_vr)
+                        self.get_variable_by_value_reference(continuous_state_vr)
                     && matches!(
                         continuous_state_variable.initial,
                         Some(Initial::Approx) | Some(Initial::Calculated)
                     )
                 {
-                    expected_initial_unknown_vrs.insert(*continuous_state_vr);
+                    expected_initial_unknown_vrs.insert(continuous_state_vr);
                 }
             }
         }

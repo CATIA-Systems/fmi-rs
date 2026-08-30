@@ -264,20 +264,18 @@ impl ModelDescription {
             .modelVariables
             .iter()
             .enumerate()
-            .filter(|i| {
-                (i.1.causality == Causality::Output
+            .filter(|(_index, variable)| {
+                (variable.causality == Causality::Output
                     && matches!(
-                        i.1.initial,
+                        variable.initial,
                         Some(Initial::Approx) | Some(Initial::Calculated)
                     ))
-                    || i.1.causality == Causality::CalculatedParameter
+                    || variable.causality == Causality::CalculatedParameter
             })
-            .map(|i| (i.0 + 1) as u32)
+            .map(|(index, _variable)| (index + 1) as u32)
             .collect::<HashSet<u32>>();
 
         for derivative in &self.derivatives {
-            expected_initial_unknown_indices.insert(derivative.index);
-
             if let Some(derivative_variable) = self.get_variable_by_index(derivative.index) {
                 if matches!(
                     derivative_variable.initial,
@@ -286,16 +284,15 @@ impl ModelDescription {
                     expected_initial_unknown_indices.insert(derivative.index);
                 }
 
-                if let VariableType::Real { derivative, .. } = &derivative_variable.variableType
-                    && let Some(continuous_state_index) = derivative
+                if let Ok(continuous_state_index) = derivative_variable.variableType.derivative()
                     && let Some(continuous_state_variable) =
-                        self.get_variable_by_index(*continuous_state_index)
+                        self.get_variable_by_index(continuous_state_index)
                     && matches!(
                         continuous_state_variable.initial,
                         Some(Initial::Approx) | Some(Initial::Calculated)
                     )
                 {
-                    expected_initial_unknown_indices.insert(*continuous_state_index);
+                    expected_initial_unknown_indices.insert(continuous_state_index);
                 }
             }
         }
