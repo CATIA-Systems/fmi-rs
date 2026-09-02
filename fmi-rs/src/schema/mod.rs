@@ -77,6 +77,9 @@ const FMI3_VARIABLE_XSD: &str = concat!(include_str!("fmi3/fmi3Variable.xsd"), "
 const FMI3_VARIABLE_DEPENDENCY_XSD: &str =
     concat!(include_str!("fmi3/fmi3VariableDependency.xsd"), "\0");
 
+const FMI_LS_DAE_MANIFEST_XSD: &str =
+    concat!(include_str!("dae/fmi3LayeredStandardDaeManifest.xsd"), "\0");
+
 #[unsafe(no_mangle)]
 unsafe extern "C" fn custom_entity_loader(
     url: *const c_char,
@@ -164,6 +167,11 @@ pub fn validate_fmi3_model_description(document: &[u8]) -> Vec<String> {
 
 pub fn validate_build_description(document: &[u8]) -> Vec<String> {
     let schema_buffer = FMI3_BUILD_DESCRIPTION_XSD.as_bytes();
+    validate_xml_document_against_schema(document, schema_buffer, Some(custom_entity_loader))
+}
+
+pub fn validate_dae_manifest(document: &[u8]) -> Vec<String> {
+    let schema_buffer = FMI_LS_DAE_MANIFEST_XSD.as_bytes();
     validate_xml_document_against_schema(document, schema_buffer, Some(custom_entity_loader))
 }
 

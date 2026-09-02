@@ -9,11 +9,21 @@ use serde_with::serde_as;
 use strum_macros::{Display, EnumString};
 use thiserror::Error;
 
+const FMI_LS_NAME: &str = "org.fmi-standard.fmi-ls-dae";
+const FMI_LS_VERSION: &str = "1.0.0-alpha.1";
+
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DaeManifest {
-    #[serde(rename = "EnableDAE")]
-    pub enableDae: EnableDAE,
+    #[serde(rename = "@fmi-ls-name")]
+    pub fmiLsName: String,
+
+    #[serde(rename = "@fmi-ls-version")]
+    pub fmiLsVersion: String,
+
+    #[serde(rename = "EnableDAEParameter")]
+    pub enableDaeParameter: EnableDAEParameter,
 
     #[serde(rename = "AlgebraicVariables")]
     pub algebraicVariables: AlgebraicVariables,
@@ -23,7 +33,7 @@ pub struct DaeManifest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct EnableDAE {
+pub struct EnableDAEParameter {
     #[serde(rename = "@valueReference")]
     pub valueReference: u32,
 }
@@ -38,9 +48,6 @@ pub struct AlgebraicVariables {
 pub struct AlgebraicVariable {
     #[serde(rename = "@valueReference")]
     pub valueReference: u32,
-
-    #[serde(rename = "@nominal")]
-    pub nominal: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display, EnumString)]
@@ -55,7 +62,7 @@ pub enum DependencyKind {
 
 #[serde_as]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ContinuousStateDerivative {
+pub struct Unknown {
     #[serde(rename = "@valueReference")]
     pub valueReference: u32,
 
@@ -66,39 +73,21 @@ pub struct ContinuousStateDerivative {
     #[serde(rename = "@dependenciesKind")]
     #[serde_as(as = "Option<StringWithSeparator::<SpaceSeparator, DependencyKind>>")]
     pub dependenciesKind: Option<Vec<DependencyKind>>,
-}
-
-#[serde_as]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Formulation {
-    #[serde(rename = "@index")]
-    pub index: u32,
-
-    #[serde(rename = "@valueReference")]
-    pub valueReference: u32,
-
-    #[serde(rename = "@dependencies")]
-    #[serde_as(as = "Option<StringWithSeparator::<SpaceSeparator, u32>>")]
-    pub dependencies: Option<Vec<u32>>,
-
-    #[serde(rename = "@dependenciesKind")]
-    #[serde_as(as = "Option<StringWithSeparator::<SpaceSeparator, DependencyKind>>")]
-    pub dependenciesKind: Option<Vec<DependencyKind>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Residual {
-    #[serde(rename = "Formulation")]
-    pub formulations: Vec<Formulation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModelStructure {
     #[serde(rename = "ContinuousStateDerivative")]
-    pub continuousStateDerivatives: Vec<ContinuousStateDerivative>,
+    pub continuousStateDerivatives: Vec<Unknown>,
+
+    #[serde(rename = "InitialUnknown")]
+    pub initialUnknowns: Vec<Unknown>,
+
+    #[serde(rename = "EventIndicator")]
+    pub eventIndicators: Vec<Unknown>,
 
     #[serde(rename = "Residual")]
-    pub residuals: Vec<Residual>,
+    pub residuals: Vec<Unknown>,
 }
 
 #[derive(Error, Debug)]
@@ -114,8 +103,17 @@ impl DaeManifest {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, DaeManifestError> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
-        let build_description: DaeManifest = quick_xml::de::from_reader(reader)
+        let manifest: DaeManifest = quick_xml::de::from_reader(reader)
             .map_err(|e| DaeManifestError::Parse(e.to_string()))?;
-        Ok(build_description)
+
+        if manifest.fmiLsName != FMI_LS_NAME {
+            return Err(DaeManifestError::Parse(format!("Illegal value for attribute 'fmi-ls-name': expected '{FMI_LS_NAME}' but was '{}'", manifest.fmiLsName)))
+        }
+
+        if manifest.fmiLsVersion != FMI_LS_VERSION {
+            return Err(DaeManifestError::Parse(format!("Illegal value for attribute 'fmi-ls-version': expected '{FMI_LS_VERSION}' but was '{}'", manifest.fmiLsVersion)))
+        }
+
+        Ok(manifest)
     }
 }

@@ -400,7 +400,7 @@ pub struct Dae3 {
     nz: usize,
     known_vrs: Vec<fmi3ValueReference>,
     unknown_vrs: Vec<fmi3ValueReference>,
-    algebraic_variable_nominal_vrs: Vec<fmi3ValueReference>,
+    algebraic_variable_nominals: Vec<fmi3Float64>,
 }
 
 impl Dae3 {
@@ -409,7 +409,7 @@ impl Dae3 {
         input: Option<Arc<StaticInput>>,
         known_vrs: Vec<fmi3ValueReference>,
         unknown_vrs: Vec<fmi3ValueReference>,
-        algebraic_variable_nominal_vrs: Vec<fmi3ValueReference>,
+        algebraic_variable_nominals: Vec<fmi3Float64>,
     ) -> Result<Self, SimulationError> {
         let mut nx = 0;
         expect_ok!(fmu.getNumberOfContinuousStates(&mut nx));
@@ -424,7 +424,7 @@ impl Dae3 {
             nz,
             known_vrs,
             unknown_vrs,
-            algebraic_variable_nominal_vrs,
+            algebraic_variable_nominals,
         })
     }
 }
@@ -454,10 +454,9 @@ impl Dae for Dae3 {
             self.fmu
                 .getNominalsOfContinuousStates(&mut nominals[..self.nx])
         );
-        expect_ok!(self.fmu.getFloat64(
-            &self.algebraic_variable_nominal_vrs,
-            &mut nominals[self.nx..]
-        ));
+        for (i, v) in self.algebraic_variable_nominals.iter().enumerate() {
+            nominals[self.nx + i] = *v;
+        }
         Ok(())
     }
 
@@ -546,7 +545,7 @@ fn create_dae(
     let mut continuous_state_vrs = vec![];
     let mut continuous_state_derivative_vrs = vec![];
     let mut algebraic_variable_vrs = vec![];
-    let mut algebraic_variable_nominal_vrs = vec![];
+    let mut algebraic_variable_nominals = vec![];
 
     for derivative in dae_manifest.modelStructure.continuousStateDerivatives {
         continuous_state_derivative_vrs.push(derivative.valueReference);
@@ -571,22 +570,16 @@ fn create_dae(
 
     for algebraic_variable in &dae_manifest.algebraicVariables.algebraicVariables {
         algebraic_variable_vrs.push(algebraic_variable.valueReference);
-        algebraic_variable_nominal_vrs.push(algebraic_variable.nominal);
+        let variable = settings.model_description.fetch_variable_by_value_reference(algebraic_variable.valueReference)?;
+        algebraic_variable_nominals.push(variable.variableType.nominal().unwrap_or(1.0));
     }
 
-    let residual_vrs = dae_manifest
+    let residual_vrs: Vec<u32> = dae_manifest
         .modelStructure
         .residuals
         .iter()
-        .enumerate()
-        .map(|(i, residual)| match residual.formulations.as_slice() {
-            [first] => Ok(first.valueReference),
-            _ => Err(SimulationError::Parameter(format!(
-                "Residual {} must have exactly one formuation",
-                i + 1
-            ))),
-        })
-        .collect::<Result<Vec<u32>, SimulationError>>()?;
+        .map(|r| r.valueReference)
+        .collect();
 
     let known_vrs: Vec<u32> = continuous_state_vrs
         .clone()
@@ -601,15 +594,15 @@ fn create_dae(
         .collect();
 
     call(fmu.enterConfigurationMode())?;
-    call(fmu.setBoolean(&[dae_manifest.enableDae.valueReference], &[true]))?;
+    call(fmu.setBoolean(&[dae_manifest.enableDaeParameter.valueReference], &[true]))?;
     call(fmu.exitConfigurationMode())?;
 
     let dae = Dae3::new(
         fmu,
         input,
-        known_vrs.clone(),
-        unknown_vrs.clone(),
-        algebraic_variable_nominal_vrs.clone(),
+        known_vrs,
+        unknown_vrs,
+        algebraic_variable_nominals,
     )?;
 
     Ok((dae, algebraic_variable_vrs))
