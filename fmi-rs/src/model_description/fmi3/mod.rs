@@ -674,24 +674,22 @@ pub struct ModelDescription {
 
 impl ModelDescription {
     /// Returns the variable with the given value reference.
-    pub fn get_variable_by_value_reference(
-        &self,
-        vr: fmi3ValueReference,
-    ) -> Option<&ModelVariable> {
-        self.modelVariables.iter().find(|v| v.valueReference == vr)
-    }
-
-    pub fn fetch_variable_by_value_reference(
+    pub fn variable_by_value_reference(
         &self,
         vr: fmi3ValueReference,
     ) -> Result<&ModelVariable, ModelDescriptionError> {
-        self.get_variable_by_value_reference(vr)
-            .ok_or(ModelDescriptionError::ValueReference(vr))
+        self.modelVariables
+            .iter()
+            .find(|v| v.valueReference == vr)
+            .ok_or_else(|| ModelDescriptionError::ValueReference(vr))
     }
 
     /// Returns the variable with the given name.
-    pub fn get_variable_by_name(&self, name: &str) -> Option<&ModelVariable> {
-        self.modelVariables.iter().find(|v| v.name == name)
+    pub fn variable_by_name(&self, name: &str) -> Result<&ModelVariable, ModelDescriptionError> {
+        self.modelVariables
+            .iter()
+            .find(|v| v.name == name)
+            .ok_or_else(|| ModelDescriptionError::VariableName(name.to_owned()))
     }
 
     /// Returns the index for the given variable name

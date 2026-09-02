@@ -12,7 +12,6 @@ use thiserror::Error;
 const FMI_LS_NAME: &str = "org.fmi-standard.fmi-ls-dae";
 const FMI_LS_VERSION: &str = "1.0.0-alpha.1";
 
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DaeManifest {
@@ -107,11 +106,17 @@ impl DaeManifest {
             .map_err(|e| DaeManifestError::Parse(e.to_string()))?;
 
         if manifest.fmiLsName != FMI_LS_NAME {
-            return Err(DaeManifestError::Parse(format!("Illegal value for attribute 'fmi-ls-name': expected '{FMI_LS_NAME}' but was '{}'", manifest.fmiLsName)))
+            return Err(DaeManifestError::Parse(format!(
+                "Illegal value for attribute 'fmi-ls-name': expected '{FMI_LS_NAME}' but was '{}'",
+                manifest.fmiLsName
+            )));
         }
 
         if manifest.fmiLsVersion != FMI_LS_VERSION {
-            return Err(DaeManifestError::Parse(format!("Illegal value for attribute 'fmi-ls-version': expected '{FMI_LS_VERSION}' but was '{}'", manifest.fmiLsVersion)))
+            return Err(DaeManifestError::Parse(format!(
+                "Illegal value for attribute 'fmi-ls-version': expected '{FMI_LS_VERSION}' but was '{}'",
+                manifest.fmiLsVersion
+            )));
         }
 
         Ok(manifest)

@@ -449,9 +449,9 @@ fn set_start_values(
 
     // set structural parameters first
     for (var_name, literal) in start_values {
-        if let Some(variable) = model_description.get_variable_by_name(var_name)
-            && variable.causality == Causality::StructuralParameter
-        {
+        let variable: &ModelVariable = model_description.variable_by_name(var_name)?;
+
+        if variable.causality == Causality::StructuralParameter {
             if !configuration_mode {
                 call(fmu.enterConfigurationMode())?;
                 configuration_mode = true;
@@ -476,35 +476,20 @@ fn set_start_values(
         call(fmu.exitConfigurationMode())?;
     }
 
-    let mut remaining_start_values = vec![];
-
     // then the non-structural start values
     for (var_name, literal) in non_structural_start_values.iter() {
-        if let Some(variable) = model_description.get_variable_by_name(var_name) {
-            match parse_variable_value(&variable.variableType, literal) {
-                Ok(value) => {
-                    call(set_variable_value(fmu, variable.valueReference, &value))?;
-                }
-                Err(e) => {
-                    return Err(SimulationError::Parameter(format!(
-                        "Invalid value '{literal}' for variable '{var_name}': {e}"
-                    )));
-                }
-            }
-        } else {
-            remaining_start_values.push((var_name.clone(), literal.clone()));
-        }
-    }
+        let variable: &ModelVariable = model_description.variable_by_name(var_name)?;
 
-    if !remaining_start_values.is_empty() {
-        let variable_names = remaining_start_values
-            .iter()
-            .map(|(var_name, _)| format!("'{var_name}'"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        return Err(SimulationError::Parameter(format!(
-            "The start values for the following variables could not be set because they don't exist in the model description: {variable_names}."
-        )));
+        match parse_variable_value(&variable.variableType, literal) {
+            Ok(value) => {
+                call(set_variable_value(fmu, variable.valueReference, &value))?;
+            }
+            Err(e) => {
+                return Err(SimulationError::Parameter(format!(
+                    "Invalid value '{literal}' for variable '{var_name}': {e}"
+                )));
+            }
+        }
     }
 
     Ok(fmi3Status::fmi3OK)

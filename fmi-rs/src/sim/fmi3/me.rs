@@ -368,10 +368,7 @@ fn create_ode(
         known_vrs.push(
             settings
                 .model_description
-                .get_variable_by_value_reference(unknown.valueReference)
-                .ok_or(ModelDescriptionError::ValueReference(
-                    unknown.valueReference,
-                ))?
+                .variable_by_value_reference(unknown.valueReference)?
                 .variableType
                 .derivative()
                 .ok_or(ModelDescriptionError::ValueReference(
@@ -552,7 +549,7 @@ fn create_dae(
 
         let derivative_variable = settings
             .model_description
-            .fetch_variable_by_value_reference(derivative.valueReference)?;
+            .variable_by_value_reference(derivative.valueReference)?;
 
         let continuous_state_vr =
             derivative_variable
@@ -570,7 +567,9 @@ fn create_dae(
 
     for algebraic_variable in &dae_manifest.algebraicVariables.algebraicVariables {
         algebraic_variable_vrs.push(algebraic_variable.valueReference);
-        let variable = settings.model_description.fetch_variable_by_value_reference(algebraic_variable.valueReference)?;
+        let variable = settings
+            .model_description
+            .variable_by_value_reference(algebraic_variable.valueReference)?;
         algebraic_variable_nominals.push(variable.variableType.nominal().unwrap_or(1.0));
     }
 

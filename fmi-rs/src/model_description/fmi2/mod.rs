@@ -357,30 +357,12 @@ pub struct ModelDescription {
 }
 
 impl ModelDescription {
-    /// Returns the first variable found with the given value reference.
-    pub fn get_variable_by_value_reference(
-        &self,
-        vr: fmi2ValueReference,
-    ) -> Option<&ScalarVariable> {
-        self.modelVariables.iter().find(|v| v.valueReference == vr)
-    }
-
-    /// Returns the variable found with the given name.
-    pub fn get_variable_by_name(&self, name: &str) -> Option<&ScalarVariable> {
-        self.modelVariables.iter().find(|v| v.name == name)
-    }
-
     /// Returns the variable found with the given name.
     pub fn variable_by_name(&self, name: &str) -> Result<&ScalarVariable, ModelDescriptionError> {
         self.modelVariables
             .iter()
             .find(|v| v.name == name)
             .ok_or_else(|| ModelDescriptionError::VariableName(name.to_owned()))
-    }
-
-    /// Returns the variable with the given index as an Option
-    pub fn get_variable_by_index(&self, index: VariableIndex) -> Option<&ScalarVariable> {
-        self.modelVariables.get((index - 1) as usize)
     }
 
     /// Returns the index for the given variable name
@@ -392,12 +374,13 @@ impl ModelDescription {
     }
 
     /// Returns the variable with the given index as a Result
-    pub fn try_get_variable_by_index(
+    pub fn variable_by_index(
         &self,
         index: VariableIndex,
     ) -> Result<&ScalarVariable, ModelDescriptionError> {
-        self.get_variable_by_index(index)
-            .ok_or(ModelDescriptionError::VariableIndex(index))
+        self.modelVariables
+            .get((index - 1) as usize)
+            .ok_or_else(|| ModelDescriptionError::VariableIndex(index))
     }
 
     pub fn get_unit<'a>(&'a self, variable: &'a ScalarVariable) -> Option<&'a str> {

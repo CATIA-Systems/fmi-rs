@@ -280,12 +280,10 @@ fn create_ode<'a>(
     for unknown in &settings.model_description.derivatives {
         let unknown_variable = settings
             .model_description
-            .try_get_variable_by_index(unknown.index)?;
+            .variable_by_index(unknown.index)?;
         unknown_vrs.push(unknown_variable.valueReference);
         let known_index = unknown_variable.variableType.derivative()?;
-        let known_variable = settings
-            .model_description
-            .try_get_variable_by_index(known_index)?;
+        let known_variable = settings.model_description.variable_by_index(known_index)?;
         known_vrs.push(known_variable.valueReference);
     }
 

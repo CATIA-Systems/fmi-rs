@@ -205,9 +205,9 @@ impl ModelDescription {
         }
 
         for unknown in &self.derivatives {
-            let derivative_variable = match self.get_variable_by_index(unknown.index) {
-                Some(variable) => variable,
-                None => {
+            let derivative_variable = match self.variable_by_index(unknown.index) {
+                Ok(variable) => variable,
+                Err(_) => {
                     problems.push(ValidationError {
                         range: vec![unknown.range.clone()],
                         message: format!("Illegal variable index: {}", unknown.index),
@@ -218,8 +218,8 @@ impl ModelDescription {
 
             if let VariableType::Real { derivative, .. } = &derivative_variable.variableType {
                 if let Some(derivative_index) = derivative {
-                    match self.get_variable_by_index(*derivative_index) {
-                        Some(state_variable) => {
+                    match self.variable_by_index(derivative_index.clone()) {
+                        Ok(state_variable) => {
                             if !matches!(state_variable.variableType, VariableType::Real { .. }) {
                                 problems.push(ValidationError {
                                     range: vec![derivative_variable.range.clone()],
@@ -227,7 +227,7 @@ impl ModelDescription {
                                 });
                             }
                         }
-                        None => {
+                        Err(_) => {
                             problems.push(ValidationError {
                                 range: vec![derivative_variable.range.clone()],
                                 message: format!("Attribute derivative of variable {} is not a valid variable index", derivative_variable.name),
@@ -276,7 +276,7 @@ impl ModelDescription {
             .collect::<HashSet<u32>>();
 
         for derivative in &self.derivatives {
-            if let Some(derivative_variable) = self.get_variable_by_index(derivative.index) {
+            if let Ok(derivative_variable) = self.variable_by_index(derivative.index) {
                 if matches!(
                     derivative_variable.initial,
                     Some(Initial::Approx) | Some(Initial::Calculated)
@@ -285,8 +285,8 @@ impl ModelDescription {
                 }
 
                 if let Ok(continuous_state_index) = derivative_variable.variableType.derivative()
-                    && let Some(continuous_state_variable) =
-                        self.get_variable_by_index(continuous_state_index)
+                    && let Ok(continuous_state_variable) =
+                        self.variable_by_index(continuous_state_index)
                     && matches!(
                         continuous_state_variable.initial,
                         Some(Initial::Approx) | Some(Initial::Calculated)
