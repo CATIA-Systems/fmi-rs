@@ -76,16 +76,22 @@ pub struct Unknown {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModelStructure {
-    #[serde(rename = "ContinuousStateDerivative")]
+    #[serde(rename = "Output", default)]
+    pub outputs: Vec<Unknown>,
+
+    #[serde(rename = "ContinuousStateDerivative", default)]
     pub continuousStateDerivatives: Vec<Unknown>,
 
-    #[serde(rename = "InitialUnknown")]
+    #[serde(rename = "ClockedState", default)]
+    pub clockedStates: Vec<Unknown>,
+
+    #[serde(rename = "InitialUnknown", default)]
     pub initialUnknowns: Vec<Unknown>,
 
-    #[serde(rename = "EventIndicator")]
+    #[serde(rename = "EventIndicator", default)]
     pub eventIndicators: Vec<Unknown>,
 
-    #[serde(rename = "Residual")]
+    #[serde(rename = "Residual", default)]
     pub residuals: Vec<Unknown>,
 }
 
