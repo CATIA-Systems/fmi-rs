@@ -247,7 +247,7 @@ impl Trajectories {
             {
                 return Err(format!(
                     "Time is decreasing at row {} ({t0} -> {t1}).",
-                    i + 2
+                    i.saturating_add(2)
                 ));
             }
         }
@@ -382,7 +382,7 @@ pub fn parse_variable_value(
                     let mut bytes = Vec::new();
 
                     for i in (0..hex_str.len()).step_by(2) {
-                        let byte_str = &hex_str[i..i + 2];
+                        let byte_str = &hex_str[i..i.saturating_add(2)];
                         match u8::from_str_radix(byte_str, 16) {
                             Ok(byte) => bytes.push(byte),
                             Err(e) => {

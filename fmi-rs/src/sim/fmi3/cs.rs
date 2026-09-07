@@ -252,7 +252,7 @@ pub fn simulate(
         };
 
         if relative_eq(time, next_regular_point, relative_tolerance) {
-            n_steps += 1;
+            n_steps = n_steps.saturating_add(1);
         }
 
         recorder.sample(time, &fmu)?;

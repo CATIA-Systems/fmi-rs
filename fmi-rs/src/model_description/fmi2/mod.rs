@@ -378,8 +378,12 @@ impl ModelDescription {
         &self,
         index: VariableIndex,
     ) -> Result<&ScalarVariable, ModelDescriptionError> {
+        let Some(zero_based_index) = index.checked_sub(1) else {
+            return Err(ModelDescriptionError::VariableIndex(index));
+        };
+
         self.modelVariables
-            .get((index - 1) as usize)
+            .get(zero_based_index as usize)
             .ok_or(ModelDescriptionError::VariableIndex(index))
     }
 

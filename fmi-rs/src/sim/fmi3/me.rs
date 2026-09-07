@@ -172,7 +172,7 @@ pub fn simulate<S: SolverFactory>(
         call(fmu.setTime(time))?;
 
         if !knowns.is_empty() {
-            let nx = knowns.len() - algebraic_variable_vrs.len();
+            let nx = knowns.len().saturating_sub(algebraic_variable_vrs.len());
             call(fmu.setContinuousStates(knowns.try_get(0..nx)?))?;
             if !algebraic_variable_vrs.is_empty() {
                 call(fmu.setFloat64(&algebraic_variable_vrs, knowns.try_get(nx..)?))?;
@@ -184,7 +184,7 @@ pub fn simulate<S: SolverFactory>(
         }
 
         if relative_eq(time, next_regular_point, relative_tolerance) {
-            n_steps += 1;
+            n_steps = n_steps.saturating_add(1);
         }
 
         let mut is_step_event = false;
@@ -331,7 +331,9 @@ impl Ode for Ode3 {
         for i in 0..self.nx {
             let mut seed = vec![0.0; self.nx];
             seed.set(i, 1.0)?;
-            let column = J.try_get_mut(i * self.nx..(i + 1) * self.nx)?;
+            let column = J.try_get_mut(
+                i.saturating_mul(self.nx)..i.saturating_add(1).saturating_mul(self.nx),
+            )?;
             expect_ok!(self.fmu.getDirectionalDerivative(
                 &self.unknown_vrs,
                 &self.known_vrs,
@@ -455,7 +457,7 @@ impl Dae for Dae3 {
                 .getNominalsOfContinuousStates(continuous_state_nominals)
         );
         for (i, v) in self.algebraic_variable_nominals.iter().enumerate() {
-            nominals.set(self.nx + i, *v)?;
+            nominals.set(self.nx.saturating_add(i), *v)?;
         }
         Ok(())
     }
@@ -515,7 +517,9 @@ impl Dae for Dae3 {
             let mut seed = vec![0.0; n];
             seed.set(i, 1.0)?;
 
-            let column = J.try_get_mut(i * n..(i + 1) * n)?;
+            let column = J.try_get_mut(
+                i.saturating_mul(n)..i.saturating_add(1).saturating_mul(n),
+            )?;
 
             expect_ok!(self.fmu.getDirectionalDerivative(
                 &self.unknown_vrs,

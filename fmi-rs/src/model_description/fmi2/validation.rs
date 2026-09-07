@@ -183,7 +183,7 @@ impl ModelDescription {
             .iter()
             .enumerate()
             .filter(|i| i.1.causality == Causality::Output)
-            .map(|i| (i.0 + 1) as u32)
+            .map(|i| (i.0.saturating_add(1)) as u32)
             .collect::<HashSet<u32>>();
 
         let actual_output_indices = self
@@ -272,7 +272,7 @@ impl ModelDescription {
                     ))
                     || variable.causality == Causality::CalculatedParameter
             })
-            .map(|(index, _variable)| (index + 1) as u32)
+            .map(|(index, _variable)| (index.saturating_add(1)) as u32)
             .collect::<HashSet<u32>>();
 
         for derivative in &self.derivatives {

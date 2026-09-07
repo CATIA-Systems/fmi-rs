@@ -116,7 +116,7 @@ impl Trajectories {
             {
                 return Err(format!(
                     "Time is decreasing at row {} ({t0} -> {t1}).",
-                    i + 2
+                    i.saturating_add(2)
                 ));
             }
         }

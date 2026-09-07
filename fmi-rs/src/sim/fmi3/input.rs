@@ -112,8 +112,8 @@ impl StaticInput {
         let mut row_index = 0;
 
         // find the index
-        while row_index < self.trajectories.time.len() - 2 {
-            let next_time = *self.trajectories.time.try_get(row_index + 1)?;
+        while row_index < self.trajectories.time.len().saturating_sub(2) {
+            let next_time = *self.trajectories.time.try_get(row_index.saturating_add(1))?;
 
             if (!after_event && relative_ge(next_time, time, self.tolerance))
                 || (after_event && relative_gt(next_time, time, self.tolerance))
@@ -121,14 +121,14 @@ impl StaticInput {
                 break;
             }
 
-            row_index += 1;
+            row_index = row_index.saturating_add(1);
         }
 
         let row0 = &self.trajectories.rows.try_get(row_index)?;
-        let row1 = &self.trajectories.rows.try_get(row_index + 1)?;
+        let row1 = &self.trajectories.rows.try_get(row_index.saturating_add(1))?;
 
         let t0 = self.trajectories.time.try_get(row_index)?;
-        let t1 = self.trajectories.time.try_get(row_index + 1)?;
+        let t1 = self.trajectories.time.try_get(row_index.saturating_add(1))?;
         let t = ((time - t0) / (t1 - t0)).clamp(0.0, 1.0);
 
         for (i, variable_index) in self.trajectories.variable_indices.iter().enumerate() {

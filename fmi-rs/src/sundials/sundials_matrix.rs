@@ -136,7 +136,7 @@ impl AsMut<[f64]> for _generic_SUNMatrix {
             let n = SM_COLUMNS_D(self);
             std::slice::from_raw_parts_mut(
                 data, 
-                (m * n) as usize
+                (m.saturating_mul(n)) as usize
             ) 
         }
     }

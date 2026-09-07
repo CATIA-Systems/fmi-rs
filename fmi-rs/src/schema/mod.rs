@@ -189,7 +189,7 @@ fn validate_xml_document_against_schema(
             document.as_ptr(),
             document.len() as i32,
             schema.as_ptr(),
-            (schema.len() - 1) as i32,
+            schema.len().saturating_sub(1) as i32,
             &mut messages,
             external_entity_loader,
         )

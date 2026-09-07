@@ -33,7 +33,7 @@ impl Recorder {
         for variable in simulation_result.variables() {
             let mut size = 1usize;
             for dimension in variable.dimensions.iter() {
-                size *= match dimension {
+                size = size.saturating_mul(match dimension {
                     Dimension::Fixed { start: size } => *size,
                     Dimension::Variable { valueReference } => {
                         let mut values = [0u64];
@@ -41,7 +41,7 @@ impl Recorder {
                         fmu.getUInt64(&[*valueReference], &mut values);
                         values[0] as usize
                     }
-                };
+                });
             }
             sizes.push(size);
         }

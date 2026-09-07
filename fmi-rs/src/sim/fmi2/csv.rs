@@ -67,14 +67,14 @@ pub fn read_csv<R: Read>(
                 let next_time: f64 = it
                     .next()
                     .ok_or_else(|| {
-                        SimulationError::Parse(format!("Missing time value in row {}.", i + 2))
+                        SimulationError::Parse(format!("Missing time value in row {}.", i.saturating_add(2)))
                     })?
                     .parse()
                     .map_err(|e| {
                         SimulationError::Parse(format!(
                             "Failed to parse time value '{}' in row {}: {}",
                             record.get(0).unwrap_or(""),
-                            i + 2,
+                            i.saturating_add(2),
                             e
                         ))
                     })?;
@@ -85,8 +85,8 @@ pub fn read_csv<R: Read>(
                     row.push(parse_variable_value(variable_type, literal).map_err(|e| {
                         SimulationError::Parse(format!(
                             "Failed to parse '{literal:?}' (row {}, column {}): {e}",
-                            i + 2,
-                            j + 2
+                            i.saturating_add(2),
+                            j.saturating_add(2)
                         ))
                     })?);
                 }

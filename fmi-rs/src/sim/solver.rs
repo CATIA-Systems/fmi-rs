@@ -165,7 +165,7 @@ impl<T: Ode> ForwardEuler<T> {
             *x += *der_x * self.fixed_step_size;
         }
 
-        self.n_steps += 1;
+        self.n_steps = self.n_steps.saturating_add(1);
 
         let time = self.start_time + self.n_steps as f64 * self.fixed_step_size;
 
