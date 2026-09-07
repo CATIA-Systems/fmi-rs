@@ -380,7 +380,7 @@ impl ModelDescription {
     ) -> Result<&ScalarVariable, ModelDescriptionError> {
         self.modelVariables
             .get((index - 1) as usize)
-            .ok_or_else(|| ModelDescriptionError::VariableIndex(index))
+            .ok_or(ModelDescriptionError::VariableIndex(index))
     }
 
     pub fn get_unit<'a>(&'a self, variable: &'a ScalarVariable) -> Option<&'a str> {

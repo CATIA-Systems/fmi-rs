@@ -218,7 +218,7 @@ impl ModelDescription {
 
             if let VariableType::Real { derivative, .. } = &derivative_variable.variableType {
                 if let Some(derivative_index) = derivative {
-                    match self.variable_by_index(derivative_index.clone()) {
+                    match self.variable_by_index(*derivative_index) {
                         Ok(state_variable) => {
                             if !matches!(state_variable.variableType, VariableType::Real { .. }) {
                                 problems.push(ValidationError {

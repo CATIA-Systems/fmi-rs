@@ -21,13 +21,9 @@ pub fn write_csv<P: AsRef<Path>>(
 
     writer.write_record(&header)?;
 
-    for i in 0..trajectories.time.len() {
-        let mut record = vec![trajectories.time[i].to_string()];
-
-        for variable_value in trajectories.rows[i].iter() {
-            record.push(variable_value.to_literal());
-        }
-
+    for (time, row) in trajectories.time.iter().zip(trajectories.rows.iter()) {
+        let values = row.iter().map(|value| value.to_literal());
+        let record: Vec<String> = std::iter::once(time.to_string()).chain(values).collect();
         writer.write_record(&record)?;
     }
 
@@ -85,16 +81,14 @@ pub fn read_csv<R: Read>(
 
                 time.push(next_time);
 
-                for (j, literal) in it.enumerate() {
-                    row.push(
-                        parse_variable_value(variable_types[j], literal).map_err(|e| {
-                            SimulationError::Parse(format!(
-                                "Failed to parse '{literal:?}' (row {}, column {}): {e}",
-                                i + 2,
-                                j + 2
-                            ))
-                        })?,
-                    );
+                for (j, (literal, variable_type)) in it.zip(variable_types.iter()).enumerate() {
+                    row.push(parse_variable_value(variable_type, literal).map_err(|e| {
+                        SimulationError::Parse(format!(
+                            "Failed to parse '{literal:?}' (row {}, column {}): {e}",
+                            i + 2,
+                            j + 2
+                        ))
+                    })?);
                 }
 
                 rows.push(row);

@@ -161,8 +161,8 @@ impl<T: Ode> ForwardEuler<T> {
 
         self.ode.f(time, &self.x, &mut self.der_x)?;
 
-        for i in 0..self.x.len() {
-            self.x[i] += self.der_x[i] * self.fixed_step_size;
+        for (x, der_x) in self.x.iter_mut().zip(self.der_x.iter()) {
+            *x += *der_x * self.fixed_step_size;
         }
 
         self.n_steps += 1;
@@ -173,14 +173,11 @@ impl<T: Ode> ForwardEuler<T> {
 
         let mut state_event = false;
 
-        for i in 0..self.z.len() {
-            if self.pre_z[i] <= 0.0 && self.z[i] > 0.0 {
-                state_event = true; // -\+
-            } else if self.pre_z[i] > 0.0 && self.z[i] <= 0.0 {
-                state_event = true; // +/-
+        for (z, pre_z) in self.z.iter().zip(self.pre_z.iter_mut()) {
+            if (*pre_z <= 0.0 && *z > 0.0) || (*pre_z > 0.0 && *z <= 0.0) {
+                state_event = true;
             }
-
-            self.pre_z[i] = self.z[i];
+            *pre_z = *z;
         }
 
         Ok((time, state_event))

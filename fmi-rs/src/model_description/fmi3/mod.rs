@@ -681,7 +681,7 @@ impl ModelDescription {
         self.modelVariables
             .iter()
             .find(|v| v.valueReference == vr)
-            .ok_or_else(|| ModelDescriptionError::ValueReference(vr))
+            .ok_or(ModelDescriptionError::ValueReference(vr))
     }
 
     /// Returns the variable with the given name.

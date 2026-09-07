@@ -1,11 +1,11 @@
 use crate::{
     model_description::fmi3::ModelDescription,
     sim::{
-        SimulationError,
+        SimulationError, SimulationSliceExt,
         fmi3::{Trajectories, parse_variable_value},
     },
 };
-use std::{io::Read, path::Path, sync::Arc};
+use std::{io::Read, iter::once, path::Path, sync::Arc};
 
 pub fn write_csv<P: AsRef<Path>>(
     trajectories: &Trajectories,
@@ -16,20 +16,20 @@ pub fn write_csv<P: AsRef<Path>>(
     let mut header = vec!["time".to_string()];
 
     for variable_index in trajectories.variable_indices.iter() {
-        let variable = &trajectories.model_description.modelVariables[*variable_index];
-        header.push(variable.name.clone());
+        if let Some(variable) = &trajectories
+            .model_description
+            .modelVariables
+            .get(*variable_index)
+        {
+            header.push(variable.name.clone());
+        }
     }
 
     writer.write_record(&header)?;
 
-    for i in 0..trajectories.time.len() {
-        let mut record = vec![trajectories.time[i].to_string()];
-
-        for variable_value in trajectories.rows[i].iter() {
-            record.push(variable_value.to_literal());
-        }
-
-        writer.write_record(&record)?;
+    for (time, row) in trajectories.time.iter().zip(trajectories.rows.iter()) {
+        let record = once(time.to_string()).chain(row.iter().map(|v| v.to_literal()));
+        writer.write_record(record)?;
     }
 
     writer.flush()?;
@@ -85,7 +85,8 @@ pub fn read_csv<R: Read>(
         time.push(next_time);
 
         for (j, literal) in it.enumerate() {
-            let variable = &model_description.modelVariables[variable_indices[j]];
+            let variable_index = variable_indices.try_get(j)?;
+            let variable = &model_description.modelVariables.try_get(*variable_index)?;
             row.push(
                 parse_variable_value(&variable.variableType, literal).map_err(|e| {
                     SimulationError::Parse(format!(

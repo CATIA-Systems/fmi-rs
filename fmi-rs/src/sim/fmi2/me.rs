@@ -6,7 +6,7 @@ use crate::{
         types::{fmi2False, fmi2Real, fmi2Status, fmi2ValueReference},
     },
     sim::{
-        SimulationError,
+        SimulationError, SimulationSliceExt,
         fmi2::{
             SimulationSettings, call, input::StaticInput, read_initial_fmu_state,
             recorder::Recorder, set_start_values, write_final_fmu_state,
@@ -369,16 +369,18 @@ impl<'a> Ode for Ode2<'a> {
 
         expect_ok!(self.fmu.setContinuousStates(x));
 
+        let mut seed = vec![0.0; self.nx];
+
         for i in 0..self.nx {
-            let mut seed = vec![0.0; self.nx];
-            seed[i] = 1.0;
-            let column = &mut J[i * self.nx..(i + 1) * self.nx];
+            seed.set(i, 1.0)?;
+            let column = J.try_get_mut(i * self.nx..(i + 1) * self.nx)?;
             expect_ok!(self.fmu.getDirectionalDerivative(
                 &self.unknown_vrs,
                 &self.known_vrs,
                 &seed,
                 column
             ));
+            seed.set(i, 0.0)?;
         }
 
         Ok(())

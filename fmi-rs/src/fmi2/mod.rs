@@ -564,19 +564,19 @@ impl<T> FMU2<T> {
     ) -> fmi2Status {
         debug_assert_eq!(valueReferences.len(), values.len());
 
-        let mut buffer: Vec<fmi2String> = vec![ptr::null(); values.len()];
+        let mut value_ptrs: Vec<fmi2String> = vec![ptr::null(); values.len()];
 
         let status = unsafe {
             (self.fmi2GetString)(
                 self.component,
                 valueReferences.as_ptr(),
                 valueReferences.len(),
-                buffer.as_mut_ptr(),
+                value_ptrs.as_mut_ptr(),
             )
         };
 
-        for (i, v) in buffer.iter().enumerate() {
-            values[i] = unsafe { CStr::from_ptr(*v).to_string_lossy().into_owned() };
+        for (value_ptr, value) in value_ptrs.iter().zip(values.iter_mut()) {
+            *value = unsafe { CStr::from_ptr(*value_ptr).to_string_lossy().into_owned() };
         }
 
         if self.logCalls {

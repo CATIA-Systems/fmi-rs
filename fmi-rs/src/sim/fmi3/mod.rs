@@ -242,12 +242,12 @@ impl Trajectories {
         }
 
         for (i, window) in self.time.windows(2).enumerate() {
-            if window[1] < window[0] {
+            if let &[t0, t1] = window
+                && t0 > t1
+            {
                 return Err(format!(
-                    "Time is decreasing at row {} ({} -> {}).",
-                    i + 2,
-                    window[0],
-                    window[1]
+                    "Time is decreasing at row {} ({t0} -> {t1}).",
+                    i + 2
                 ));
             }
         }
@@ -255,8 +255,7 @@ impl Trajectories {
         for (i, row) in self.rows.iter().enumerate() {
             if row.len() != self.variable_indices.len() {
                 return Err(format!(
-                    "Row {} has {} columns, but {} variables are defined.",
-                    i,
+                    "Row {i} has {} columns, but {} variables are defined.",
                     row.len(),
                     self.variable_indices.len()
                 ));
@@ -270,9 +269,12 @@ impl Trajectories {
     pub fn events(&self) -> Vec<f64> {
         let mut events = vec![];
 
-        for t in self.time.windows(2).filter(|t| t[0] == t[1]) {
-            if events.last() != Some(&t[0]) {
-                events.push(t[0]);
+        for w in self.time.windows(2) {
+            if let &[t0, t1] = w
+                && t0 == t1
+                && events.last().copied() != Some(t0)
+            {
+                events.push(t0);
             }
         }
 

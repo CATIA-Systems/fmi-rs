@@ -42,7 +42,7 @@ pub struct SimulationSettings {
     pub final_fmu_state_file: Option<PathBuf>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum VariableValue {
     Real(fmi2Real),
     Integer(fmi2Integer),
@@ -111,12 +111,12 @@ impl Trajectories {
         }
 
         for (i, window) in self.time.windows(2).enumerate() {
-            if window[1] < window[0] {
+            if let &[t0, t1] = window
+                && t0 > t1
+            {
                 return Err(format!(
-                    "Time is decreasing at row {} ({} -> {}).",
-                    i + 2,
-                    window[0],
-                    window[1]
+                    "Time is decreasing at row {} ({t0} -> {t1}).",
+                    i + 2
                 ));
             }
         }
@@ -136,14 +136,15 @@ impl Trajectories {
     }
 
     pub fn events(&self) -> Vec<f64> {
-        let mut events = vec![];
-
-        for t in self.time.windows(2).filter(|t| t[0] == t[1]) {
-            if events.last() != Some(&t[0]) {
-                events.push(t[0]);
-            }
-        }
-
+        let mut events: Vec<f64> = self
+            .time
+            .windows(2)
+            .filter_map(|w| match w {
+                &[a, b] if a == b => Some(a),
+                _ => None,
+            })
+            .collect();
+        events.dedup();
         events
     }
 
@@ -157,6 +158,13 @@ impl Trajectories {
 
     pub fn step_count(&self) -> usize {
         self.time.len()
+    }
+
+    pub fn trajectory_by_index(&self, index: usize) -> Option<Vec<VariableValue>> {
+        self.rows
+            .iter()
+            .map(|row| row.get(index).cloned())
+            .collect()
     }
 }
 

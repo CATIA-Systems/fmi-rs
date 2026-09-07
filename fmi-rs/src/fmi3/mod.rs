@@ -12,6 +12,7 @@ pub mod types;
 use crate::fmi3::log::Logger;
 use crate::sim::SimulationError::{self};
 use crate::{get_symbol, load_platform_binary};
+use itertools::izip;
 use libloading::Library;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_void;
@@ -574,6 +575,7 @@ impl FMU3 {
         logger: Box<dyn Logger>,
         logCalls: bool,
     ) -> Result<Arc<FMU3>, SimulationError> {
+        #[allow(clippy::arc_with_non_send_sync)]
         let fmu = Arc::new(FMU3::new(
             unzipdir,
             modelIdentifier,
@@ -688,6 +690,7 @@ impl FMU3 {
                 )
             };
 
+        #[allow(clippy::arc_with_non_send_sync)]
         let fmu = Arc::new(FMU3::new(
             unzipdir,
             modelIdentifier,
@@ -965,8 +968,8 @@ impl FMU3 {
             )
         };
 
-        for (i, v) in buffer.iter().enumerate() {
-            values[i] = unsafe { CStr::from_ptr(*v).to_string_lossy().into_owned() };
+        for (value, v) in values.iter_mut().zip(buffer.iter()) {
+            *value = unsafe { CStr::from_ptr(*v).to_string_lossy().into_owned() };
         }
 
         if self.logCalls {
@@ -1024,13 +1027,14 @@ impl FMU3 {
             self.log_call(status, &message);
         }
 
-        for (i, (&ptr, size)) in value_ptrs.iter().zip(sizes.iter()).enumerate() {
-            if !ptr.is_null() && *size > 0 {
-                let slice = unsafe { std::slice::from_raw_parts(ptr as *const fmi3Byte, *size) };
-                values[i] = slice.to_vec();
+        for (value_ptr, size, value) in izip!(value_ptrs, sizes, values) {
+            *value = if !value_ptr.is_null() && size > 0 {
+                let slice: &[u8] =
+                    unsafe { std::slice::from_raw_parts(value_ptr as *const fmi3Byte, size) };
+                slice.to_vec()
             } else {
-                values[i] = Vec::new();
-            }
+                Vec::new()
+            };
         }
 
         status

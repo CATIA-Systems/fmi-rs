@@ -1,8 +1,10 @@
+use itertools::{Itertools, izip};
+
 use crate::{
     fmi2::{FMU2, types::fmi2Status},
     model_description::fmi2::Variability,
     sim::{
-        SimulationError,
+        SimulationError, SimulationSliceExt,
         fmi2::{Trajectories, VariableValue, set_variable_value},
         relative_ge, relative_gt,
     },
@@ -31,10 +33,14 @@ impl StaticInput {
     }
 
     pub fn next_event_time(&self, time: f64) -> Option<f64> {
-        for i in 0..self.trajectories.time.len().saturating_sub(1) {
-            let t0 = self.trajectories.time[i];
-            let t1 = self.trajectories.time[i + 1];
-
+        for ((t0, row0), (t1, row1)) in self
+            .trajectories
+            .time
+            .iter()
+            .copied()
+            .zip(self.trajectories.rows.iter())
+            .tuple_windows()
+        {
             if time >= t1 {
                 // TODO: use is_close()
                 continue;
@@ -44,18 +50,17 @@ impl StaticInput {
                 return Some(t0); // discrete change of a continuous variable
             }
 
-            let row0 = &self.trajectories.rows[i];
-            let row1 = &self.trajectories.rows[i + 1];
-
-            for (j, variable) in self.trajectories.variables().enumerate() {
-                if variable.variability == Variability::Continuous {
-                    continue; // skip continuous variables
-                }
-
-                let value0 = &row0[j];
-                let value1 = &row1[j];
-
-                if value0 != value1 {
+            for (variable_index, value0, value1) in
+                izip!(&self.trajectories.variable_indices, row0, row1)
+            {
+                if let Some(variable) = &self
+                    .trajectories
+                    .model_description
+                    .modelVariables
+                    .get(*variable_index)
+                    && variable.variability != Variability::Continuous
+                    && value0 != value1
+                {
                     return Some(t1);
                 }
             }
@@ -78,13 +83,12 @@ impl StaticInput {
             index = i;
         }
 
-        let row = &self.trajectories.rows[index];
+        let row = self.trajectories.rows.try_get(index)?;
 
         for (variable, value) in self.trajectories.variables().zip(row.iter()) {
-            if variable.variability == Variability::Continuous {
-                continue;
+            if variable.variability != Variability::Continuous {
+                set_variable_value(fmu, variable.valueReference, value)?;
             }
-            set_variable_value(fmu, variable.valueReference, value)?;
         }
 
         Ok(())
@@ -104,7 +108,7 @@ impl StaticInput {
 
         // find the index
         while row_index < self.trajectories.time.len() - 2 {
-            let next_time = self.trajectories.time[row_index + 1];
+            let next_time = *self.trajectories.time.try_get(row_index + 1)?;
 
             if (!after_event && relative_ge(next_time, time, self.relative_tolerance))
                 || (after_event && relative_gt(next_time, time, self.relative_tolerance))
@@ -115,20 +119,17 @@ impl StaticInput {
             row_index += 1;
         }
 
-        let row0 = &self.trajectories.rows[row_index];
-        let row1 = &self.trajectories.rows[row_index + 1];
+        let row0 = self.trajectories.rows.try_get(row_index)?;
+        let row1 = self.trajectories.rows.try_get(row_index + 1)?;
 
-        for (i, variable) in self.trajectories.variables().enumerate() {
+        let t0 = self.trajectories.time.try_get(row_index)?;
+        let t1 = self.trajectories.time.try_get(row_index + 1)?;
+        let t = ((time - t0) / (t1 - t0)).clamp(0.0, 1.0);
+
+        for (variable, value0, value1) in izip!(self.trajectories.variables(), row0, row1) {
             if variable.variability != Variability::Continuous {
                 continue;
             }
-
-            let t0 = self.trajectories.time[row_index];
-            let t1 = self.trajectories.time[row_index + 1];
-            let t = ((time - t0) / (t1 - t0)).clamp(0.0, 1.0);
-
-            let value0 = &row0[i];
-            let value1 = &row1[i];
 
             match value0 {
                 VariableValue::Real(value0) => {

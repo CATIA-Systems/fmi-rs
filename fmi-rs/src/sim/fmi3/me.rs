@@ -5,7 +5,9 @@ use crate::fmi3::log::DefaultLogger;
 use crate::model_description::ModelDescriptionError;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
 use crate::sim::solver::{Dae, Ode, SolverFactory};
-use crate::sim::{SimulationError, next_communication_point, next_regular_point};
+use crate::sim::{
+    SimulationError, SimulationSliceExt, next_communication_point, next_regular_point,
+};
 use crate::{
     fmi3::{FMU3, types::*},
     sim::{
@@ -171,9 +173,9 @@ pub fn simulate<S: SolverFactory>(
 
         if !knowns.is_empty() {
             let nx = knowns.len() - algebraic_variable_vrs.len();
-            call(fmu.setContinuousStates(&knowns[..nx]))?;
+            call(fmu.setContinuousStates(knowns.try_get(0..nx)?))?;
             if !algebraic_variable_vrs.is_empty() {
-                call(fmu.setFloat64(&algebraic_variable_vrs, &knowns[nx..]))?;
+                call(fmu.setFloat64(&algebraic_variable_vrs, knowns.try_get(nx..)?))?;
             }
         }
 
@@ -328,8 +330,8 @@ impl Ode for Ode3 {
 
         for i in 0..self.nx {
             let mut seed = vec![0.0; self.nx];
-            seed[i] = 1.0;
-            let column = &mut J[i * self.nx..(i + 1) * self.nx];
+            seed.set(i, 1.0)?;
+            let column = J.try_get_mut(i * self.nx..(i + 1) * self.nx)?;
             expect_ok!(self.fmu.getDirectionalDerivative(
                 &self.unknown_vrs,
                 &self.known_vrs,
@@ -447,12 +449,13 @@ impl Dae for Dae3 {
     ) -> Result<(), SimulationError> {
         expect_ok!(self.fmu.getFloat64(&self.known_vrs, knowns));
         expect_ok!(self.fmu.getFloat64(&self.unknown_vrs, unknowns));
+        let continuous_state_nominals = nominals.try_get_mut(0..self.nx)?;
         expect_ok!(
             self.fmu
-                .getNominalsOfContinuousStates(&mut nominals[..self.nx])
+                .getNominalsOfContinuousStates(continuous_state_nominals)
         );
         for (i, v) in self.algebraic_variable_nominals.iter().enumerate() {
-            nominals[self.nx + i] = *v;
+            nominals.set(self.nx + i, *v)?;
         }
         Ok(())
     }
@@ -474,8 +477,8 @@ impl Dae for Dae3 {
 
         expect_ok!(self.fmu.getFloat64(&self.unknown_vrs, residuals));
 
-        for i in 0..self.nx {
-            residuals[i] -= unknowns[i];
+        for (residual, unknown) in residuals.iter_mut().zip(unknowns) {
+            *residual -= *unknown;
         }
 
         Ok(())
@@ -510,16 +513,20 @@ impl Dae for Dae3 {
 
         for i in 0..n {
             let mut seed = vec![0.0; n];
-            seed[i] = 1.0;
-            let column = &mut J[i * n..(i + 1) * n];
+            seed.set(i, 1.0)?;
+
+            let column = J.try_get_mut(i * n..(i + 1) * n)?;
+
             expect_ok!(self.fmu.getDirectionalDerivative(
                 &self.unknown_vrs,
                 &self.known_vrs,
                 &seed,
                 column
             ));
+
             if i < self.nx {
-                column[i] -= alpha;
+                let slot = column.try_get_mut(i)?;
+                *slot -= alpha;
             }
         }
 

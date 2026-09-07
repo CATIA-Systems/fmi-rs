@@ -9,7 +9,7 @@ pub mod fmi2;
 pub mod fmi3;
 pub mod solver;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, slice::SliceIndex};
 
 use approx::relative_eq;
 use thiserror::Error;
@@ -67,6 +67,9 @@ pub enum SimulationError {
     #[cfg(feature = "zip")]
     #[error("Failed to extract Zip archive: {0}")]
     Zip(#[from] ZipError),
+
+    #[error("Index out of bounds")]
+    IndexOutOfBounds,
 }
 
 impl SimulationError {
@@ -75,6 +78,59 @@ impl SimulationError {
         let path = path.into();
         move |source| SimulationError::Io { source, path }
     }
+}
+
+pub trait SimulationSliceExt<T> {
+    // fn try_set(&mut self, index: I, value: T) -> Result<(), SimulationError>;
+    fn try_get<I>(&self, index: I) -> Result<&I::Output, SimulationError>
+    where
+        I: SliceIndex<[T]>;
+    fn try_get_mut<I>(&mut self, index: I) -> Result<&mut I::Output, SimulationError>
+    where
+        I: SliceIndex<[T]>;
+    fn set(&mut self, index: usize, value: T) -> Result<(), SimulationError>;
+    // fn try_get_mut(&mut self, index: usize) -> Result<&mut T, SimulationError>;
+    // fn try_get_slice(&self, range: Range<usize>) -> Result<&[T], SimulationError>;
+    // fn try_get_slice_mut(&mut self, range: Range<usize>) -> Result<&mut [T], SimulationError>;
+}
+
+impl<T> SimulationSliceExt<T> for [T] {
+    fn try_get<I>(&self, index: I) -> Result<&I::Output, SimulationError>
+    where
+        I: SliceIndex<[T]>,
+    {
+        self.get(index).ok_or(SimulationError::IndexOutOfBounds)
+    }
+
+    fn try_get_mut<I>(&mut self, index: I) -> Result<&mut I::Output, SimulationError>
+    where
+        I: SliceIndex<[T]>,
+    {
+        self.get_mut(index).ok_or(SimulationError::IndexOutOfBounds)
+    }
+
+    fn set(&mut self, index: usize, value: T) -> Result<(), SimulationError> {
+        let slot = self
+            .get_mut(index)
+            .ok_or(SimulationError::IndexOutOfBounds)?;
+        *slot = value;
+        Ok(())
+    }
+
+    // fn try_get_mut(&mut self, index: usize) -> Result<&mut T, SimulationError> {
+    //     self.get_mut(index)
+    //         .ok_or(SimulationError::IndexOutOfBounds)
+    // }
+
+    // fn try_get_slice(&self, range: std::ops::Range<usize>) -> Result<&[T], SimulationError> {
+    //     self.get(range)
+    //         .ok_or(SimulationError::IndexOutOfBounds)
+    // }
+
+    // fn try_get_slice_mut(&mut self, range: std::ops::Range<usize>) -> Result<&mut [T], SimulationError> {
+    //     self.get_mut(range)
+    //         .ok_or(SimulationError::IndexOutOfBounds)
+    // }
 }
 
 pub type SetTimeFn<'a> = Box<dyn Fn(f64) -> Result<(), SimulationError> + 'a>;
