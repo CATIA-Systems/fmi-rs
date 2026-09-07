@@ -312,7 +312,7 @@ pub struct Ode2<'a> {
 
 macro_rules! expect_ok {
     ($result:expr) => {
-        if $result != fmi2Status::fmi2OK {
+        if $result != fmi2Status::Ok {
             return Err(SimulationError::FMICall);
         }
     };

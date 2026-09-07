@@ -58,23 +58,23 @@ impl Logger for DefaultLogger {
 
         if self.is_terminal {
             let prefix = match status {
-                fmi2Status::fmi2OK => "[INFO]".bright_blue(),
-                fmi2Status::fmi2Warning => "[WARNING]".yellow(),
-                fmi2Status::fmi2Error => "[ERROR]".bright_red(),
-                fmi2Status::fmi2Discard => "[DISCARD]".bright_red(),
-                fmi2Status::fmi2Fatal => "[FATAL]".bright_red(),
-                fmi2Status::fmi2Pending => "[PENDING]".bright_red(),
+                fmi2Status::Ok => "[INFO]".bright_blue(),
+                fmi2Status::Warning => "[WARNING]".yellow(),
+                fmi2Status::Error => "[ERROR]".bright_red(),
+                fmi2Status::Discard => "[DISCARD]".bright_red(),
+                fmi2Status::Fatal => "[FATAL]".bright_red(),
+                fmi2Status::Pending => "[PENDING]".bright_red(),
             };
             writeln!(self.stream.borrow_mut(), "{prefix} [{category}] {message}")
                 .unwrap_or_else(|e| eprintln!("Failed to write log message: {e}"));
         } else {
             let prefix = match status {
-                fmi2Status::fmi2OK => "[INFO]",
-                fmi2Status::fmi2Warning => "[WARNING]",
-                fmi2Status::fmi2Error => "[ERROR]",
-                fmi2Status::fmi2Discard => "[DISCARD]",
-                fmi2Status::fmi2Fatal => "[FATAL]",
-                fmi2Status::fmi2Pending => "[PENDING]",
+                fmi2Status::Ok => "[INFO]",
+                fmi2Status::Warning => "[WARNING]",
+                fmi2Status::Error => "[ERROR]",
+                fmi2Status::Discard => "[DISCARD]",
+                fmi2Status::Fatal => "[FATAL]",
+                fmi2Status::Pending => "[PENDING]",
             };
             writeln!(self.stream.borrow_mut(), "{prefix} [{category}] {message}")
                 .unwrap_or_else(|e| eprintln!("Failed to write log message: {e}"));

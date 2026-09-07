@@ -58,21 +58,21 @@ impl Logger for DefaultLogger {
 
         if self.is_terminal {
             let prefix = match status {
-                fmi3Status::fmi3OK => "[INFO]".bright_blue(),
-                fmi3Status::fmi3Warning => "[WARNING]".yellow(),
-                fmi3Status::fmi3Error => "[ERROR]".bright_red(),
-                fmi3Status::fmi3Discard => "[DISCARD]".bright_red(),
-                fmi3Status::fmi3Fatal => "[FATAL]".bright_red(),
+                fmi3Status::Ok => "[INFO]".bright_blue(),
+                fmi3Status::Warning => "[WARNING]".yellow(),
+                fmi3Status::Error => "[ERROR]".bright_red(),
+                fmi3Status::Discard => "[DISCARD]".bright_red(),
+                fmi3Status::Fatal => "[FATAL]".bright_red(),
             };
             writeln!(self.stream.borrow_mut(), "{prefix} [{category}] {message}")
                 .unwrap_or_else(|e| eprintln!("Failed to write log message: {e}"));
         } else {
             let prefix = match status {
-                fmi3Status::fmi3OK => "[INFO]",
-                fmi3Status::fmi3Warning => "[WARNING]",
-                fmi3Status::fmi3Error => "[ERROR]",
-                fmi3Status::fmi3Discard => "[DISCARD]",
-                fmi3Status::fmi3Fatal => "[FATAL]",
+                fmi3Status::Ok => "[INFO]",
+                fmi3Status::Warning => "[WARNING]",
+                fmi3Status::Error => "[ERROR]",
+                fmi3Status::Discard => "[DISCARD]",
+                fmi3Status::Fatal => "[FATAL]",
             };
             writeln!(self.stream.borrow_mut(), "{prefix} [{category}] {message}")
                 .unwrap_or_else(|e| eprintln!("Failed to write log message: {e}"));

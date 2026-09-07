@@ -16,7 +16,7 @@ use fmi_rs::zip::extract_zip_archive;
 
 macro_rules! assert_ok {
     ($status:expr) => {
-        assert_eq!($status, fmi2Status::fmi2OK);
+        assert_eq!($status, fmi2Status::Ok);
     };
 }
 
@@ -474,5 +474,5 @@ fn test_string_length_limit() {
 
     // This should return an error due to string length limit
     let result = fmu.setString(&input_vr, &input_values);
-    assert_eq!(result, fmi2Status::fmi2Error);
+    assert_eq!(result, fmi2Status::Error);
 }

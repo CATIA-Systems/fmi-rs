@@ -10,7 +10,7 @@ use fmi_rs::zip::extract_zip_archive;
 
 macro_rules! assert_ok {
     ($status:expr) => {
-        assert_eq!($status, fmi3Status::fmi3OK);
+        assert_eq!($status, fmi3Status::Ok);
     };
 }
 

@@ -52,7 +52,7 @@ macro_rules! expect_not_null {
 
 macro_rules! expect_ok {
     ($result:expr) => {
-        if $result != fmi3Status::fmi3OK {
+        if $result != fmi3Status::Ok {
             return Err(SimulationError::FMICall);
         }
     };

@@ -1,6 +1,6 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-use std::os::raw::{c_char, c_void};
+use std::{fmt, os::raw::{c_char, c_void}};
 
 // FMI 2.0 Basic Types
 pub type fmi2Real = f64;
@@ -18,48 +18,83 @@ pub const fmi2True: fmi2Boolean = 1;
 pub const fmi2False: fmi2Boolean = 0;
 
 #[repr(i32)]
-#[derive(Debug, PartialEq, PartialOrd, Clone, Eq, Ord, Copy)]
+#[derive(PartialEq, PartialOrd, Clone, Eq, Ord, Copy)]
 pub enum fmi2Status {
-    fmi2OK = 0,
-    fmi2Warning = 1,
-    fmi2Discard = 2,
-    fmi2Error = 3,
-    fmi2Fatal = 4,
-    fmi2Pending = 5,
+    Ok = 0,
+    Warning = 1,
+    Discard = 2,
+    Error = 3,
+    Fatal = 4,
+    Pending = 5,
+}
+
+impl fmt::Debug for fmi2Status {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Ok => "fmi2OK",
+            Self::Warning => "fmi2Warning",
+            Self::Discard => "fmi2Discard",
+            Self::Error => "fmi2Error",
+            Self::Fatal => "fmi2Fatal",
+            Self::Pending => "fmi2Pending",
+        })
+    }
 }
 
 impl TryFrom<i32> for fmi2Status {
     type Error = ();
 
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
+    fn try_from(value: i32) -> Result<Self, ()> {
         match value {
-            0 => Ok(fmi2Status::fmi2OK),
-            1 => Ok(fmi2Status::fmi2Warning),
-            2 => Ok(fmi2Status::fmi2Discard),
-            3 => Ok(fmi2Status::fmi2Error),
-            4 => Ok(fmi2Status::fmi2Fatal),
-            5 => Ok(fmi2Status::fmi2Pending),
+            0 => Ok(fmi2Status::Ok),
+            1 => Ok(fmi2Status::Warning),
+            2 => Ok(fmi2Status::Discard),
+            3 => Ok(fmi2Status::Error),
+            4 => Ok(fmi2Status::Fatal),
+            5 => Ok(fmi2Status::Pending),
             _ => Err(()),
         }
     }
 }
 
 #[repr(i32)]
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum fmi2Type {
-    fmi2ModelExchange = 0,
-    fmi2CoSimulation = 1,
+    ModelExchange = 0,
+    CoSimulation = 1,
+}
+
+impl fmt::Debug for fmi2Type {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::ModelExchange => "fmi2ModelExchange",
+            Self::CoSimulation => "fmi2CoSimulation",
+        })
+    }
 }
 
 #[repr(i32)]
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum fmi2DependencyKind {
-    fmi2Independent = 0,
-    fmi2Constant = 1,
-    fmi2Fixed = 2,
-    fmi2Tunable = 3,
-    fmi2Discrete = 4,
-    fmi2Dependent = 5,
+    Independent = 0,
+    Constant = 1,
+    Fixed = 2,
+    Tunable = 3,
+    Discrete = 4,
+    Dependent = 5,
+}
+
+impl fmt::Debug for fmi2DependencyKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Independent => "fmi2Independent",
+            Self::Constant => "fmi2Constant",
+            Self::Fixed => "fmi2Fixed",
+            Self::Tunable => "fmi2Tunable",
+            Self::Discrete => "fmi2Discrete",
+            Self::Dependent => "fmi2Dependent",
+        })
+    }
 }
 
 #[repr(i32)]
@@ -72,12 +107,23 @@ pub enum fmi2VariableType {
 }
 
 #[repr(i32)]
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum fmi2StatusKind {
-    fmi2DoStepStatus = 0,
-    fmi2PendingStatus = 1,
-    fmi2LastSuccessfulTime = 2,
-    fmi2Terminated = 3,
+    DoStepStatus = 0,
+    PendingStatus = 1,
+    LastSuccessfulTime = 2,
+    Terminated = 3,
+}
+
+impl fmt::Debug for fmi2StatusKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::DoStepStatus => "fmi2DoStepStatus",
+            Self::PendingStatus => "fmi2PendingStatus",
+            Self::LastSuccessfulTime => "fmi2LastSuccessfulTime",
+            Self::Terminated => "fmi2Terminated",
+        })
+    }
 }
 
 // FMI 2.0 Callback Functions

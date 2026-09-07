@@ -11,7 +11,7 @@ use crate::{
 };
 
 fn call(status: fmi3Status) -> Result<fmi3Status, SimulationError> {
-    if matches!(status, fmi3Status::fmi3OK | fmi3Status::fmi3Warning) {
+    if matches!(status, fmi3Status::Ok | fmi3Status::Warning) {
         Ok(status)
     } else {
         Err(SimulationError::FMICall)

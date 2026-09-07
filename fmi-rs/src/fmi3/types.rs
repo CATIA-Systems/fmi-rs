@@ -1,6 +1,6 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-use std::os::raw::{c_char, c_uint, c_void};
+use std::{fmt, os::raw::{c_char, c_uint, c_void}};
 
 pub type fmi3Float32 = f32;
 pub type fmi3Float64 = f64;
@@ -27,47 +27,82 @@ pub const fmi3True: fmi3Boolean = true;
 pub const fmi3False: fmi3Boolean = false;
 
 #[repr(i32)]
-#[derive(Debug, PartialEq, PartialOrd, Clone, Eq, Ord, Copy)]
+#[derive(PartialEq, PartialOrd, Clone, Eq, Ord, Copy)]
 pub enum fmi3Status {
-    fmi3OK = 0,
-    fmi3Warning = 1,
-    fmi3Discard = 2,
-    fmi3Error = 3,
-    fmi3Fatal = 4,
+    Ok = 0,
+    Warning = 1,
+    Discard = 2,
+    Error = 3,
+    Fatal = 4,
+}
+
+impl fmt::Debug for fmi3Status {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Ok => "fmi3OK",
+            Self::Warning => "fmi3Warning",
+            Self::Discard => "fmi3Discard",
+            Self::Error => "fmi3Error",
+            Self::Fatal => "fmi3Fatal",
+        })
+    }
 }
 
 impl TryFrom<i32> for fmi3Status {
     type Error = ();
 
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
+    fn try_from(value: i32) -> Result<Self, ()> {
         match value {
-            0 => Ok(fmi3Status::fmi3OK),
-            1 => Ok(fmi3Status::fmi3Warning),
-            2 => Ok(fmi3Status::fmi3Discard),
-            3 => Ok(fmi3Status::fmi3Error),
-            4 => Ok(fmi3Status::fmi3Fatal),
+            0 => Ok(fmi3Status::Ok),
+            1 => Ok(fmi3Status::Warning),
+            2 => Ok(fmi3Status::Discard),
+            3 => Ok(fmi3Status::Error),
+            4 => Ok(fmi3Status::Fatal),
             _ => Err(()),
         }
     }
 }
 
 #[repr(i32)]
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum fmi3DependencyKind {
-    fmi3Independent = 0,
-    fmi3Constant = 1,
-    fmi3Fixed = 2,
-    fmi3Tunable = 3,
-    fmi3Discrete = 4,
-    fmi3Dependent = 5,
+    Independent = 0,
+    Constant = 1,
+    Fixed = 2,
+    Tunable = 3,
+    Discrete = 4,
+    Dependent = 5,
+}
+
+impl fmt::Debug for fmi3DependencyKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Independent => "fmi3Independent",
+            Self::Constant => "fmi3Constant",
+            Self::Fixed => "fmi3Fixed",
+            Self::Tunable => "fmi3Tunable",
+            Self::Discrete => "fmi3Discrete",
+            Self::Dependent => "fmi3Dependent",
+        })
+    }
 }
 
 #[repr(i32)]
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum fmi3IntervalQualifier {
-    fmi3IntervalNotYetKnown = 0,
-    fmi3IntervalUnchanged = 1,
-    fmi3IntervalChanged = 2,
+    IntervalNotYetKnown = 0,
+    IntervalUnchanged = 1,
+    IntervalChanged = 2,
+}
+
+impl fmt::Debug for fmi3IntervalQualifier {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::IntervalNotYetKnown => "fmi3IntervalNotYetKnown",
+            Self::IntervalUnchanged => "fmi3IntervalUnchanged",
+            Self::IntervalChanged => "fmi3IntervalChanged",
+        })
+    }
 }
 
 pub type fmi3LogMessageCallback = unsafe extern "C" fn(

@@ -137,7 +137,7 @@ impl<T> Drop for FMU2<T> {
         if !self.component.is_null() {
             unsafe { (self.fmi2FreeInstance)(self.component) };
             if self.logCalls {
-                self.log_call(fmi2Status::fmi2OK, "fmi2FreeInstance()");
+                self.log_call(fmi2Status::Ok, "fmi2FreeInstance()");
             }
         }
     }
@@ -331,7 +331,7 @@ impl<T> FMU2<T> {
         };
         if self.logCalls {
             let message = format!("fmi2GetVersion() -> {version:?}");
-            self.log_call(fmi2Status::fmi2OK, message.as_str());
+            self.log_call(fmi2Status::Ok, message.as_str());
         }
         version
     }
@@ -343,7 +343,7 @@ impl<T> FMU2<T> {
         };
         if self.logCalls {
             let message = format!("fmi2GetTypesPlatform() -> {types_platform:?}");
-            self.log_call(fmi2Status::fmi2OK, message.as_str());
+            self.log_call(fmi2Status::Ok, message.as_str());
         }
         types_platform
     }
@@ -440,9 +440,9 @@ impl<T> FMU2<T> {
             );
 
             let status = if component.is_null() {
-                fmi2Status::fmi2Error
+                fmi2Status::Error
             } else {
-                fmi2Status::fmi2OK
+                fmi2Status::Ok
             };
 
             self.log_call(status, &message);
@@ -831,7 +831,7 @@ impl FMU2<ME> {
             library,
             unzipdir,
             instanceName,
-            fmi2Type::fmi2ModelExchange,
+            fmi2Type::ModelExchange,
             guid,
             visible,
             loggingOn,
@@ -1063,7 +1063,7 @@ impl FMU2<CS> {
             library,
             unzipdir,
             instanceName,
-            fmi2Type::fmi2CoSimulation,
+            fmi2Type::CoSimulation,
             guid,
             visible,
             loggingOn,
@@ -1151,7 +1151,7 @@ impl FMU2<CS> {
         let mut buffer: fmi2String = ptr::null();
         let status =
             unsafe { (self.interfaceType.fmi2GetStringStatus)(self.component, *s, &mut buffer) };
-        if status == fmi2Status::fmi2OK && !buffer.is_null() {
+        if status == fmi2Status::Ok && !buffer.is_null() {
             *value = unsafe { CStr::from_ptr(buffer).to_string_lossy().into_owned() };
         }
         if self.logCalls {

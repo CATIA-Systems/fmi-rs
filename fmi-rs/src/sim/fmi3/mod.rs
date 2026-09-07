@@ -433,7 +433,7 @@ pub fn set_variable_value(
 }
 
 pub fn call(status: fmi3Status) -> Result<fmi3Status, SimulationError> {
-    if matches!(status, fmi3Status::fmi3OK | fmi3Status::fmi3Warning) {
+    if matches!(status, fmi3Status::Ok | fmi3Status::Warning) {
         Ok(status)
     } else {
         Err(SimulationError::FMICall)
@@ -494,7 +494,7 @@ fn set_start_values(
         }
     }
 
-    Ok(fmi3Status::fmi3OK)
+    Ok(fmi3Status::Ok)
 }
 
 fn read_initial_fmu_state(fmu: &FMU3, path: &Path) -> Result<(), SimulationError> {

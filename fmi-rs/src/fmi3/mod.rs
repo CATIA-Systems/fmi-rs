@@ -109,7 +109,7 @@ impl Drop for FMU3 {
             unsafe { (self.fmi3FreeInstance)(self.instance) };
             self.instance = null_mut();
             if self.logCalls {
-                self.log_call(fmi3Status::fmi3OK, "fmi3FreeInstance()");
+                self.log_call(fmi3Status::Ok, "fmi3FreeInstance()");
             }
         }
     }
@@ -305,7 +305,7 @@ pub extern "C" fn intermediateUpdate(
                 earlyReturnTime={early_return_time}\
             )"
             );
-            fmu.logger.log_call(fmi3Status::fmi3OK, &message);
+            fmu.logger.log_call(fmi3Status::Ok, &message);
         }
     }
 }
@@ -560,7 +560,7 @@ impl FMU3 {
         };
         if self.logCalls {
             let message = format!("fmi3GetVersion() -> \"{version}\"");
-            self.log_call(fmi3Status::fmi3OK, &message);
+            self.log_call(fmi3Status::Ok, &message);
         }
         version
     }
@@ -617,9 +617,9 @@ impl FMU3 {
 
         if fmu.logCalls {
             let status = if instance.is_null() {
-                fmi3Status::fmi3Error
+                fmi3Status::Error
             } else {
-                fmi3Status::fmi3OK
+                fmi3Status::Ok
             };
 
             let message = format!(
@@ -719,9 +719,9 @@ impl FMU3 {
         };
 
         let status = if instance.is_null() {
-            fmi3Status::fmi3Error
+            fmi3Status::Error
         } else {
-            fmi3Status::fmi3OK
+            fmi3Status::Ok
         };
 
         if fmu.logCalls {
@@ -1266,7 +1266,7 @@ impl FMU3 {
             self.log_call(status, &message);
         }
 
-        if status == fmi3Status::fmi3OK {
+        if status == fmi3Status::Ok {
             Ok(nDependencies)
         } else {
             Err(status)
