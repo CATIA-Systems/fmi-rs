@@ -11,7 +11,7 @@ pub mod solver;
 
 use std::{path::PathBuf, slice::SliceIndex};
 
-use approx::relative_eq;
+use approx::{relative_eq, relative_ne};
 use thiserror::Error;
 
 use crate::dae::DaeManifestError;
@@ -148,6 +148,11 @@ pub type SetContinuousStatesFn<'a> = Box<dyn Fn(&[f64]) -> Result<(), Simulation
 /// Approximate equality using both the absolute difference and relative based comparisons.
 pub fn relative_eq(lhs: f64, rhs: f64, relative_tolerance: f64) -> bool {
     relative_eq!(lhs, rhs, max_relative = relative_tolerance)
+}
+
+/// Approximate inequality using both the absolute difference and relative based comparisons.
+pub fn relative_ne(lhs: f64, rhs: f64, relative_tolerance: f64) -> bool {
+    relative_ne!(lhs, rhs, max_relative = relative_tolerance)
 }
 
 /// Greater or approximate equality using both the absolute difference and relative based comparisons.
