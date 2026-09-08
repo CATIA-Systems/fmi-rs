@@ -382,7 +382,7 @@ pub fn parse_variable_value(
 
                     let mut bytes = Vec::new();
 
-                    for pair in hex_str.as_bytes().chunks_exact(2) {
+                    for pair in hex_str.as_bytes().as_chunks::<2>().0 {
                         let byte_str = std::str::from_utf8(pair).map_err(|error| {
                             SimulationError::Parse(format!("Invalid hex byte: {error}"))
                         })?;
