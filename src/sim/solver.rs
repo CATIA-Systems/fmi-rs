@@ -41,15 +41,15 @@ pub struct DummyDae;
 
 impl Dae for DummyDae {
     fn neq(&self) -> usize {
-        todo!()
+        0
     }
 
     fn nx(&self) -> usize {
-        todo!()
+        0
     }
 
     fn nz(&self) -> usize {
-        todo!()
+        0
     }
 
     fn init(
@@ -58,7 +58,7 @@ impl Dae for DummyDae {
         _nominals: &mut [f64],
         _unknowns: &mut [f64],
     ) -> Result<(), SimulationError> {
-        todo!()
+        Err(SimulationError::Parameter("Not implemented".to_owned()))
     }
 
     fn residuals(
@@ -68,11 +68,11 @@ impl Dae for DummyDae {
         _unknowns: &[f64],
         _residuals: &mut [f64],
     ) -> Result<(), SimulationError> {
-        todo!()
+        Err(SimulationError::Parameter("Not implemented".to_owned()))
     }
 
     fn root(&self, _time: f64, _knowns: &[f64], _z: &mut [f64]) -> Result<(), SimulationError> {
-        todo!()
+        Err(SimulationError::Parameter("Not implemented".to_owned()))
     }
 
     fn jacobian(
@@ -82,7 +82,7 @@ impl Dae for DummyDae {
         _alpha: f64,
         _J: &mut [f64],
     ) -> Result<(), SimulationError> {
-        todo!()
+        Err(SimulationError::Parameter("Not implemented".to_owned()))
     }
 }
 

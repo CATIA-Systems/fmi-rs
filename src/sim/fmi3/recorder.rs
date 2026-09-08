@@ -60,7 +60,9 @@ impl Recorder {
         let mut row = vec![];
 
         for (i, variable) in trajectories.variables().enumerate() {
-            let size = *self.sizes.borrow().get(i).unwrap();
+            let size = self.sizes.borrow().get(i).copied().ok_or_else(|| {
+                SimulationError::Parameter(format!("Missing size for recorded variable {i}"))
+            })?;
 
             let value_references = [variable.valueReference];
 

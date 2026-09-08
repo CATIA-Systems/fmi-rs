@@ -592,8 +592,12 @@ impl FMU3 {
             None
         };
 
-        let instance_name_cstr = CString::new(instanceName).unwrap();
-        let instantiation_token_cstr = CString::new(instantiationToken).unwrap();
+        let instance_name_cstr = CString::new(instanceName).map_err(|error| {
+            SimulationError::Parameter(format!("Invalid instance name: {error}"))
+        })?;
+        let instantiation_token_cstr = CString::new(instantiationToken).map_err(|error| {
+            SimulationError::Parameter(format!("Invalid instantiation token: {error}"))
+        })?;
         let resource_path_cstr =
             resourcePath.and_then(|path| CString::new(path.to_string_lossy().as_ref()).ok());
         let path_ptr = resource_path_cstr
@@ -667,8 +671,12 @@ impl FMU3 {
             None
         };
 
-        let instance_name_cstr = CString::new(instanceName).unwrap();
-        let instantiation_token_cstr = CString::new(instantiationToken).unwrap();
+        let instance_name_cstr = CString::new(instanceName).map_err(|error| {
+            SimulationError::Parameter(format!("Invalid instance name: {error}"))
+        })?;
+        let instantiation_token_cstr = CString::new(instantiationToken).map_err(|error| {
+            SimulationError::Parameter(format!("Invalid instantiation token: {error}"))
+        })?;
         let resource_path_cstr =
             resourcePath.and_then(|path| CString::new(path.to_string_lossy().as_ref()).ok());
         let path_ptr = resource_path_cstr
@@ -1131,7 +1139,10 @@ impl FMU3 {
     pub fn setString(&self, valueReferences: &[fmi3ValueReference], values: &[&str]) -> fmi3Status {
         debug_assert!(valueReferences.len() <= values.len());
 
-        let values: Vec<CString> = values.iter().map(|&v| CString::new(v).unwrap()).collect();
+        let values: Vec<CString> = match values.iter().map(|&v| CString::new(v)).collect() {
+            Ok(values) => values,
+            Err(_) => return fmi3Status::Error,
+        };
 
         let values2: Vec<fmi3String> = values.iter().map(|v| v.as_ptr() as fmi3String).collect();
 

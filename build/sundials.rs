@@ -1,3 +1,5 @@
+#![allow(clippy::panic, clippy::expect_used)]
+
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;

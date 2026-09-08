@@ -232,8 +232,10 @@ impl ModelDescription {
 
                     let mut bytes = Vec::new();
 
-                    for i in (0..hex_str.len()).step_by(2) {
-                        let byte_str = &hex_str[i..i.saturating_add(2)];
+                    for pair in hex_str.as_bytes().chunks_exact(2) {
+                        let byte_str = std::str::from_utf8(pair).map_err(|error| {
+                            ModelDescriptionError::Parse(format!("Invalid hex byte: {}", error))
+                        })?;
                         match u8::from_str_radix(byte_str, 16) {
                             Ok(byte) => bytes.push(byte),
                             Err(e) => {

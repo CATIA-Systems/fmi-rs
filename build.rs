@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 mod build {
     #[cfg(feature = "schema")]
     pub mod schema;

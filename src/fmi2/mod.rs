@@ -620,16 +620,19 @@ impl<T> FMU2<T> {
     pub fn setString(&self, valueReferences: &[fmi2ValueReference], values: &[&str]) -> fmi2Status {
         debug_assert_eq!(valueReferences.len(), values.len());
 
-        let values: Vec<CString> = values.iter().map(|&v| CString::new(v).unwrap()).collect();
+        let values: Vec<CString> = match values.iter().map(|&v| CString::new(v)).collect() {
+            Ok(values) => values,
+            Err(_) => return fmi2Status::Error,
+        };
 
-        let values2: Vec<fmi2String> = values.iter().map(|v| v.as_ptr() as fmi2String).collect();
+        let value_ptrs: Vec<fmi2String> = values.iter().map(|v| v.as_ptr() as fmi2String).collect();
 
         let status = unsafe {
             (self.fmi2SetString)(
                 self.component,
                 valueReferences.as_ptr(),
                 valueReferences.len(),
-                values2.as_ptr(),
+                value_ptrs.as_ptr(),
             )
         };
 

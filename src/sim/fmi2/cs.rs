@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
 use crate::{
-    fmi2::{self, CS, FMU2, types::{fmi2Status, fmi2StatusKind}}, sim::{
+    fmi2::{
+        self, CS, FMU2,
+        types::{fmi2Status, fmi2StatusKind},
+    },
+    sim::{
         SimulationError,
         fmi2::{
             SimulationSettings, call, input::StaticInput, read_initial_fmu_state,
@@ -119,14 +123,8 @@ pub fn simulate(
         let mut terminate_simulation = 0;
 
         if do_step_status == fmi2Status::Discard {
-            call(fmu.getRealStatus(
-                &fmi2StatusKind::LastSuccessfulTime,
-                &mut time,
-            ))?;
-            call(fmu.getBooleanStatus(
-                &fmi2StatusKind::Terminated,
-                &mut terminate_simulation,
-            ))?;
+            call(fmu.getRealStatus(&fmi2StatusKind::LastSuccessfulTime, &mut time))?;
+            call(fmu.getBooleanStatus(&fmi2StatusKind::Terminated, &mut terminate_simulation))?;
         } else {
             call(do_step_status)?;
             time = next_communication_point;

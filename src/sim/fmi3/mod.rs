@@ -166,21 +166,22 @@ impl VariableValue {
         }
     }
 
-    pub fn as_f64(&self) -> Vec<f64> {
+    pub fn as_f64(&self) -> Option<Vec<f64>> {
         match self {
-            VariableValue::Float32(v) => v.iter().map(|x| *x as f64).collect(),
-            VariableValue::Float64(v) => v.clone(),
-            VariableValue::Int8(v) => v.iter().map(|x| *x as f64).collect(),
-            VariableValue::UInt8(v) => v.iter().map(|x| *x as f64).collect(),
-            VariableValue::Int16(v) => v.iter().map(|x| *x as f64).collect(),
-            VariableValue::UInt16(v) => v.iter().map(|x| *x as f64).collect(),
-            VariableValue::Int32(v) => v.iter().map(|x| *x as f64).collect(),
-            VariableValue::UInt32(v) => v.iter().map(|x| *x as f64).collect(),
-            VariableValue::Int64(v) => v.iter().map(|x| *x as f64).collect(),
-            VariableValue::UInt64(v) => v.iter().map(|x| *x as f64).collect(),
-            VariableValue::Boolean(v) => v.iter().map(|&b| if b { 1.0 } else { 0.0 }).collect(),
-            VariableValue::String(_) => panic!("String value cannot be converted to f64."),
-            VariableValue::Binary(_) => panic!("Binary value cannot be converted to f64."),
+            VariableValue::Float32(v) => Some(v.iter().map(|x| *x as f64).collect()),
+            VariableValue::Float64(v) => Some(v.clone()),
+            VariableValue::Int8(v) => Some(v.iter().map(|x| *x as f64).collect()),
+            VariableValue::UInt8(v) => Some(v.iter().map(|x| *x as f64).collect()),
+            VariableValue::Int16(v) => Some(v.iter().map(|x| *x as f64).collect()),
+            VariableValue::UInt16(v) => Some(v.iter().map(|x| *x as f64).collect()),
+            VariableValue::Int32(v) => Some(v.iter().map(|x| *x as f64).collect()),
+            VariableValue::UInt32(v) => Some(v.iter().map(|x| *x as f64).collect()),
+            VariableValue::Int64(v) => Some(v.iter().map(|x| *x as f64).collect()),
+            VariableValue::UInt64(v) => Some(v.iter().map(|x| *x as f64).collect()),
+            VariableValue::Boolean(v) => {
+                Some(v.iter().map(|&b| if b { 1.0 } else { 0.0 }).collect())
+            }
+            VariableValue::String(_) | VariableValue::Binary(_) => None,
         }
     }
 }
@@ -381,8 +382,10 @@ pub fn parse_variable_value(
 
                     let mut bytes = Vec::new();
 
-                    for i in (0..hex_str.len()).step_by(2) {
-                        let byte_str = &hex_str[i..i.saturating_add(2)];
+                    for pair in hex_str.as_bytes().chunks_exact(2) {
+                        let byte_str = std::str::from_utf8(pair).map_err(|error| {
+                            SimulationError::Parse(format!("Invalid hex byte: {error}"))
+                        })?;
                         match u8::from_str_radix(byte_str, 16) {
                             Ok(byte) => bytes.push(byte),
                             Err(e) => {

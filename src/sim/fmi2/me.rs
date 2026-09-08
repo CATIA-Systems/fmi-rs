@@ -375,9 +375,7 @@ impl<'a> Ode for Ode2<'a> {
             seed.set(i, 1.0)?;
             let start = i.saturating_mul(self.nx);
             let end = i.saturating_add(1).saturating_mul(self.nx);
-            let column = J.try_get_mut(
-                start..end,
-            )?;
+            let column = J.try_get_mut(start..end)?;
             expect_ok!(self.fmu.getDirectionalDerivative(
                 &self.unknown_vrs,
                 &self.known_vrs,

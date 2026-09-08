@@ -517,9 +517,8 @@ impl Dae for Dae3 {
             let mut seed = vec![0.0; n];
             seed.set(i, 1.0)?;
 
-            let column = J.try_get_mut(
-                i.saturating_mul(n)..i.saturating_add(1).saturating_mul(n),
-            )?;
+            let column =
+                J.try_get_mut(i.saturating_mul(n)..i.saturating_add(1).saturating_mul(n))?;
 
             expect_ok!(self.fmu.getDirectionalDerivative(
                 &self.unknown_vrs,

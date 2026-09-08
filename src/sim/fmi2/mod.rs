@@ -51,18 +51,18 @@ pub enum VariableValue {
 }
 
 impl VariableValue {
-    pub fn to_f64(&self) -> f64 {
+    pub fn to_f64(&self) -> Option<f64> {
         match self {
-            VariableValue::Real(value) => *value,
-            VariableValue::Integer(value) => *value as f64,
+            VariableValue::Real(value) => Some(*value),
+            VariableValue::Integer(value) => Some(*value as f64),
             VariableValue::Boolean(value) => {
                 if *value != fmi2False {
-                    1.0
+                    Some(1.0)
                 } else {
-                    0.0
+                    Some(0.0)
                 }
             }
-            VariableValue::String(_) => panic!("String value cannot be converted to f64."),
+            VariableValue::String(_) => None,
         }
     }
 

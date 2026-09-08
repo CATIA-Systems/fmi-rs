@@ -1,6 +1,9 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-use std::{fmt, os::raw::{c_char, c_void}};
+use std::{
+    fmt,
+    os::raw::{c_char, c_void},
+};
 
 // FMI 2.0 Basic Types
 pub type fmi2Real = f64;

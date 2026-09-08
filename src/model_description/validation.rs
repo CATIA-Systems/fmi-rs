@@ -6,7 +6,7 @@ unsafe extern "C" {
 }
 
 pub fn validate_structured_variable_name(name: &str) -> Result<(), String> {
-    let c_name = CString::new(name).unwrap();
+    let c_name = CString::new(name).map_err(|error| error.to_string())?;
     unsafe {
         let result = validate_variable_name(c_name.as_ptr());
         if result.is_null() {
