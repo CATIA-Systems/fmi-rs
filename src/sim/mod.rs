@@ -9,7 +9,7 @@ pub mod fmi2;
 pub mod fmi3;
 pub mod solver;
 
-use std::{path::PathBuf, slice::SliceIndex};
+use std::{ffi::NulError, path::PathBuf, slice::SliceIndex};
 
 use approx::{relative_eq, relative_ne};
 use thiserror::Error;
@@ -52,6 +52,9 @@ pub enum SimulationError {
 
     #[error("Illegal simulation parameter: {0}")]
     Parameter(String),
+
+    #[error("String contains a NUL byte: {0}")]
+    Nul(#[from] NulError),
 
     #[error(
         "The next event time ({next_event_time}) must be greater than the current time ({time})"

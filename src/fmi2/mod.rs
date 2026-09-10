@@ -11,12 +11,12 @@ pub mod types;
 
 use crate::fmi2::log::Logger;
 use crate::sim::SimulationError;
-use crate::{get_symbol, load_platform_binary};
+use crate::{CStrExt, get_symbol, load_platform_binary};
 use libloading::Library;
-use std::cell::RefCell;
 use std::ffi::{CStr, CString};
 use std::path::Path;
 use std::ptr;
+use std::sync::Arc;
 use types::*;
 use url::Url;
 
@@ -159,7 +159,7 @@ pub struct Message {
 pub struct FMU2<T> {
     instanceName: String,
 
-    logger: Box<RefCell<Box<dyn Logger>>>,
+    logger: Arc<dyn Logger>,
     logCalls: bool,
 
     library: Box<Library>,
@@ -197,30 +197,20 @@ pub struct FMU2<T> {
 
 #[unsafe(no_mangle)]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub extern "C" fn logger(
+pub extern "C" fn fmi2_logger_callback(
     componentEnvironment: fmi2ComponentEnvironment,
     _instanceName: fmi2String,
     status: fmi2Status,
     category: fmi2String,
     message: fmi2String,
 ) {
-    let category_str = if !category.is_null() {
-        unsafe { CStr::from_ptr(category).to_string_lossy().into_owned() }
-    } else {
-        "unknown".to_string()
-    };
-
-    let message_str = if !message.is_null() {
-        unsafe { CStr::from_ptr(message).to_string_lossy().into_owned() }
-    } else {
-        "empty".to_string()
-    };
-
     if !componentEnvironment.is_null() {
-        let logger = unsafe { &*(componentEnvironment as *const RefCell<Box<dyn Logger>>) };
-        logger
-            .borrow()
-            .log_message(status, &category_str, &message_str);
+        let logger = unsafe { &*(componentEnvironment as *const Arc<dyn Logger>) };
+        logger.log_message(
+            status,
+            &category.to_str_or_null(),
+            &message.to_str_or_null(),
+        );
     }
 }
 
@@ -233,11 +223,11 @@ impl<T> FMU2<T> {
         guid: &str,
         visible: bool,
         loggingOn: bool,
-        logger: Box<dyn Logger>,
+        logger: Arc<dyn Logger>,
         logCalls: bool,
         interfaceType: T,
         provideMemoryManagementFunctions: bool,
-    ) -> Result<FMU2<T>, SimulationError> {
+    ) -> Result<Arc<FMU2<T>>, SimulationError> {
         let fmi2GetVersion = *get_symbol(&library, b"fmi2GetVersion")?;
         let fmi2GetTypesPlatform = *get_symbol(&library, b"fmi2GetTypesPlatform")?;
         let fmi2SetDebugLogging = *get_symbol(&library, b"fmi2SetDebugLogging")?;
@@ -264,10 +254,10 @@ impl<T> FMU2<T> {
         let fmi2DeSerializeFMUstate = *get_symbol(&library, b"fmi2DeSerializeFMUstate")?;
         let fmi2GetDirectionalDerivative = *get_symbol(&library, b"fmi2GetDirectionalDerivative")?;
 
-        let mut fmu = FMU2 {
+        let mut fmu = Arc::new(FMU2 {
             instanceName: String::from(instanceName),
             logCalls,
-            logger: Box::new(RefCell::new(logger)),
+            logger,
             library,
             fmi2GetVersion,
             fmi2GetTypesPlatform,
@@ -296,7 +286,7 @@ impl<T> FMU2<T> {
             fmi2GetDirectionalDerivative,
             component: ptr::null_mut(),
             interfaceType,
-        };
+        });
 
         let resource_path = unzipdir.join("resources").join("");
 
@@ -306,22 +296,83 @@ impl<T> FMU2<T> {
             None
         };
 
-        match fmu.instantiate(
-            instanceName,
-            fmuType,
-            guid,
-            resourceUrl.as_ref(),
-            visible,
-            loggingOn,
-            provideMemoryManagementFunctions,
-        ) {
-            Err(e) => Err(e),
-            Ok(_) => Ok(fmu),
+        let instance_name_cstr = CString::new(instanceName)?;
+
+        let fmu_guid_cstr = CString::new(guid)?;
+
+        let url_cstr = resourceUrl
+            .clone()
+            .map(|url| CString::new(url.to_string()))
+            .transpose()?;
+
+        let componentEnvironment =
+            (&fmu.logger as *const Arc<dyn Logger>) as fmi2ComponentEnvironment;
+
+        let mut callbacks = fmi2CallbackFunctions {
+            logger: fmi2_logger_callback,
+            allocateMemory: if provideMemoryManagementFunctions {
+                Some(libc::calloc)
+            } else {
+                None
+            },
+            freeMemory: if provideMemoryManagementFunctions {
+                Some(libc::free)
+            } else {
+                None
+            },
+            stepFinished: None,
+            componentEnvironment,
+        };
+
+        unsafe { add_logger_proxy(&mut callbacks) };
+
+        let url_ptr = url_cstr.as_ref().map(|s| s.as_ptr()).unwrap_or(ptr::null()) as fmi2String;
+
+        let component = unsafe {
+            (fmu.fmi2Instantiate)(
+                instance_name_cstr.as_ptr(),
+                fmuType,
+                fmu_guid_cstr.as_ptr(),
+                url_ptr,
+                &callbacks,
+                visible as fmi2Boolean,
+                loggingOn as fmi2Boolean,
+            )
+        };
+
+        if fmu.logCalls {
+            let url = if let Some(url) = resourceUrl {
+                format!("\"{}\"", url)
+            } else {
+                String::from("0x0")
+            };
+
+            let message = format!(
+                "fmi2Instantiate(instanceName={:?}, fmuType={:?}, fmuGUID={:?}, fmuResourceLocation={}, callbacks={:?}, visible={}, loggingOn={}) -> {:p}",
+                instanceName, fmuType, guid, url, callbacks, visible, loggingOn, component
+            );
+
+            let status = if component.is_null() {
+                fmi2Status::Error
+            } else {
+                fmi2Status::Ok
+            };
+
+            fmu.log_call(status, &message);
+        }
+
+        if !component.is_null()
+            && let Some(mut_fmu) = Arc::get_mut(&mut fmu)
+        {
+            mut_fmu.component = component;
+            Ok(fmu)
+        } else {
+            Err(SimulationError::FMICall)
         }
     }
 
     fn log_call(&self, status: fmi2Status, message: &str) {
-        self.logger.borrow().log_call(status, message);
+        self.logger.log_call(status, message);
     }
 
     pub fn getVersion(&self) -> String {
@@ -346,115 +397,6 @@ impl<T> FMU2<T> {
             self.log_call(fmi2Status::Ok, message.as_str());
         }
         types_platform
-    }
-
-    fn instantiate(
-        &mut self,
-        instanceName: &str,
-        fmuType: fmi2Type,
-        guid: &str,
-        resourceUrl: Option<&Url>,
-        visible: bool,
-        loggingOn: bool,
-        provideMemoryManagementFunctions: bool,
-    ) -> Result<(), SimulationError> {
-        let instance_name_cstr = match CString::new(instanceName) {
-            Ok(cstr) => cstr,
-            Err(e) => {
-                return Err(SimulationError::Parameter(format!(
-                    "Failed to convert argument instanceName to C string: {}",
-                    e
-                )));
-            }
-        };
-
-        let fmu_guid_cstr = match CString::new(guid) {
-            Ok(cstr) => cstr,
-            Err(e) => {
-                return Err(SimulationError::Parameter(format!(
-                    "Failed to convert argument guid to C string: {}",
-                    e
-                )));
-            }
-        };
-
-        let url_cstr = resourceUrl
-            .map(|url| {
-                CString::new(url.to_string()).map_err(|e| {
-                    SimulationError::Parameter(format!(
-                        "Failed to convert argument resourceUrl to C string: {}",
-                        e
-                    ))
-                })
-            })
-            .transpose()?;
-
-        let componentEnvironment =
-            &*self.logger as *const RefCell<Box<dyn Logger>> as fmi2ComponentEnvironment;
-
-        let mut callbacks = fmi2CallbackFunctions {
-            logger,
-            allocateMemory: if provideMemoryManagementFunctions {
-                Some(libc::calloc)
-            } else {
-                None
-            },
-            freeMemory: if provideMemoryManagementFunctions {
-                Some(libc::free)
-            } else {
-                None
-            },
-            stepFinished: None,
-            componentEnvironment,
-        };
-
-        unsafe { add_logger_proxy(&mut callbacks) };
-
-        let visible = visible as fmi2Boolean;
-        let loggingOn = loggingOn as fmi2Boolean;
-
-        let url_ptr = url_cstr.as_ref().map(|s| s.as_ptr()).unwrap_or(ptr::null()) as fmi2String;
-
-        let component = unsafe {
-            (self.fmi2Instantiate)(
-                instance_name_cstr.as_ptr(),
-                fmuType,
-                fmu_guid_cstr.as_ptr(),
-                url_ptr,
-                &callbacks,
-                visible as fmi2Boolean,
-                loggingOn as fmi2Boolean,
-            )
-        };
-
-        if self.logCalls {
-            let url = if let Some(url) = resourceUrl {
-                format!("\"{}\"", url)
-            } else {
-                String::from("0x0")
-            };
-
-            let message = format!(
-                "fmi2Instantiate(instanceName={:?}, fmuType={:?}, fmuGUID={:?}, fmuResourceLocation={}, callbacks={:?}, visible={}, loggingOn={}) -> {:p}",
-                instanceName, fmuType, guid, url, callbacks, visible, loggingOn, component
-            );
-
-            let status = if component.is_null() {
-                fmi2Status::Error
-            } else {
-                fmi2Status::Ok
-            };
-
-            self.log_call(status, &message);
-        }
-
-        if component.is_null() {
-            return Err(SimulationError::FMICall);
-        }
-
-        self.component = component;
-
-        Ok(())
     }
 
     pub fn terminate(&self) -> fmi2Status {
@@ -800,9 +742,9 @@ impl FMU2<ME> {
         visible: bool,
         loggingOn: bool,
         logCalls: bool,
-        logger: Box<dyn Logger>,
+        logger: Arc<dyn Logger>,
         provideMemoryManagementFunctions: bool,
-    ) -> Result<FMU2<ME>, SimulationError> {
+    ) -> Result<Arc<FMU2<ME>>, SimulationError> {
         let library = load_platform_binary(unzipdir, PLATFORM, modelIdentifier)?;
 
         let fmi2EnterEventMode = *get_symbol(&library, b"fmi2EnterEventMode")?;
@@ -1035,9 +977,9 @@ impl FMU2<CS> {
         visible: bool,
         loggingOn: bool,
         logCalls: bool,
-        logger: Box<dyn Logger>,
+        logger: Arc<dyn Logger>,
         provideMemoryManagementFunctions: bool,
-    ) -> Result<FMU2<CS>, SimulationError> {
+    ) -> Result<Arc<FMU2<CS>>, SimulationError> {
         let library = load_platform_binary(unzipdir, PLATFORM, modelIdentifier)?;
 
         let fmi2SetRealInputDerivatives = *get_symbol(&library, b"fmi2SetRealInputDerivatives")?;

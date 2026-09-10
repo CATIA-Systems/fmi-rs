@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use crate::{
     fmi2::{
-        self, FMU2, ME,
+        FMU2, ME,
+        log::DefaultLogger,
         types::{fmi2False, fmi2Real, fmi2Status, fmi2ValueReference},
     },
     sim::{
@@ -42,11 +43,11 @@ pub fn simulate<S: SolverFactory>(
 
     let needs_completed_integrator_step = !model_exchange.completedIntegratorStepNotNeeded;
 
-    let logger = if let Some(log_file) = &settings.log_file {
-        fmi2::log::DefaultLogger::from_path(log_file).map_err(SimulationError::io(&log_file))?
+    let logger = Arc::new(if let Some(log_file) = &settings.log_file {
+        DefaultLogger::from_path(log_file).map_err(SimulationError::io(&log_file))?
     } else {
-        fmi2::log::DefaultLogger::default()
-    };
+        DefaultLogger::default()
+    });
 
     let fmu = FMU2::<ME>::new(
         &settings.unzipdir,
@@ -56,7 +57,7 @@ pub fn simulate<S: SolverFactory>(
         false,
         settings.logging_on,
         settings.log_fmi_calls,
-        Box::new(logger),
+        logger,
         !model_exchange.canNotUseMemoryManagementFunctions,
     )?;
 

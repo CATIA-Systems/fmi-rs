@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use crate::{
     fmi2::{
-        self, CS, FMU2,
+        CS, FMU2,
+        log::DefaultLogger,
         types::{fmi2Status, fmi2StatusKind},
     },
     sim::{
@@ -41,11 +42,11 @@ pub fn simulate(
     let can_handle_variable_communication_step_size =
         co_simulation.canHandleVariableCommunicationStepSize;
 
-    let logger = if let Some(log_file) = &settings.log_file {
-        fmi2::log::DefaultLogger::from_path(log_file).map_err(SimulationError::io(&log_file))?
+    let logger = Arc::new(if let Some(log_file) = &settings.log_file {
+        DefaultLogger::from_path(log_file).map_err(SimulationError::io(&log_file))?
     } else {
-        fmi2::log::DefaultLogger::default()
-    };
+        DefaultLogger::default()
+    });
 
     let fmu = FMU2::<CS>::new(
         &settings.unzipdir,
@@ -55,7 +56,7 @@ pub fn simulate(
         false,
         settings.logging_on,
         settings.log_fmi_calls,
-        Box::new(logger),
+        logger,
         !co_simulation.canNotUseMemoryManagementFunctions,
     )?;
 

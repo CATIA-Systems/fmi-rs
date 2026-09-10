@@ -11,7 +11,7 @@ pub mod types;
 
 use crate::fmi3::log::Logger;
 use crate::sim::SimulationError::{self};
-use crate::{get_symbol, load_platform_binary};
+use crate::{CStrExt, get_symbol, load_platform_binary};
 use itertools::izip;
 use libloading::Library;
 use std::ffi::{CStr, CString};
@@ -129,7 +129,7 @@ pub struct Message {
 }
 
 pub struct FMU3 {
-    logger: Box<dyn Logger>,
+    logger: Arc<dyn Logger>,
     intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
 
     logCalls: bool,
@@ -217,27 +217,19 @@ pub struct FMU3 {
 
 #[unsafe(no_mangle)]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub extern "C" fn logMessage(
+pub extern "C" fn fmi3_logger_callback(
     instanceEnvironment: fmi3InstanceEnvironment,
     status: fmi3Status,
     category: fmi3String,
     message: fmi3String,
 ) {
-    let category_str = if !category.is_null() {
-        unsafe { CStr::from_ptr(category).to_string_lossy().into_owned() }
-    } else {
-        "unknown".to_string()
-    };
-
-    let message_str = if !message.is_null() {
-        unsafe { CStr::from_ptr(message).to_string_lossy().into_owned() }
-    } else {
-        "empty".to_string()
-    };
-
     if !instanceEnvironment.is_null() {
         let fmu: &FMU3 = unsafe { &*(instanceEnvironment as *const FMU3) };
-        fmu.logger.log_message(status, &category_str, &message_str);
+        fmu.logger.log_message(
+            status,
+            &category.to_str_or_null(),
+            &message.to_str_or_null(),
+        );
     }
 }
 
@@ -314,7 +306,7 @@ impl FMU3 {
     fn new(
         unzipdir: &Path,
         modelIdentifier: &str,
-        logger: Box<dyn Logger>,
+        logger: Arc<dyn Logger>,
         logCalls: bool,
         intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
     ) -> Result<FMU3, SimulationError> {
@@ -572,7 +564,7 @@ impl FMU3 {
         instantiationToken: &str,
         visible: bool,
         loggingOn: bool,
-        logger: Box<dyn Logger>,
+        logger: Arc<dyn Logger>,
         logCalls: bool,
     ) -> Result<Arc<FMU3>, SimulationError> {
         #[allow(clippy::arc_with_non_send_sync)]
@@ -604,7 +596,7 @@ impl FMU3 {
             .as_ref()
             .map(|cstr| cstr.as_ptr())
             .unwrap_or(ptr::null());
-        let log_message = logMessage as *const fmi3LogMessageCallback;
+        let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
         let instanceEnvironment = Arc::as_ptr(&fmu).cast::<c_void>() as *mut c_void;
 
         let instance = unsafe {
@@ -659,7 +651,7 @@ impl FMU3 {
         loggingOn: bool,
         eventModeUsed: bool,
         earlyReturnAllowed: bool,
-        logger: Box<dyn Logger>,
+        logger: Arc<dyn Logger>,
         logCalls: bool,
         intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
     ) -> Result<Arc<FMU3>, SimulationError> {
@@ -671,19 +663,13 @@ impl FMU3 {
             None
         };
 
-        let instance_name_cstr = CString::new(instanceName).map_err(|error| {
-            SimulationError::Parameter(format!("Invalid instance name: {error}"))
-        })?;
-        let instantiation_token_cstr = CString::new(instantiationToken).map_err(|error| {
-            SimulationError::Parameter(format!("Invalid instantiation token: {error}"))
-        })?;
         let resource_path_cstr =
             resourcePath.and_then(|path| CString::new(path.to_string_lossy().as_ref()).ok());
         let path_ptr = resource_path_cstr
             .as_ref()
             .map(|cstr| cstr.as_ptr())
             .unwrap_or(ptr::null());
-        let log_message = logMessage as *const fmi3LogMessageCallback;
+        let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
 
         let (requiredIntermediateVariables, intermediate_update) =
             if let Some(handler) = intermediateUpdateHandler.as_ref() {
@@ -711,8 +697,8 @@ impl FMU3 {
 
         let instance = unsafe {
             (fmu.fmi3InstantiateCoSimulation)(
-                instance_name_cstr.as_ptr(),
-                instantiation_token_cstr.as_ptr(),
+                CString::new(instanceName)?.as_ptr(),
+                CString::new(instantiationToken)?.as_ptr(),
                 path_ptr,
                 visible,
                 loggingOn,

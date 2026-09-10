@@ -1,7 +1,10 @@
 #![allow(non_snake_case)]
 
 use crate::{fmi2, sim::SimulationError, zip::extract_zip_archive};
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tempfile::TempDir;
 
 pub struct FMU2Builder {
@@ -51,14 +54,14 @@ impl FMU2Builder {
     pub fn instantiate_me(
         &self,
         instanceName: &str,
-    ) -> Result<fmi2::FMU2<fmi2::ME>, SimulationError> {
+    ) -> Result<Arc<fmi2::FMU2<fmi2::ME>>, SimulationError> {
         if let Some(me) = &self.model_description.modelExchange {
-            let logger = if let Some(log_file) = &self.logFile {
+            let logger = Arc::new(if let Some(log_file) = &self.logFile {
                 fmi2::log::DefaultLogger::from_path(log_file)
                     .map_err(SimulationError::io(&log_file))?
             } else {
                 fmi2::log::DefaultLogger::default()
-            };
+            });
 
             fmi2::FMU2::<fmi2::ME>::new(
                 self.unzipdir.path(),
@@ -68,7 +71,7 @@ impl FMU2Builder {
                 self.visible,
                 self.loggingOn,
                 self.logCalls,
-                Box::new(logger),
+                logger,
                 !me.canNotUseMemoryManagementFunctions,
             )
         } else {
@@ -79,14 +82,14 @@ impl FMU2Builder {
     pub fn instantiate_cs(
         &self,
         instanceName: &str,
-    ) -> Result<fmi2::FMU2<fmi2::CS>, SimulationError> {
+    ) -> Result<Arc<fmi2::FMU2<fmi2::CS>>, SimulationError> {
         if let Some(cs) = &self.model_description.coSimulation {
-            let logger = if let Some(log_file) = &self.logFile {
+            let logger = Arc::new(if let Some(log_file) = &self.logFile {
                 fmi2::log::DefaultLogger::from_path(log_file)
                     .map_err(SimulationError::io(&log_file))?
             } else {
                 fmi2::log::DefaultLogger::default()
-            };
+            });
 
             fmi2::FMU2::<fmi2::CS>::new(
                 self.unzipdir.path(),
@@ -96,7 +99,7 @@ impl FMU2Builder {
                 self.visible,
                 self.loggingOn,
                 self.logCalls,
-                Box::new(logger),
+                logger,
                 !cs.canNotUseMemoryManagementFunctions,
             )
         } else {

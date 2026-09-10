@@ -1,7 +1,7 @@
 use std::{
-    cell::RefCell,
     io::{IsTerminal, Write},
     path::Path,
+    sync::Mutex,
 };
 
 use colored::Colorize;
@@ -14,18 +14,18 @@ pub trait Logger {
 }
 
 pub struct DefaultLogger {
-    pub stream: Box<RefCell<dyn Write>>,
+    pub stream: Mutex<Box<dyn Write + Send>>,
     pub is_terminal: bool,
 }
 
 impl DefaultLogger {
     pub fn new<S>(stream: S) -> Self
     where
-        S: Write + IsTerminal + 'static,
+        S: Write + IsTerminal + Send + 'static,
     {
         let is_terminal = stream.is_terminal();
         DefaultLogger {
-            stream: Box::new(RefCell::new(stream)),
+            stream: Mutex::new(Box::new(stream)),
             is_terminal,
         }
     }
@@ -49,12 +49,18 @@ impl Logger for DefaultLogger {
         } else {
             "[FMI]".normal()
         };
-        writeln!(self.stream.borrow_mut(), "{prefix} {message}")
-            .unwrap_or_else(|e| eprintln!("Failed to write log message: {e}"));
+
+        let mut guard = self.stream.lock().unwrap_or_else(|e| e.into_inner());
+
+        if let Err(e) = writeln!(&mut *guard, "{prefix} {message}") {
+            eprintln!("Failed to write log message: {e}");
+        }
     }
 
     fn log_message(&self, status: fmi3Status, category: &str, message: &str) {
         let message = message.trim_end();
+
+        let mut guard = self.stream.lock().unwrap_or_else(|e| e.into_inner());
 
         if self.is_terminal {
             let prefix = match status {
@@ -64,8 +70,10 @@ impl Logger for DefaultLogger {
                 fmi3Status::Discard => "[DISCARD]".bright_red(),
                 fmi3Status::Fatal => "[FATAL]".bright_red(),
             };
-            writeln!(self.stream.borrow_mut(), "{prefix} [{category}] {message}")
-                .unwrap_or_else(|e| eprintln!("Failed to write log message: {e}"));
+
+            if let Err(e) = writeln!(&mut *guard, "{prefix} [{category}] {message}") {
+                eprintln!("Failed to write log message: {e}");
+            }
         } else {
             let prefix = match status {
                 fmi3Status::Ok => "[INFO]",
@@ -74,8 +82,10 @@ impl Logger for DefaultLogger {
                 fmi3Status::Discard => "[DISCARD]",
                 fmi3Status::Fatal => "[FATAL]",
             };
-            writeln!(self.stream.borrow_mut(), "{prefix} [{category}] {message}")
-                .unwrap_or_else(|e| eprintln!("Failed to write log message: {e}"));
+
+            if let Err(e) = writeln!(&mut *guard, "{prefix} [{category}] {message}") {
+                eprintln!("Failed to write log message: {e}");
+            }
         };
     }
 }

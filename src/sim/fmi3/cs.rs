@@ -88,12 +88,11 @@ pub fn simulate(
     let can_handle_variable_communication_step_size =
         co_simulation.canHandleVariableCommunicationStepSize;
 
-    let logger = if let Some(log_file) = &settings.log_file {
-        let stream = std::fs::File::create(log_file).map_err(SimulationError::io(&log_file))?;
-        DefaultLogger::new(stream)
+    let logger = Arc::new(if let Some(log_file) = &settings.log_file {
+        DefaultLogger::from_path(log_file).map_err(SimulationError::io(&log_file))?
     } else {
         DefaultLogger::default()
-    };
+    });
 
     let intermediate_update_handler: Option<Box<dyn IntermediateUpdateHandler>> =
         if settings.intermediate_update {
@@ -114,7 +113,7 @@ pub fn simulate(
         settings.logging_on,
         settings.event_mode_used,
         settings.early_return_allowed,
-        Box::new(logger),
+        logger,
         settings.log_fmi_calls,
         intermediate_update_handler,
     )?;

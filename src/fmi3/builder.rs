@@ -70,11 +70,11 @@ impl FMU3Builder {
 
     pub fn instantiate_me(&self, instanceName: &str) -> Result<Arc<FMU3>, SimulationError> {
         if let Some(me) = &self.model_description.modelExchange {
-            let logger = if let Some(log_file) = &self.logFile {
+            let logger = Arc::new(if let Some(log_file) = &self.logFile {
                 DefaultLogger::from_path(log_file).map_err(SimulationError::io(&log_file))?
             } else {
                 DefaultLogger::default()
-            };
+            });
 
             fmi3::FMU3::instantiateModelExchange(
                 self.unzipdir.path(),
@@ -83,7 +83,7 @@ impl FMU3Builder {
                 &self.model_description.instantiationToken,
                 self.visible,
                 self.loggingOn,
-                Box::new(logger),
+                logger,
                 self.logCalls,
             )
         } else {
@@ -93,11 +93,11 @@ impl FMU3Builder {
 
     pub fn instantiate_cs(&self, instanceName: &str) -> Result<Arc<FMU3>, SimulationError> {
         if let Some(cs) = &self.model_description.coSimulation {
-            let logger = if let Some(log_file) = &self.logFile {
+            let logger = Arc::new(if let Some(log_file) = &self.logFile {
                 DefaultLogger::from_path(log_file).map_err(SimulationError::io(&log_file))?
             } else {
                 DefaultLogger::default()
-            };
+            });
 
             FMU3::instantiateCoSimulation(
                 self.unzipdir.path(),
@@ -108,7 +108,7 @@ impl FMU3Builder {
                 self.loggingOn,
                 self.eventModeUsed,
                 self.earlyReturnAllowed,
-                Box::new(logger),
+                logger,
                 self.logCalls,
                 None,
             )

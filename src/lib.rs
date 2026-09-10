@@ -1,4 +1,7 @@
-use std::path::Path;
+use std::{
+    ffi::{CStr, c_char},
+    path::Path,
+};
 
 use libloading::{Library, Symbol};
 
@@ -28,6 +31,21 @@ pub const SHARED_LIBRARY_EXTENSION: &str = ".dylib";
 
 #[cfg(target_os = "windows")]
 pub const SHARED_LIBRARY_EXTENSION: &str = ".dll";
+
+trait CStrExt {
+    /// Safely converts a raw C string pointer into a string lossy representation,
+    /// returning "<null>" if the pointer is null.
+    fn to_str_or_null<'a>(self) -> std::borrow::Cow<'a, str>;
+}
+
+impl CStrExt for *const c_char {
+    fn to_str_or_null<'a>(self) -> std::borrow::Cow<'a, str> {
+        unsafe {
+            self.as_ref()
+                .map_or_else(|| "<null>".into(), |c| CStr::from_ptr(c).to_string_lossy())
+        }
+    }
+}
 
 #[allow(clippy::missing_transmute_annotations)]
 fn get_symbol<T>(
