@@ -74,6 +74,17 @@ impl VariableType {
         }
     }
 
+    /// Returns true if the start attribute is set.
+    pub fn start(&self) -> &Option<String> {
+        match self {
+            VariableType::Real { start, .. } => start,
+            VariableType::Integer { start, .. } => start,
+            VariableType::Boolean { start, .. } => start,
+            VariableType::String { start, .. } => start,
+            VariableType::Enumeration { start, .. } => start,
+        }
+    }
+
     /// Returns the index of the variable this variable is the derivative of.
     pub fn derivative(&self) -> Result<u32, ModelDescriptionError> {
         if let VariableType::Real {

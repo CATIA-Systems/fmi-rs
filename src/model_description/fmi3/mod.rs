@@ -348,7 +348,7 @@ pub enum VariableType {
         previous: Option<u32>,
     },
     Binary {
-        start: Vec<Vec<u8>>,
+        start: Vec<String>,
         declaredType: Option<String>,
         intermediateUpdate: bool,
         previous: Option<u32>,
@@ -414,6 +414,29 @@ impl VariableType {
             VariableType::Binary { start, .. } => !start.is_empty(),
             VariableType::Clock { .. } => false,
             VariableType::Enumeration { start, .. } => start.is_some(),
+        }
+    }
+
+    pub fn start(&self) -> Option<Vec<String>> {
+        match self {
+            VariableType::Float32 { start, .. }
+            | VariableType::Float64 { start, .. }
+            | VariableType::Int8 { start, .. }
+            | VariableType::UInt8 { start, .. }
+            | VariableType::Int16 { start, .. }
+            | VariableType::UInt16 { start, .. }
+            | VariableType::Int32 { start, .. }
+            | VariableType::UInt32 { start, .. }
+            | VariableType::Int64 { start, .. }
+            | VariableType::UInt64 { start, .. }
+            | VariableType::Boolean { start, .. }
+            | VariableType::Enumeration { start, .. } => start
+                .clone()
+                .map(|s| s.split_whitespace().map(|s| s.to_owned()).collect()),
+            VariableType::String { start, .. } | VariableType::Binary { start, .. } => {
+                Some(start.clone())
+            }
+            VariableType::Clock { .. } => None,
         }
     }
 
@@ -698,6 +721,40 @@ impl ModelDescription {
             .iter()
             .position(|v| v.name == name)
             .ok_or_else(|| ModelDescriptionError::VariableName(name.to_owned()))
+    }
+
+    /// Returns the initial size of each dimension of a model variable.
+    pub fn initial_size(
+        &self,
+        variable: &ModelVariable,
+    ) -> Result<Vec<usize>, ModelDescriptionError> {
+        variable
+            .dimensions
+            .iter()
+            .map(|dimension| match dimension {
+                Dimension::Fixed { start } => Ok(*start),
+                Dimension::Variable { valueReference } => {
+                    let dimension_variable = self.variable_by_value_reference(*valueReference)?;
+                    let start = match &dimension_variable.variableType {
+                        VariableType::UInt64 { start, .. } => start.as_deref(),
+                        _ => {
+                            return Err(ModelDescriptionError::Parse(format!(
+                                "Dimension variable '{}' is not UInt64",
+                                dimension_variable.name
+                            )));
+                        }
+                    }
+                    .ok_or_else(|| ModelDescriptionError::MissingAttribute("start".to_owned()))?;
+
+                    start.parse::<usize>().map_err(|error| {
+                        ModelDescriptionError::Parse(format!(
+                            "Invalid initial value for dimension variable '{}': {error}",
+                            dimension_variable.name
+                        ))
+                    })
+                }
+            })
+            .collect()
     }
 
     pub fn get_unit<'a>(&'a self, variable: &'a ModelVariable) -> Option<&'a str> {

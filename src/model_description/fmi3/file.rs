@@ -220,36 +220,8 @@ impl ModelDescription {
             let start_values = node
                 .get_children("Start")
                 .into_iter()
-                .map(|n| {
-                    let hex_str = n.required_attribute("value")?;
-
-                    if hex_str.len() % 2 != 0 {
-                        return Err(ModelDescriptionError::Parse(format!(
-                            "Invalid hex string length: {}",
-                            hex_str
-                        )));
-                    }
-
-                    let mut bytes = Vec::new();
-
-                    for pair in hex_str.as_bytes().as_chunks::<2>().0 {
-                        let byte_str = std::str::from_utf8(pair).map_err(|error| {
-                            ModelDescriptionError::Parse(format!("Invalid hex byte: {}", error))
-                        })?;
-                        match u8::from_str_radix(byte_str, 16) {
-                            Ok(byte) => bytes.push(byte),
-                            Err(e) => {
-                                return Err(ModelDescriptionError::Parse(format!(
-                                    "Invalid hex byte '{}': {}",
-                                    byte_str, e
-                                )));
-                            }
-                        }
-                    }
-
-                    Ok(bytes)
-                })
-                .collect::<Result<Vec<_>, ModelDescriptionError>>()?;
+                .map(|n| n.required_attribute_as("value"))
+                .collect::<Result<Vec<String>, _>>()?;
 
             return Ok(VariableType::Binary {
                 start: start_values,
