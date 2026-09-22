@@ -1,12 +1,15 @@
 #![allow(non_camel_case_types, non_snake_case)]
 
+use fmi_rs::fmi3::builder::FMU3Builder;
+use fmi_rs::fmi3::types::*;
 use fmi_rs::fmi3::*;
-use fmi_rs::fmi3::{log::DefaultLogger, types::*};
+use rstest::{fixture, rstest};
+use std::path::Path;
 use std::sync::Arc;
-use std::{env, path::PathBuf};
 
-use fmi_rs::test_fixtures::download_reference_fmus;
-use fmi_rs::zip::extract_zip_archive;
+use crate::common::reference_fmus_dir;
+
+mod common;
 
 macro_rules! assert_ok {
     ($status:expr) => {
@@ -14,47 +17,20 @@ macro_rules! assert_ok {
     };
 }
 
-fn create_fmu() -> Arc<FMU3> {
-    let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/resources/");
-
-    let reference_fmus_dir = resources_dir.join("Reference-FMUs");
-
-    if !reference_fmus_dir.exists() {
-        download_reference_fmus(&reference_fmus_dir).unwrap();
-    }
-
-    let unzipdir = resources_dir.join("fmi3/Feedthrough");
-
-    if !unzipdir.exists() {
-        let fmu_path = reference_fmus_dir.join("3.0/Feedthrough.fmu");
-        extract_zip_archive(&fmu_path, &unzipdir).unwrap();
-    }
-
-    let fmu = FMU3::instantiateCoSimulation(
-        &unzipdir,
-        "Feedthrough",
-        "instance1",
-        "{37B954F1-CC86-4D8F-B97F-C7C36F6670D2}",
-        false,
-        true,
-        false,
-        false,
-        Arc::new(DefaultLogger::default()),
-        true,
-        None,
-    )
-    .unwrap();
-
-    assert_ok!(fmu.enterInitializationMode(None, 0.0, Some(1.0)));
-    assert_ok!(fmu.exitInitializationMode());
-
-    fmu
+#[fixture]
+pub fn fmu(reference_fmus_dir: &Path) -> Arc<FMU3> {
+    let fmu_path = reference_fmus_dir.join("3.0/Feedthrough.fmu");
+    let fmu_instance = FMU3Builder::new(&fmu_path)
+        .unwrap()
+        .instantiate_cs("instanceName")
+        .unwrap();
+    assert_ok!(fmu_instance.enterInitializationMode(None, 0.0, Some(1.0)));
+    assert_ok!(fmu_instance.exitInitializationMode());
+    fmu_instance
 }
 
-#[test]
-fn test_float32() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_float32(fmu: Arc<FMU3>) {
     let input_vr = [1];
     let input_values = [42.5f32];
 
@@ -66,10 +42,8 @@ fn test_float32() {
     assert_eq!(output_values, input_values);
 }
 
-#[test]
-fn test_float64() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_float64(fmu: Arc<FMU3>) {
     let input_vr = [7];
     let input_values = [123.456789];
 
@@ -81,10 +55,8 @@ fn test_float64() {
     assert_eq!(output_values, input_values);
 }
 
-#[test]
-fn test_int8() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_int8(fmu: Arc<FMU3>) {
     let input_vr = [11];
     let input_values = [42i8];
 
@@ -96,10 +68,8 @@ fn test_int8() {
     assert_eq!(output_values, input_values);
 }
 
-#[test]
-fn test_uint8() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_uint8(fmu: Arc<FMU3>) {
     let input_vr = [13];
     let input_values = [200u8];
 
@@ -111,10 +81,8 @@ fn test_uint8() {
     assert_eq!(output_values, input_values);
 }
 
-#[test]
-fn test_int16() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_int16(fmu: Arc<FMU3>) {
     let input_vr = [15];
     let input_values = [-12345i16];
 
@@ -126,10 +94,8 @@ fn test_int16() {
     assert_eq!(output_values, input_values);
 }
 
-#[test]
-fn test_uint16() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_uint16(fmu: Arc<FMU3>) {
     let input_vr = [17];
     let input_values = [54321u16];
 
@@ -141,10 +107,8 @@ fn test_uint16() {
     assert_eq!(output_values, input_values);
 }
 
-#[test]
-fn test_int32() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_int32(fmu: Arc<FMU3>) {
     let input_vr = [19];
     let input_values = [-987654321i32];
 
@@ -156,10 +120,8 @@ fn test_int32() {
     assert_eq!(output_values, input_values);
 }
 
-#[test]
-fn test_uint32() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_uint32(fmu: Arc<FMU3>) {
     let input_vr = [21];
     let input_values = [3000000000u32];
 
@@ -171,10 +133,8 @@ fn test_uint32() {
     assert_eq!(output_values, input_values);
 }
 
-#[test]
-fn test_int64() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_int64(fmu: Arc<FMU3>) {
     let input_vr = [23];
     let input_values = [-9223372036854775807i64];
 
@@ -186,10 +146,8 @@ fn test_int64() {
     assert_eq!(output_values, input_values);
 }
 
-#[test]
-fn test_uint64() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_uint64(fmu: Arc<FMU3>) {
     let input_vr = [25];
     let input_values = [18446744073709551615u64];
 
@@ -201,10 +159,8 @@ fn test_uint64() {
     assert_eq!(output_values, input_values);
 }
 
-#[test]
-fn test_boolean() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_boolean(fmu: Arc<FMU3>) {
     let input_vr = [27];
     let input_values = [true];
 
@@ -224,10 +180,8 @@ fn test_boolean() {
     assert_eq!(output_values_false, input_values_false);
 }
 
-#[test]
-fn test_string() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_string(fmu: Arc<FMU3>) {
     let input_vr = [29];
     let input_values = ["Hello, FMI3!"];
 
@@ -240,10 +194,8 @@ fn test_string() {
     assert_eq!(output_values[0], input_values[0]);
 }
 
-#[test]
-fn test_binary() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_binary(fmu: Arc<FMU3>) {
     let input_vr = [31];
     let input_values = b"Hello, Binary World!";
     assert_ok!(fmu.setBinary(&input_vr, &[input_values]));
@@ -255,10 +207,8 @@ fn test_binary() {
     assert_eq!(output_values[0], input_values);
 }
 
-#[test]
-fn test_multiple_variables() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_multiple_variables(fmu: Arc<FMU3>) {
     // Test setting and getting multiple different variable types in one test
 
     // Float64
@@ -295,10 +245,8 @@ fn test_multiple_variables() {
     assert_eq!(bool_output_values, bool_input_values);
 }
 
-#[test]
-fn test_edge_cases() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_edge_cases(fmu: Arc<FMU3>) {
     // Test extreme values for different types
 
     // Float32 edge cases

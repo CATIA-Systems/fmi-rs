@@ -1,18 +1,21 @@
 #![allow(non_camel_case_types, non_snake_case)]
 
 use core::f64;
-use fmi_rs::fmi2::log::DefaultLogger;
+use fmi_rs::fmi2::builder::FMU2Builder;
 use fmi_rs::fmi2::*;
 use fmi_rs::model_description::fmi2::{Causality, ModelDescription};
 use fmi_rs::sim::fmi2::recorder::Recorder;
 use fmi_rs::sim::fmi2::{SimulationSettings, Trajectories};
 use fmi_rs::{fmi2::types::*, sim::fmi2::cs::simulate};
+use rstest::{fixture, rstest};
+use std::path::Path;
 use std::sync::Arc;
 use std::vec;
 use std::{env, path::PathBuf};
 
-use fmi_rs::test_fixtures::download_reference_fmus;
-use fmi_rs::zip::extract_zip_archive;
+use crate::common::{reference_fmus_dir, resources_dir};
+
+mod common;
 
 macro_rules! assert_ok {
     ($status:expr) => {
@@ -20,59 +23,35 @@ macro_rules! assert_ok {
     };
 }
 
-#[test]
+#[rstest]
 fn test_read_model_description() {
     let unzipdir: PathBuf =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/resources/fmi2/Feedthrough");
     ModelDescription::from_path(&unzipdir.join("modelDescription.xml")).unwrap();
 }
 
-fn create_fmu() -> Arc<FMU2<CS>> {
-    let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/resources/");
+#[fixture]
+pub fn fmu(reference_fmus_dir: &Path) -> Arc<FMU2<CS>> {
+    let fmu_path = reference_fmus_dir.join("2.0/Feedthrough.fmu");
+    let fmu_instance = FMU2Builder::new(&fmu_path)
+        .unwrap()
+        .instantiate_cs("instanceName")
+        .unwrap();
 
-    let reference_fmus_dir = resources_dir.join("Reference-FMUs");
-
-    if !reference_fmus_dir.exists() {
-        download_reference_fmus(&reference_fmus_dir).unwrap();
-    }
-
-    let unzipdir = resources_dir.join("fmi2/Feedthrough");
-
-    if !unzipdir.exists() {
-        let fmu_path = reference_fmus_dir.join("2.0/Feedthrough.fmu");
-        extract_zip_archive(&fmu_path, &unzipdir).unwrap();
-    }
-
-    let fmu = FMU2::<CS>::new(
-        &unzipdir,
-        "Feedthrough",
-        "instance1",
-        "{37B954F1-CC86-4D8F-B97F-C7C36F6670D2}",
-        false,
-        true,
-        true,
-        Arc::new(DefaultLogger::default()),
-        true,
-    )
-    .unwrap();
-
-    assert_ok!(fmu.setupExperiment(None, 0.0, Some(1.0)));
-    assert_ok!(fmu.enterInitializationMode());
-    assert_ok!(fmu.exitInitializationMode());
-
-    fmu
+    assert_ok!(fmu_instance.setupExperiment(None, 0.0, Some(1.0)));
+    assert_ok!(fmu_instance.enterInitializationMode());
+    assert_ok!(fmu_instance.exitInitializationMode());
+    fmu_instance
 }
 
-#[test]
-fn test_csv_input() {
-    let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("resources");
+#[rstest]
+fn test_csv_input(reference_fmus_dir: &Path, resources_dir: &Path) {
+    let fmu_path = reference_fmus_dir.join("2.0/Feedthrough.fmu");
 
-    let unzipdir = resources_dir.join("fmi2").join("Feedthrough");
+    let fmu_builder = FMU2Builder::new(&fmu_path).unwrap();
 
-    let model_description =
-        Arc::new(ModelDescription::from_path(&unzipdir.join("modelDescription.xml")).unwrap());
+    let unzipdir = fmu_builder.unzipdir.as_ref().to_path_buf();
+    let model_description = Arc::new(fmu_builder.model_description);
 
     let settings = SimulationSettings {
         unzipdir: unzipdir,
@@ -111,10 +90,8 @@ fn test_csv_input() {
     simulate(&settings, None, recorder).unwrap();
 }
 
-#[test]
-fn test_real_continuous() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_real_continuous(fmu: Arc<FMU2<CS>>) {
     let input_vr = [7];
     let input_values = [123.456789];
 
@@ -128,10 +105,8 @@ fn test_real_continuous() {
     assert_ok!(fmu.terminate());
 }
 
-#[test]
-fn test_real_discrete() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_real_discrete(fmu: Arc<FMU2<CS>>) {
     let input_vr = [9];
     let input_values = [42.5];
 
@@ -145,10 +120,8 @@ fn test_real_discrete() {
     assert_ok!(fmu.terminate());
 }
 
-#[test]
-fn test_integer() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_integer(fmu: Arc<FMU2<CS>>) {
     let input_vr = [19];
     let input_values = [-987654321];
 
@@ -162,10 +135,8 @@ fn test_integer() {
     assert_ok!(fmu.terminate());
 }
 
-#[test]
-fn test_boolean() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_boolean(fmu: Arc<FMU2<CS>>) {
     let input_vr = [27];
     let input_values = [fmi2True];
 
@@ -187,10 +158,8 @@ fn test_boolean() {
     assert_ok!(fmu.terminate());
 }
 
-#[test]
-fn test_string() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_string(fmu: Arc<FMU2<CS>>) {
     let input_vr = [29];
     let input_values = ["Hello, FMI2!"];
 
@@ -205,10 +174,8 @@ fn test_string() {
     assert_ok!(fmu.terminate());
 }
 
-#[test]
-fn test_enumeration() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_enumeration(fmu: Arc<FMU2<CS>>) {
     let input_vr = [33];
     let input_values = [2]; // Option 2
 
@@ -230,10 +197,8 @@ fn test_enumeration() {
     assert_ok!(fmu.terminate());
 }
 
-#[test]
-fn test_multiple_variables() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_multiple_variables(fmu: Arc<FMU2<CS>>) {
     // Test setting and getting multiple different variable types in one test
 
     // Real
@@ -281,10 +246,8 @@ fn test_multiple_variables() {
     assert_ok!(fmu.terminate());
 }
 
-#[test]
-fn test_edge_cases() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_edge_cases(fmu: Arc<FMU2<CS>>) {
     // Test extreme values for different types
 
     // Real edge cases
@@ -339,10 +302,8 @@ fn test_edge_cases() {
     assert_ok!(fmu.terminate());
 }
 
-#[test]
-fn test_parameters() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_parameters(fmu: Arc<FMU2<CS>>) {
     // Test fixed parameter (should be settable during initialization)
     let fixed_param_vr = [5];
     let fixed_param_values = [f64::consts::PI];
@@ -365,10 +326,8 @@ fn test_parameters() {
     assert_ok!(fmu.terminate());
 }
 
-#[test]
-fn test_simulation_step() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_simulation_step(fmu: Arc<FMU2<CS>>) {
     // Set some input values
     let real_input_vr = [7];
     let real_input_values = [1.0];
@@ -398,10 +357,8 @@ fn test_simulation_step() {
     assert_ok!(fmu.terminate());
 }
 
-#[test]
-fn test_empty_string() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_empty_string(fmu: Arc<FMU2<CS>>) {
     let input_vr = [29];
     let input_values = [""];
 
@@ -416,10 +373,8 @@ fn test_empty_string() {
     assert_ok!(fmu.terminate());
 }
 
-#[test]
-fn test_long_string() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_long_string(fmu: Arc<FMU2<CS>>) {
     let input_vr = [29];
     // Use a string that's within the 128 byte limit
     let long_string = "This is a long string that tests FMI2 string handling with special symbols: !@#$%^&*()_+-=[]{}|;':\",./<>?";
@@ -436,10 +391,8 @@ fn test_long_string() {
     assert_ok!(fmu.terminate());
 }
 
-#[test]
-fn test_zero_values() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_zero_values(fmu: Arc<FMU2<CS>>) {
     // Test zero real value
     let real_input_vr = [7];
     let real_input_values = [0.0];
@@ -463,10 +416,8 @@ fn test_zero_values() {
     assert_ok!(fmu.terminate());
 }
 
-#[test]
-fn test_string_length_limit() {
-    let fmu = create_fmu();
-
+#[rstest]
+fn test_string_length_limit(fmu: Arc<FMU2<CS>>) {
     let input_vr = [29];
     // Create a string that exceeds the 128 byte limit
     let too_long_string = "A".repeat(200);
