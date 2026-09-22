@@ -27,7 +27,7 @@ fn test_read_model_description() {
     ModelDescription::from_path(&unzipdir.join("modelDescription.xml")).unwrap();
 }
 
-fn create_fmu() -> FMU2<CS> {
+fn create_fmu() -> Arc<FMU2<CS>> {
     let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/resources/");
 
     let reference_fmus_dir = resources_dir.join("Reference-FMUs");
@@ -51,7 +51,7 @@ fn create_fmu() -> FMU2<CS> {
         false,
         true,
         true,
-        Box::new(DefaultLogger::default()),
+        Arc::new(DefaultLogger::default()),
         true,
     )
     .unwrap();

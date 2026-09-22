@@ -39,7 +39,7 @@ fn create_fmu() -> Arc<FMU3> {
         true,
         false,
         false,
-        Box::new(DefaultLogger::default()),
+        Arc::new(DefaultLogger::default()),
         true,
         None,
     )
