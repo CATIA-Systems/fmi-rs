@@ -6,12 +6,13 @@ use fmi_rs::fmi2::*;
 use fmi_rs::model_description::fmi2::{Causality, ModelDescription};
 use fmi_rs::sim::fmi2::recorder::Recorder;
 use fmi_rs::sim::fmi2::{SimulationSettings, Trajectories};
+use fmi_rs::zip::extract_zip_archive;
 use fmi_rs::{fmi2::types::*, sim::fmi2::cs::simulate};
 use rstest::{fixture, rstest};
+use tempfile::TempDir;
 use std::path::Path;
 use std::sync::Arc;
 use std::vec;
-use std::{env, path::PathBuf};
 
 use crate::common::{reference_fmus_dir, resources_dir};
 
@@ -24,10 +25,11 @@ macro_rules! assert_ok {
 }
 
 #[rstest]
-fn test_read_model_description() {
-    let unzipdir: PathBuf =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/resources/fmi2/Feedthrough");
-    ModelDescription::from_path(&unzipdir.join("modelDescription.xml")).unwrap();
+fn test_read_model_description(reference_fmus_dir: &Path) {
+    let fmu_path = reference_fmus_dir.join("2.0/Feedthrough.fmu");
+    let unzipdir = TempDir::new().unwrap();
+    extract_zip_archive(fmu_path, &unzipdir).unwrap();
+    ModelDescription::from_path(&unzipdir.as_ref().join("modelDescription.xml")).unwrap();
 }
 
 #[fixture]
@@ -52,6 +54,7 @@ fn test_csv_input(reference_fmus_dir: &Path, resources_dir: &Path) {
 
     let unzipdir = fmu_builder.unzipdir.as_ref().to_path_buf();
     let model_description = Arc::new(fmu_builder.model_description);
+    let input_file = Some(resources_dir.join("fmi2").join("Feedthrough_in.csv"));
 
     let settings = SimulationSettings {
         unzipdir: unzipdir,
@@ -66,7 +69,7 @@ fn test_csv_input(reference_fmus_dir: &Path, resources_dir: &Path) {
         set_tolerance: false,
         start_values: vec![],
         log_fmi_calls: true,
-        input_file: Some(resources_dir.join("fmi2").join("Feedthrough_in.csv")),
+        input_file,
         early_return_allowed: false,
         event_mode_used: false,
         log_file: None,
