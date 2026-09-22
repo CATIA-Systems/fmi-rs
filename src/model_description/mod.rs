@@ -29,6 +29,9 @@ pub enum ModelDescriptionError {
     #[error("{0}")]
     Parse(String),
 
+    #[error("Failed to parse enumeration variant: {0}")]
+    Strum(#[from] strum::ParseError),
+
     #[error("Missing attribute '{0}'")]
     MissingAttribute(String),
 

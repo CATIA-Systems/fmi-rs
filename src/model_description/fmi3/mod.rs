@@ -2,32 +2,20 @@
 pub mod file;
 pub mod validation;
 
-use std::{ops::Range, str::FromStr};
+use std::ops::Range;
+
+use strum_macros::EnumString;
 
 use crate::{
     fmi3::types::fmi3ValueReference,
     model_description::{Category, DefaultExperiment, ModelDescriptionError, Unit},
 };
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, EnumString)]
+#[strum(serialize_all = "camelCase")]
 pub enum VariableNamingConvention {
     Flat,
     Structured,
-}
-
-impl FromStr for VariableNamingConvention {
-    type Err = ModelDescriptionError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "flat" => Ok(VariableNamingConvention::Flat),
-            "structured" => Ok(VariableNamingConvention::Structured),
-            _ => Err(ModelDescriptionError::Parse(format!(
-                "Unknown variable naming convention: {}",
-                s
-            ))),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -38,7 +26,8 @@ pub struct Item {
     pub range: Range<usize>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, EnumString)]
+#[strum(serialize_all = "camelCase")]
 pub enum IntervalVariability {
     Constant,
     Fixed,
@@ -46,25 +35,6 @@ pub enum IntervalVariability {
     Changing,
     Countdown,
     Triggered,
-}
-
-impl FromStr for IntervalVariability {
-    type Err = ModelDescriptionError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "constant" => Ok(IntervalVariability::Constant),
-            "fixed" => Ok(IntervalVariability::Fixed),
-            "tunable" => Ok(IntervalVariability::Tunable),
-            "changing" => Ok(IntervalVariability::Changing),
-            "countdown" => Ok(IntervalVariability::Countdown),
-            "triggered" => Ok(IntervalVariability::Triggered),
-            _ => Err(ModelDescriptionError::Parse(format!(
-                "Unknown interval variability: {}",
-                s
-            ))),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -480,7 +450,8 @@ impl VariableType {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, EnumString)]
+#[strum(serialize_all = "camelCase")]
 pub enum Causality {
     Parameter,
     CalculatedParameter,
@@ -491,27 +462,8 @@ pub enum Causality {
     Independent,
 }
 
-impl FromStr for Causality {
-    type Err = ModelDescriptionError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "parameter" => Ok(Causality::Parameter),
-            "calculatedParameter" => Ok(Causality::CalculatedParameter),
-            "structuralParameter" => Ok(Causality::StructuralParameter),
-            "input" => Ok(Causality::Input),
-            "output" => Ok(Causality::Output),
-            "local" => Ok(Causality::Local),
-            "independent" => Ok(Causality::Independent),
-            _ => Err(ModelDescriptionError::Parse(format!(
-                "Unknown causality: {}",
-                s
-            ))),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, EnumString)]
+#[strum(serialize_all = "camelCase")]
 pub enum Variability {
     Constant,
     Fixed,
@@ -520,72 +472,22 @@ pub enum Variability {
     Continuous,
 }
 
-impl FromStr for Variability {
-    type Err = ModelDescriptionError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "constant" => Ok(Variability::Constant),
-            "fixed" => Ok(Variability::Fixed),
-            "tunable" => Ok(Variability::Tunable),
-            "discrete" => Ok(Variability::Discrete),
-            "continuous" => Ok(Variability::Continuous),
-            _ => Err(ModelDescriptionError::Parse(format!(
-                "Unknown variability: {}",
-                s
-            ))),
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, EnumString)]
+#[strum(serialize_all = "camelCase")]
 pub enum Initial {
     Exact,
     Approx,
     Calculated,
 }
 
-impl FromStr for Initial {
-    type Err = ModelDescriptionError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "exact" => Ok(Initial::Exact),
-            "approx" => Ok(Initial::Approx),
-            "calculated" => Ok(Initial::Calculated),
-            _ => Err(ModelDescriptionError::Parse(format!(
-                "Unknown initial value: {}",
-                s
-            ))),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, EnumString)]
+#[strum(serialize_all = "camelCase")]
 pub enum DependencyKind {
     Dependent,
     Constant,
     Fixed,
     Tunable,
     Discrete,
-}
-
-impl FromStr for DependencyKind {
-    type Err = ModelDescriptionError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "dependent" => Ok(DependencyKind::Dependent),
-            "constant" => Ok(DependencyKind::Constant),
-            "fixed" => Ok(DependencyKind::Fixed),
-            "tunable" => Ok(DependencyKind::Tunable),
-            "discrete" => Ok(DependencyKind::Discrete),
-            _ => Err(ModelDescriptionError::Parse(format!(
-                "Unknown dependency kind: {}",
-                s
-            ))),
-        }
-    }
 }
 
 #[derive(Debug)]
