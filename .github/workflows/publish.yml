@@ -1,0 +1,21 @@
+name: Publish to crates.io
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers on tags like v0.1.0, v0.2.0-alpha, etc.
+
+jobs:
+  publish:
+    name: Publish Crate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish
