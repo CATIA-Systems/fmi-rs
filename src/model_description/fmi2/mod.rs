@@ -4,7 +4,7 @@ pub mod validation;
 
 use std::ops::Range;
 
-use strum_macros::EnumString;
+use strum::EnumString;
 
 use crate::{
     fmi2::types::fmi2ValueReference,

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::StringWithSeparator;
 use serde_with::formats::SpaceSeparator;
 use serde_with::serde_as;
-use strum_macros::{Display, EnumString};
+use strum::{Display, EnumString};
 use thiserror::Error;
 
 const FMI_LS_NAME: &str = "org.fmi-standard.fmi-ls-dae";
