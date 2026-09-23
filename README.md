@@ -1,10 +1,10 @@
 # fmi-rs
 
-Simulate Functional Mock-up Units in Rust.
+Functional Mock-up Interface for Rust.
 
 ## Highlights
 
-- Supports FMI 2.0 and 3.0
+- Supports FMI 2.0 and 3.0.
 - Supports Model Exchange and Co-Simulation.
 - Validates XML files.
 - Reads and writes CSVs.
