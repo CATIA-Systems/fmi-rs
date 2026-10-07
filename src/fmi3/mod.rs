@@ -105,13 +105,13 @@ macro_rules! fmi_set {
 
 impl Drop for FMU3 {
     fn drop(&mut self) {
-        if !self.instance.is_null() {
-            unsafe { (self.fmi3FreeInstance)(self.instance) };
-            self.instance = null_mut();
-            if self.logCalls {
-                self.log_call(fmi3Status::Ok, "fmi3FreeInstance()");
-            }
-        }
+        // if !self.instance.is_null() {
+        //     unsafe { (self.fmi3FreeInstance)(self.instance) };
+        //     self.instance = null_mut();
+        //     if self.logCalls {
+        //         self.log_call(fmi3Status::Ok, "fmi3FreeInstance()");
+        //     }
+        // }
     }
 }
 
@@ -128,12 +128,48 @@ pub struct Message {
     pub message: String,
 }
 
-pub struct FMU3 {
-    logger: Arc<dyn Logger>,
-    intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
+trait Backend {
+    fn getVersion(&self) -> String;
+    fn setDebugLogging(&self, loggingOn: fmi3Boolean, categories: &[fmi3String]) -> fmi3Status;
+    fn instantiateCoSimulation(
+        &mut self,
+        instanceName: &str,
+        instantiationToken: &str,
+        resourcePath: &str,
+        visible: bool,
+        loggingOn: bool,
+        eventModeUsed: bool,
+        earlyReturnAllowed: bool,
+        requiredIntermediateVariables: &[fmi3ValueReference],
+    ) -> Result<(), SimulationError>;
+    fn enterInitializationMode(
+        &self,
+        tolerance: Option<fmi3Float64>,
+        startTime: fmi3Float64,
+        stopTime: Option<fmi3Float64>,
+    ) -> fmi3Status;
+    fn exitInitializationMode(&self) -> fmi3Status;
+    fn terminate(&self) -> fmi3Status;
 
-    logCalls: bool,
+    fn getFloat64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Float64],
+    ) -> fmi3Status;
 
+    fn doStep(
+        &self,
+        currentCommunicationPoint: fmi3Float64,
+        communicationStepSize: fmi3Float64,
+        noSetFMUStatePriorToCurrentPoint: fmi3Boolean,
+        eventHandlingNeeded: &mut fmi3Boolean,
+        terminateSimulation: &mut fmi3Boolean,
+        earlyReturn: &mut fmi3Boolean,
+        lastSuccessfulTime: &mut fmi3Float64,
+    ) -> fmi3Status;
+}
+
+struct NativeBackend {
     _lib: Box<Library>,
 
     fmi3GetVersion: fmi3GetVersionTYPE,
@@ -215,101 +251,9 @@ pub struct FMU3 {
     instance: fmi3Instance,
 }
 
-#[unsafe(no_mangle)]
-#[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub extern "C" fn fmi3_logger_callback(
-    instanceEnvironment: fmi3InstanceEnvironment,
-    status: fmi3Status,
-    category: fmi3String,
-    message: fmi3String,
-) {
-    if !instanceEnvironment.is_null() {
-        let fmu: &FMU3 = unsafe { &*(instanceEnvironment as *const FMU3) };
-        fmu.logger.log_message(
-            status,
-            &category.to_str_or_null(),
-            &message.to_str_or_null(),
-        );
-    }
-}
+impl NativeBackend {
 
-pub trait IntermediateUpdateHandler {
-    fn required_intermediate_variables(&self) -> Vec<fmi3ValueReference>;
-    fn intermediate_update(
-        &self,
-        fmu: &FMU3,
-        intermediateUpdateTime: fmi3Float64,
-        intermediateVariableSetRequested: fmi3Boolean,
-        intermediateVariableGetAllowed: fmi3Boolean,
-        intermediateStepFinished: fmi3Boolean,
-        canReturnEarly: fmi3Boolean,
-    ) -> (fmi3Boolean, fmi3Float64);
-}
-
-#[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub extern "C" fn intermediateUpdate(
-    instanceEnvironment: fmi3InstanceEnvironment,
-    intermediateUpdateTime: fmi3Float64,
-    intermediateVariableSetRequested: fmi3Boolean,
-    intermediateVariableGetAllowed: fmi3Boolean,
-    intermediateStepFinished: fmi3Boolean,
-    canReturnEarly: fmi3Boolean,
-    earlyReturnRequested: *mut fmi3Boolean,
-    earlyReturnTime: *mut fmi3Float64,
-) {
-    if instanceEnvironment.is_null() {
-        return;
-    }
-
-    let fmu: &FMU3 = unsafe { &*(instanceEnvironment as *const FMU3) };
-
-    if let Some(handler) = &fmu.intermediateUpdateHandler {
-        let (early_return_requested, early_return_time) = handler.intermediate_update(
-            fmu,
-            intermediateUpdateTime,
-            intermediateVariableSetRequested,
-            intermediateVariableGetAllowed,
-            intermediateStepFinished,
-            canReturnEarly,
-        );
-
-        if !earlyReturnRequested.is_null() {
-            unsafe {
-                *earlyReturnRequested = early_return_requested;
-            }
-        }
-
-        if !earlyReturnTime.is_null() {
-            unsafe {
-                *earlyReturnTime = early_return_time;
-            }
-        }
-
-        if fmu.logCalls {
-            let message = format!(
-                "fmi3IntermediateUpdateCallback(\
-                intermediateUpdateTime={intermediateUpdateTime}, \
-                intermediateVariableSetRequested={intermediateVariableSetRequested}, \
-                intermediateVariableGetAllowed={intermediateVariableGetAllowed}, \
-                intermediateStepFinished={intermediateStepFinished}, \
-                canReturnEarly={canReturnEarly}, \
-                earlyReturnRequested={early_return_requested}, \
-                earlyReturnTime={early_return_time}\
-            )"
-            );
-            fmu.logger.log_call(fmi3Status::Ok, &message);
-        }
-    }
-}
-
-impl FMU3 {
-    fn new(
-        unzipdir: &Path,
-        modelIdentifier: &str,
-        logger: Arc<dyn Logger>,
-        logCalls: bool,
-        intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
-    ) -> Result<FMU3, SimulationError> {
+    fn new(unzipdir: &Path, modelIdentifier: &str) -> Result<NativeBackend, SimulationError> {
         let library = load_platform_binary(unzipdir, PLATFORM_TUPLE, modelIdentifier)?;
 
         /***************************************************
@@ -457,10 +401,7 @@ impl FMU3 {
         let fmi3ActivateModelPartition =
             *get_symbol::<fmi3ActivateModelPartitionTYPE>(&library, b"fmi3ActivateModelPartition")?;
 
-        Ok(FMU3 {
-            logger,
-            intermediateUpdateHandler,
-            logCalls,
+        Ok(NativeBackend {
             _lib: library,
             fmi3GetVersion,
             fmi3SetDebugLogging,
@@ -540,166 +481,49 @@ impl FMU3 {
             instance: ptr::null_mut(),
         })
     }
+    
+}
 
-    fn log_call(&self, status: fmi3Status, message: &str) {
-        self.logger.log_call(status, message);
-    }
-
-    pub fn getVersion(&self) -> String {
-        let version = unsafe {
+impl Backend for NativeBackend {
+    fn getVersion(&self) -> String {
+        unsafe {
             let version_cstr = (self.fmi3GetVersion)();
             CStr::from_ptr(version_cstr).to_string_lossy().into_owned()
-        };
-        if self.logCalls {
-            let message = format!("fmi3GetVersion() -> \"{version}\"");
-            self.log_call(fmi3Status::Ok, &message);
         }
-        version
     }
 
-    pub fn instantiateModelExchange(
-        unzipdir: &Path,
-        modelIdentifier: &str,
-        instanceName: &str,
-        instantiationToken: &str,
-        visible: bool,
-        loggingOn: bool,
-        logger: Arc<dyn Logger>,
-        logCalls: bool,
-    ) -> Result<Arc<FMU3>, SimulationError> {
-        #[allow(clippy::arc_with_non_send_sync)]
-        let fmu = Arc::new(FMU3::new(
-            unzipdir,
-            modelIdentifier,
-            logger,
-            logCalls,
-            None,
-        )?);
-
-        let resource_path = unzipdir.join("resources").join("");
-
-        let resourcePath = if resource_path.is_dir() {
-            Some(resource_path.as_path())
-        } else {
-            None
-        };
-
-        let instance_name_cstr = CString::new(instanceName).map_err(|error| {
-            SimulationError::Parameter(format!("Invalid instance name: {error}"))
-        })?;
-        let instantiation_token_cstr = CString::new(instantiationToken).map_err(|error| {
-            SimulationError::Parameter(format!("Invalid instantiation token: {error}"))
-        })?;
-        let resource_path_cstr =
-            resourcePath.and_then(|path| CString::new(path.to_string_lossy().as_ref()).ok());
-        let path_ptr = resource_path_cstr
-            .as_ref()
-            .map(|cstr| cstr.as_ptr())
-            .unwrap_or(ptr::null());
-        let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
-        let instanceEnvironment = Arc::as_ptr(&fmu).cast::<c_void>() as *mut c_void;
-
-        let instance = unsafe {
-            (fmu.fmi3InstantiateModelExchange)(
-                instance_name_cstr.as_ptr(),
-                instantiation_token_cstr.as_ptr(),
-                path_ptr,
-                visible,
+    fn setDebugLogging(&self, loggingOn: fmi3Boolean, categories: &[fmi3String]) -> fmi3Status {
+        unsafe {
+            (self.fmi3SetDebugLogging)(
+                self.instance,
                 loggingOn,
-                instanceEnvironment,
-                log_message,
+                categories.len(),
+                categories.as_ptr(),
             )
-        };
-
-        if fmu.logCalls {
-            let status = if instance.is_null() {
-                fmi3Status::Error
-            } else {
-                fmi3Status::Ok
-            };
-
-            let message = format!(
-                "fmi3InstantiateModelExchange(instanceName=\"{}\", instantiationToken=\"{}\", resourcePath={:?}, visible={}, loggingOn={}, instanceEnvironment={:p}, logMessage={:p}) -> {:?}",
-                instanceName,
-                instantiationToken,
-                resourcePath,
-                visible,
-                loggingOn,
-                instanceEnvironment,
-                log_message,
-                instance
-            );
-            fmu.log_call(status, &message);
-        }
-
-        if instance.is_null() {
-            Err(SimulationError::FMICall)
-        } else {
-            let fmu_ptr = instanceEnvironment as *mut FMU3;
-            let mut_fmu: &mut FMU3 = unsafe { &mut *fmu_ptr };
-            mut_fmu.instance = instance;
-            Ok(fmu)
         }
     }
-
-    pub fn instantiateCoSimulation(
-        unzipdir: &Path,
-        modelIdentifier: &str,
+    
+    fn instantiateCoSimulation(
+        &mut self,
         instanceName: &str,
         instantiationToken: &str,
+        resourcePath: &str,
         visible: bool,
         loggingOn: bool,
         eventModeUsed: bool,
         earlyReturnAllowed: bool,
-        logger: Arc<dyn Logger>,
-        logCalls: bool,
-        intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
-    ) -> Result<Arc<FMU3>, SimulationError> {
-        let resource_path = unzipdir.join("resources").join("");
+        requiredIntermediateVariables: &[fmi3ValueReference],
+    ) -> Result<(), SimulationError> {
 
-        let resourcePath = if resource_path.is_dir() {
-            Some(resource_path.as_path())
-        } else {
-            None
-        };
-
-        let resource_path_cstr =
-            resourcePath.and_then(|path| CString::new(path.to_string_lossy().as_ref()).ok());
-        let path_ptr = resource_path_cstr
-            .as_ref()
-            .map(|cstr| cstr.as_ptr())
-            .unwrap_or(ptr::null());
+        let instanceEnvironment = null_mut();
         let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
+        let intermediate_update = ptr::null_mut() as *const fmi3IntermediateUpdateCallback;
 
-        let (requiredIntermediateVariables, intermediate_update) =
-            if let Some(handler) = intermediateUpdateHandler.as_ref() {
-                (
-                    handler.required_intermediate_variables(),
-                    intermediateUpdate as *const fmi3IntermediateUpdateCallback,
-                )
-            } else {
-                (
-                    vec![],
-                    ptr::null_mut() as *const fmi3IntermediateUpdateCallback,
-                )
-            };
-
-        #[allow(clippy::arc_with_non_send_sync)]
-        let fmu = Arc::new(FMU3::new(
-            unzipdir,
-            modelIdentifier,
-            logger,
-            logCalls,
-            intermediateUpdateHandler,
-        )?);
-
-        let instanceEnvironment = Arc::as_ptr(&fmu).cast::<c_void>() as *mut c_void;
-
-        let instance = unsafe {
-            (fmu.fmi3InstantiateCoSimulation)(
+        self.instance = unsafe {
+            (self.fmi3InstantiateCoSimulation)(
                 CString::new(instanceName)?.as_ptr(),
                 CString::new(instantiationToken)?.as_ptr(),
-                path_ptr,
+                CString::new(resourcePath)?.as_ptr(),
                 visible,
                 loggingOn,
                 eventModeUsed,
@@ -712,52 +536,14 @@ impl FMU3 {
             )
         };
 
-        let status = if instance.is_null() {
-            fmi3Status::Error
-        } else {
-            fmi3Status::Ok
-        };
-
-        if fmu.logCalls {
-            let message = format!(
-                "fmi3InstantiateCoSimulation(instanceName=\"{}\", instantiationToken=\"{}\", resourcePath={:?}, visible={}, loggingOn={}, eventModeUsed={}, earlyReturnAllowed={}, requiredIntermediateVariables={:?}, nRequiredIntermediateVariables={}, instanceEnvironment={:p}, logMessage={:p}, intermediateUpdate={:p}) -> {:p}",
-                instanceName,
-                instantiationToken,
-                resourcePath,
-                visible,
-                loggingOn,
-                eventModeUsed,
-                earlyReturnAllowed,
-                requiredIntermediateVariables,
-                requiredIntermediateVariables.len(),
-                instanceEnvironment,
-                log_message,
-                intermediate_update,
-                instance
-            );
-            fmu.log_call(status, &message);
-        }
-
-        if instance.is_null() {
+        if self.instance.is_null() {
             Err(SimulationError::FMICall)
         } else {
-            let fmu_ptr = instanceEnvironment as *mut FMU3;
-            let mut_fmu: &mut FMU3 = unsafe { &mut *fmu_ptr };
-            mut_fmu.instance = instance;
-            Ok(fmu)
+            Ok(())
         }
     }
-
-    pub fn terminate(&self) -> fmi3Status {
-        let status = unsafe { (self.fmi3Terminate)(self.instance) };
-        if self.logCalls {
-            let message = format!("fmi3Termiate() -> {status:?}");
-            self.log_call(status, &message);
-        }
-        status
-    }
-
-    pub fn enterInitializationMode(
+    
+    fn enterInitializationMode(
         &self,
         tolerance: Option<fmi3Float64>,
         startTime: fmi3Float64,
@@ -775,7 +561,7 @@ impl FMU3 {
             (false, 0.0)
         };
 
-        let status = unsafe {
+        unsafe {
             (self.fmi3EnterInitializationMode)(
                 self.instance,    // instance
                 toleranceDefined, // toleranceDefined
@@ -784,11 +570,458 @@ impl FMU3 {
                 stopTimeDefined,  // stopTimeDefined
                 stopTime,         // stopTime
             )
+        }
+    }
+    
+    fn exitInitializationMode(&self) -> fmi3Status {
+        unsafe { (self.fmi3ExitInitializationMode)(self.instance) }
+    }
+    
+    fn terminate(&self) -> fmi3Status {
+        unsafe { (self.fmi3Terminate)(self.instance) }
+    }
+    
+    fn getFloat64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Float64],
+    ) -> fmi3Status {
+        unsafe { (self.fmi3GetFloat64)(self.instance, valueReferences.as_ptr(), valueReferences.len(), values.as_mut_ptr(), values.len()) }
+    }
+    
+    fn doStep(
+        &self,
+        currentCommunicationPoint: fmi3Float64,
+        communicationStepSize: fmi3Float64,
+        noSetFMUStatePriorToCurrentPoint: fmi3Boolean,
+        eventHandlingNeeded: &mut fmi3Boolean,
+        terminateSimulation: &mut fmi3Boolean,
+        earlyReturn: &mut fmi3Boolean,
+        lastSuccessfulTime: &mut fmi3Float64,
+    ) -> fmi3Status {
+        unsafe { 
+            (self.fmi3DoStep)(
+                self.instance, 
+                currentCommunicationPoint,
+                communicationStepSize,
+                noSetFMUStatePriorToCurrentPoint,
+                eventHandlingNeeded,
+                terminateSimulation,
+                earlyReturn,
+                lastSuccessfulTime,
+            ) 
+        }
+    }
+}
+
+pub struct FMU3 {
+    logger: Arc<dyn Logger>,
+    intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
+    logCalls: bool,
+    backend: Box<dyn Backend>,
+}
+
+#[unsafe(no_mangle)]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
+pub extern "C" fn fmi3_logger_callback(
+    instanceEnvironment: fmi3InstanceEnvironment,
+    status: fmi3Status,
+    category: fmi3String,
+    message: fmi3String,
+) {
+    if !instanceEnvironment.is_null() {
+        let fmu: &FMU3 = unsafe { &*(instanceEnvironment as *const FMU3) };
+        fmu.logger.log_message(
+            status,
+            &category.to_str_or_null(),
+            &message.to_str_or_null(),
+        );
+    }
+}
+
+pub trait IntermediateUpdateHandler {
+    fn required_intermediate_variables(&self) -> Vec<fmi3ValueReference>;
+    fn intermediate_update(
+        &self,
+        fmu: &FMU3,
+        intermediateUpdateTime: fmi3Float64,
+        intermediateVariableSetRequested: fmi3Boolean,
+        intermediateVariableGetAllowed: fmi3Boolean,
+        intermediateStepFinished: fmi3Boolean,
+        canReturnEarly: fmi3Boolean,
+    ) -> (fmi3Boolean, fmi3Float64);
+}
+
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
+pub extern "C" fn intermediateUpdate(
+    instanceEnvironment: fmi3InstanceEnvironment,
+    intermediateUpdateTime: fmi3Float64,
+    intermediateVariableSetRequested: fmi3Boolean,
+    intermediateVariableGetAllowed: fmi3Boolean,
+    intermediateStepFinished: fmi3Boolean,
+    canReturnEarly: fmi3Boolean,
+    earlyReturnRequested: *mut fmi3Boolean,
+    earlyReturnTime: *mut fmi3Float64,
+) {
+    if instanceEnvironment.is_null() {
+        return;
+    }
+
+    let fmu: &FMU3 = unsafe { &*(instanceEnvironment as *const FMU3) };
+
+    if let Some(handler) = &fmu.intermediateUpdateHandler {
+        let (early_return_requested, early_return_time) = handler.intermediate_update(
+            fmu,
+            intermediateUpdateTime,
+            intermediateVariableSetRequested,
+            intermediateVariableGetAllowed,
+            intermediateStepFinished,
+            canReturnEarly,
+        );
+
+        if !earlyReturnRequested.is_null() {
+            unsafe {
+                *earlyReturnRequested = early_return_requested;
+            }
+        }
+
+        if !earlyReturnTime.is_null() {
+            unsafe {
+                *earlyReturnTime = early_return_time;
+            }
+        }
+
+        if fmu.logCalls {
+            let message = format!(
+                "fmi3IntermediateUpdateCallback(\
+                intermediateUpdateTime={intermediateUpdateTime}, \
+                intermediateVariableSetRequested={intermediateVariableSetRequested}, \
+                intermediateVariableGetAllowed={intermediateVariableGetAllowed}, \
+                intermediateStepFinished={intermediateStepFinished}, \
+                canReturnEarly={canReturnEarly}, \
+                earlyReturnRequested={early_return_requested}, \
+                earlyReturnTime={early_return_time}\
+            )"
+            );
+            fmu.logger.log_call(fmi3Status::Ok, &message);
+        }
+    }
+}
+
+impl FMU3 {
+    // fn new(
+    //     unzipdir: &Path,
+    //     modelIdentifier: &str,
+    //     logger: Arc<dyn Logger>,
+    //     logCalls: bool,
+    //     intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
+    // ) -> Result<FMU3, SimulationError> {
+        
+    //     let backend = Box::new(NativeBackend::new(unzipdir, modelIdentifier)?);
+
+    //     Ok(FMU3 {
+    //         logger,
+    //         intermediateUpdateHandler,
+    //         logCalls,
+    //         backend,
+    //     })
+    // }
+
+    fn log_call(&self, status: fmi3Status, message: &str) {
+        self.logger.log_call(status, message);
+    }
+
+    pub fn getVersion(&self) -> String {
+        let version = self.backend.getVersion();
+        if self.logCalls {
+            let message = format!("fmi3GetVersion() -> \"{version}\"");
+            self.log_call(fmi3Status::Ok, &message);
+        }
+        version
+    }
+
+    pub fn instantiateModelExchange(
+        unzipdir: &Path,
+        modelIdentifier: &str,
+        instanceName: &str,
+        instantiationToken: &str,
+        visible: bool,
+        loggingOn: bool,
+        logger: Arc<dyn Logger>,
+        logCalls: bool,
+    ) -> Result<Arc<FMU3>, SimulationError> {
+        todo!()
+        // #[allow(clippy::arc_with_non_send_sync)]
+        // let fmu = Arc::new(FMU3::new(
+        //     unzipdir,
+        //     modelIdentifier,
+        //     logger,
+        //     logCalls,
+        //     None,
+        // )?);
+
+        // let resource_path = unzipdir.join("resources").join("");
+
+        // let resourcePath = if resource_path.is_dir() {
+        //     Some(resource_path.as_path())
+        // } else {
+        //     None
+        // };
+
+        // let instance_name_cstr = CString::new(instanceName).map_err(|error| {
+        //     SimulationError::Parameter(format!("Invalid instance name: {error}"))
+        // })?;
+        // let instantiation_token_cstr = CString::new(instantiationToken).map_err(|error| {
+        //     SimulationError::Parameter(format!("Invalid instantiation token: {error}"))
+        // })?;
+        // let resource_path_cstr =
+        //     resourcePath.and_then(|path| CString::new(path.to_string_lossy().as_ref()).ok());
+        // let path_ptr = resource_path_cstr
+        //     .as_ref()
+        //     .map(|cstr| cstr.as_ptr())
+        //     .unwrap_or(ptr::null());
+        // let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
+        // let instanceEnvironment = Arc::as_ptr(&fmu).cast::<c_void>() as *mut c_void;
+
+        // let instance = unsafe {
+        //     (fmu.fmi3InstantiateModelExchange)(
+        //         instance_name_cstr.as_ptr(),
+        //         instantiation_token_cstr.as_ptr(),
+        //         path_ptr,
+        //         visible,
+        //         loggingOn,
+        //         instanceEnvironment,
+        //         log_message,
+        //     )
+        // };
+
+        // if fmu.logCalls {
+        //     let status = if instance.is_null() {
+        //         fmi3Status::Error
+        //     } else {
+        //         fmi3Status::Ok
+        //     };
+
+        //     let message = format!(
+        //         "fmi3InstantiateModelExchange(instanceName=\"{}\", instantiationToken=\"{}\", resourcePath={:?}, visible={}, loggingOn={}, instanceEnvironment={:p}, logMessage={:p}) -> {:?}",
+        //         instanceName,
+        //         instantiationToken,
+        //         resourcePath,
+        //         visible,
+        //         loggingOn,
+        //         instanceEnvironment,
+        //         log_message,
+        //         instance
+        //     );
+        //     fmu.log_call(status, &message);
+        // }
+
+        // if instance.is_null() {
+        //     Err(SimulationError::FMICall)
+        // } else {
+        //     let fmu_ptr = instanceEnvironment as *mut FMU3;
+        //     let mut_fmu: &mut FMU3 = unsafe { &mut *fmu_ptr };
+        //     mut_fmu.instance = instance;
+        //     Ok(fmu)
+        // }
+    }
+
+    pub fn instantiateCoSimulation(
+        unzipdir: &Path,
+        modelIdentifier: &str,
+        instanceName: &str,
+        instantiationToken: &str,
+        visible: bool,
+        loggingOn: bool,
+        eventModeUsed: bool,
+        earlyReturnAllowed: bool,
+        logger: Arc<dyn Logger>,
+        logCalls: bool,
+        intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
+    ) -> Result<Arc<FMU3>, SimulationError> {
+        // let resource_path = unzipdir.join("resources").join("");
+
+        // let resourcePath = if resource_path.is_dir() {
+        //     Some(resource_path.as_path())
+        // } else {
+        //     None
+        // };
+
+        // let resource_path_cstr =
+        //     resourcePath.and_then(|path| CString::new(path.to_string_lossy().as_ref()).ok());
+        // let path_ptr = resource_path_cstr
+        //     .as_ref()
+        //     .map(|cstr| cstr.as_ptr())
+        //     .unwrap_or(ptr::null());
+        // let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
+
+        // let (requiredIntermediateVariables, intermediate_update) =
+        //     if let Some(handler) = intermediateUpdateHandler.as_ref() {
+        //         (
+        //             handler.required_intermediate_variables(),
+        //             intermediateUpdate as *const fmi3IntermediateUpdateCallback,
+        //         )
+        //     } else {
+        //         (
+        //             vec![],
+        //             ptr::null_mut() as *const fmi3IntermediateUpdateCallback,
+        //         )
+        //     };
+
+        let resourcePath = "";
+        let requiredIntermediateVariables = vec![];
+
+        let mut backend = NativeBackend::new(unzipdir, modelIdentifier)?;
+
+        backend.instantiateCoSimulation(instanceName, 
+            instantiationToken, resourcePath, visible, loggingOn, 
+            eventModeUsed, earlyReturnAllowed, &requiredIntermediateVariables)?;
+
+        if logCalls {
+            let message = format!(
+                "fmi3InstantiateCoSimulation(instanceName=\"{}\", instantiationToken=\"{}\", resourcePath={:?}, visible={}, loggingOn={}, eventModeUsed={}, earlyReturnAllowed={}, requiredIntermediateVariables={:?}, nRequiredIntermediateVariables={}, instanceEnvironment={:p}, logMessage={:p}, intermediateUpdate={:p}) -> {:p}",
+                instanceName,
+                instantiationToken,
+                resourcePath,
+                visible,
+                loggingOn,
+                eventModeUsed,
+                earlyReturnAllowed,
+                requiredIntermediateVariables,
+                requiredIntermediateVariables.len(),
+                null_mut::<c_void>(),
+                null_mut::<c_void>(),
+                null_mut::<c_void>(),
+                null_mut::<c_void>(),
+                // instanceEnvironment,
+                // log_message,
+                // intermediate_update,
+                // instance
+            );
+            let status = fmi3Status::Ok;
+            logger.log_call(status, &message);
+        }
+
+        let fmu = FMU3 {
+            logger,
+            intermediateUpdateHandler,
+            logCalls,
+            backend: Box::new(backend),
         };
+
+        // #[allow(clippy::arc_with_non_send_sync)]
+        // let fmu = Arc::new(FMU3::new(
+        //     unzipdir,
+        //     modelIdentifier,
+        //     logger,
+        //     logCalls,
+        //     intermediateUpdateHandler,
+        // )?);
+
+        
+
+        // let instanceEnvironment = Arc::as_ptr(&fmu).cast::<c_void>() as *mut c_void;
+
+        // let instance = unsafe {
+        //     (fmu.fmi3InstantiateCoSimulation)(
+        //         CString::new(instanceName)?.as_ptr(),
+        //         CString::new(instantiationToken)?.as_ptr(),
+        //         path_ptr,
+        //         visible,
+        //         loggingOn,
+        //         eventModeUsed,
+        //         earlyReturnAllowed,
+        //         requiredIntermediateVariables.as_ptr(),
+        //         requiredIntermediateVariables.len(),
+        //         instanceEnvironment,
+        //         log_message,
+        //         intermediate_update,
+        //     )
+        // };
+
+        // let status = if instance.is_null() {
+        //     fmi3Status::Error
+        // } else {
+        //     fmi3Status::Ok
+        // };
+
+        // if fmu.logCalls {
+        //     let message = format!(
+        //         "fmi3InstantiateCoSimulation(instanceName=\"{}\", instantiationToken=\"{}\", resourcePath={:?}, visible={}, loggingOn={}, eventModeUsed={}, earlyReturnAllowed={}, requiredIntermediateVariables={:?}, nRequiredIntermediateVariables={}, instanceEnvironment={:p}, logMessage={:p}, intermediateUpdate={:p}) -> {:p}",
+        //         instanceName,
+        //         instantiationToken,
+        //         resourcePath,
+        //         visible,
+        //         loggingOn,
+        //         eventModeUsed,
+        //         earlyReturnAllowed,
+        //         requiredIntermediateVariables,
+        //         requiredIntermediateVariables.len(),
+        //         instanceEnvironment,
+        //         log_message,
+        //         intermediate_update,
+        //         instance
+        //     );
+        //     fmu.log_call(status, &message);
+        // }
+
+        // if instance.is_null() {
+        //     Err(SimulationError::FMICall)
+        // } else {
+        //     let fmu_ptr = instanceEnvironment as *mut FMU3;
+        //     let mut_fmu: &mut FMU3 = unsafe { &mut *fmu_ptr };
+        //     mut_fmu.instance = instance;
+        //     Ok(fmu)
+        // }
+
+        Ok(Arc::new(fmu))
+
+    }
+
+    pub fn terminate(&self) -> fmi3Status {
+        // let status = unsafe { (self.fmi3Terminate)(self.instance) };
+        let status = self.backend.terminate();
+        if self.logCalls {
+            let message = format!("fmi3Termiate() -> {status:?}");
+            self.log_call(status, &message);
+        }
+        status
+    }
+
+    pub fn enterInitializationMode(
+        &self,
+        tolerance: Option<fmi3Float64>,
+        startTime: fmi3Float64,
+        stopTime: Option<fmi3Float64>,
+    ) -> fmi3Status {
+        // let (toleranceDefined, tolerance) = if let Some(tolerance) = tolerance {
+        //     (true, tolerance)
+        // } else {
+        //     (false, 0.0)
+        // };
+
+        // let (stopTimeDefined, stopTime) = if let Some(stopTime) = stopTime {
+        //     (true, stopTime)
+        // } else {
+        //     (false, 0.0)
+        // };
+
+        // let status = unsafe {
+        //     (self.fmi3EnterInitializationMode)(
+        //         self.instance,    // instance
+        //         toleranceDefined, // toleranceDefined
+        //         tolerance,        // tolerance
+        //         startTime,        // startTime
+        //         stopTimeDefined,  // stopTimeDefined
+        //         stopTime,         // stopTime
+        //     )
+        // };
+
+        let status = self.backend.enterInitializationMode(tolerance, startTime, stopTime);
 
         if self.logCalls {
             let message = format!(
-                "fmi3EnterInitializationMode(toleranceDefined={toleranceDefined}, tolerance={tolerance}, startTime={startTime}, stopTimeDefined={stopTimeDefined}, stopTime={stopTime}) -> {status:?}",
+                "fmi3EnterInitializationMode(tolerance={tolerance:?}, startTime={startTime}, stopTime={stopTime:?}) -> {status:?}",
             );
             self.log_call(status, &message);
         }
@@ -797,7 +1030,7 @@ impl FMU3 {
     }
 
     pub fn exitInitializationMode(&self) -> fmi3Status {
-        let status = unsafe { (self.fmi3ExitInitializationMode)(self.instance) };
+        let status = self.backend.exitInitializationMode();
         if self.logCalls {
             let message = format!("fmi3ExitInitializationMode() -> {status:?}");
             self.log_call(status, &message);
@@ -806,12 +1039,13 @@ impl FMU3 {
     }
 
     pub fn reset(&self) -> fmi3Status {
-        let status = unsafe { (self.fmi3Reset)(self.instance) };
-        if self.logCalls {
-            let message = format!("fmi3Reset() -> {status:?}");
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe { (self.fmi3Reset)(self.instance) };
+        // if self.logCalls {
+        //     let message = format!("fmi3Reset() -> {status:?}");
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn doStep(
@@ -824,9 +1058,8 @@ impl FMU3 {
         earlyReturn: &mut fmi3Boolean,
         lastSuccessfulTime: &mut fmi3Float64,
     ) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3DoStep)(
-                self.instance,
+        let status = 
+            self.backend.doStep(
                 currentCommunicationPoint,
                 communicationStepSize,
                 noSetFMUStatePriorToCurrentPoint,
@@ -834,8 +1067,7 @@ impl FMU3 {
                 terminateSimulation,
                 earlyReturn,
                 lastSuccessfulTime,
-            )
-        };
+            )            ;
 
         if self.logCalls {
             let message = format!(
@@ -860,7 +1092,8 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Float32],
     ) -> fmi3Status {
-        fmi_get!(self, fmi3GetFloat32, valueReferences, values)
+        todo!()
+        // fmi_get!(self, fmi3GetFloat32, valueReferences, values)
     }
 
     pub fn getFloat64(
@@ -868,7 +1101,17 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Float64],
     ) -> fmi3Status {
-        fmi_get!(self, fmi3GetFloat64, valueReferences, values)
+        debug_assert!(valueReferences.len() <= values.len());
+
+        let status = self.backend.getFloat64(valueReferences, values);
+        
+        if self.logCalls {
+            let message = format!(
+                "fmi3GetFloat64(valueReferences={valueReferences:?}, values={values:?}) -> {status:?}");
+            self.log_call(status, &message);
+        }
+
+        status
     }
 
     pub fn getInt8(
@@ -876,7 +1119,8 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int8],
     ) -> fmi3Status {
-        fmi_get!(self, fmi3GetInt8, valueReferences, values)
+        todo!()
+        // fmi_get!(self, fmi3GetInt8, valueReferences, values)
     }
 
     pub fn getUInt8(
@@ -884,7 +1128,8 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt8],
     ) -> fmi3Status {
-        fmi_get!(self, fmi3GetUInt8, valueReferences, values)
+        todo!()
+        // fmi_get!(self, fmi3GetUInt8, valueReferences, values)
     }
 
     pub fn getInt16(
@@ -892,7 +1137,8 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int16],
     ) -> fmi3Status {
-        fmi_get!(self, fmi3GetInt16, valueReferences, values)
+        todo!()
+       //  fmi_get!(self, fmi3GetInt16, valueReferences, values)
     }
 
     pub fn getUInt16(
@@ -900,7 +1146,8 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt16],
     ) -> fmi3Status {
-        fmi_get!(self, fmi3GetUInt16, valueReferences, values)
+        todo!()
+       //  fmi_get!(self, fmi3GetUInt16, valueReferences, values)
     }
 
     pub fn getInt32(
@@ -908,7 +1155,8 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int32],
     ) -> fmi3Status {
-        fmi_get!(self, fmi3GetInt32, valueReferences, values)
+        todo!()
+       //  fmi_get!(self, fmi3GetInt32, valueReferences, values)
     }
 
     pub fn getUInt32(
@@ -916,7 +1164,8 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt32],
     ) -> fmi3Status {
-        fmi_get!(self, fmi3GetUInt32, valueReferences, values)
+        todo!()
+       //  fmi_get!(self, fmi3GetUInt32, valueReferences, values)
     }
 
     pub fn getInt64(
@@ -924,7 +1173,8 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int64],
     ) -> fmi3Status {
-        fmi_get!(self, fmi3GetInt64, valueReferences, values)
+        todo!()
+       //  fmi_get!(self, fmi3GetInt64, valueReferences, values)
     }
 
     pub fn getUInt64(
@@ -932,7 +1182,8 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt64],
     ) -> fmi3Status {
-        fmi_get!(self, fmi3GetUInt64, valueReferences, values)
+        todo!()
+       //  fmi_get!(self, fmi3GetUInt64, valueReferences, values)
     }
 
     pub fn getBoolean(
@@ -940,7 +1191,8 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Boolean],
     ) -> fmi3Status {
-        fmi_get!(self, fmi3GetBoolean, valueReferences, values)
+        todo!()
+       //  fmi_get!(self, fmi3GetBoolean, valueReferences, values)
     }
 
     pub fn getString(
@@ -948,37 +1200,38 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [String],
     ) -> fmi3Status {
-        debug_assert!(valueReferences.len() <= values.len());
+        todo!()
+        // debug_assert!(valueReferences.len() <= values.len());
 
-        let mut buffer: Vec<fmi3String> = vec![null(); values.len()];
+        // let mut buffer: Vec<fmi3String> = vec![null(); values.len()];
 
-        let status = unsafe {
-            (self.fmi3GetString)(
-                self.instance,
-                valueReferences.as_ptr(),
-                valueReferences.len(),
-                buffer.as_mut_ptr(),
-                buffer.len(),
-            )
-        };
+        // let status = unsafe {
+        //     (self.fmi3GetString)(
+        //         self.instance,
+        //         valueReferences.as_ptr(),
+        //         valueReferences.len(),
+        //         buffer.as_mut_ptr(),
+        //         buffer.len(),
+        //     )
+        // };
 
-        for (value, v) in values.iter_mut().zip(buffer.iter()) {
-            *value = unsafe { CStr::from_ptr(*v).to_string_lossy().into_owned() };
-        }
+        // for (value, v) in values.iter_mut().zip(buffer.iter()) {
+        //     *value = unsafe { CStr::from_ptr(*v).to_string_lossy().into_owned() };
+        // }
 
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetString(valueReferences={:?}, nValueReferences={}, values={:?}, nValues={}) -> {:?}",
-                valueReferences,
-                valueReferences.len(),
-                values,
-                values.len(),
-                status,
-            );
-            self.log_call(status, &message);
-        }
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3GetString(valueReferences={:?}, nValueReferences={}, values={:?}, nValues={}) -> {:?}",
+        //         valueReferences,
+        //         valueReferences.len(),
+        //         values,
+        //         values.len(),
+        //         status,
+        //     );
+        //     self.log_call(status, &message);
+        // }
 
-        status
+        // status
     }
 
     pub fn getClock(
@@ -986,7 +1239,8 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Clock],
     ) -> fmi3Status {
-        fmi_get!(self, fmi3GetClock, valueReferences, values)
+        todo!()
+       //  fmi_get!(self, fmi3GetClock, valueReferences, values)
     }
 
     pub fn getBinary(
@@ -994,44 +1248,45 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [Vec<fmi3Byte>],
     ) -> fmi3Status {
-        let mut sizes: Vec<usize> = vec![0; values.len()];
-        let mut value_ptrs = vec![null(); values.len()];
+        todo!()
+        // let mut sizes: Vec<usize> = vec![0; values.len()];
+        // let mut value_ptrs = vec![null(); values.len()];
 
-        let status = unsafe {
-            (self.fmi3GetBinary)(
-                self.instance,
-                valueReferences.as_ptr(),
-                valueReferences.len(),
-                sizes.as_mut_ptr(),
-                value_ptrs.as_mut_ptr(),
-                values.len(),
-            )
-        };
+        // let status = unsafe {
+        //     (self.fmi3GetBinary)(
+        //         self.instance,
+        //         valueReferences.as_ptr(),
+        //         valueReferences.len(),
+        //         sizes.as_mut_ptr(),
+        //         value_ptrs.as_mut_ptr(),
+        //         values.len(),
+        //     )
+        // };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetBinary(valueReferences={:?}, nValueReferences={}, sizes={:?}, values={:?}, nValues={}) -> {:?}",
-                valueReferences,
-                valueReferences.len(),
-                sizes,
-                value_ptrs,
-                value_ptrs.len(),
-                status,
-            );
-            self.log_call(status, &message);
-        }
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3GetBinary(valueReferences={:?}, nValueReferences={}, sizes={:?}, values={:?}, nValues={}) -> {:?}",
+        //         valueReferences,
+        //         valueReferences.len(),
+        //         sizes,
+        //         value_ptrs,
+        //         value_ptrs.len(),
+        //         status,
+        //     );
+        //     self.log_call(status, &message);
+        // }
 
-        for (value_ptr, size, value) in izip!(value_ptrs, sizes, values) {
-            *value = if !value_ptr.is_null() && size > 0 {
-                let slice: &[u8] =
-                    unsafe { std::slice::from_raw_parts(value_ptr as *const fmi3Byte, size) };
-                slice.to_vec()
-            } else {
-                Vec::new()
-            };
-        }
+        // for (value_ptr, size, value) in izip!(value_ptrs, sizes, values) {
+        //     *value = if !value_ptr.is_null() && size > 0 {
+        //         let slice: &[u8] =
+        //             unsafe { std::slice::from_raw_parts(value_ptr as *const fmi3Byte, size) };
+        //         slice.to_vec()
+        //     } else {
+        //         Vec::new()
+        //     };
+        // }
 
-        status
+        // status
     }
 
     pub fn setFloat32(
@@ -1039,7 +1294,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Float32],
     ) -> fmi3Status {
-        fmi_set!(self, fmi3SetFloat32, valueReferences, values)
+        todo!() //  fmi_ges!((self, fmi3SetFloat32, valueReferences, values)
     }
 
     pub fn setFloat64(
@@ -1047,7 +1302,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Float64],
     ) -> fmi3Status {
-        fmi_set!(self, fmi3SetFloat64, valueReferences, values)
+        todo!() //  fmi_ges!((self, fmi3SetFloat64, valueReferences, values)
     }
 
     pub fn setInt8(
@@ -1055,7 +1310,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Int8],
     ) -> fmi3Status {
-        fmi_set!(self, fmi3SetInt8, valueReferences, values)
+        todo!() //  fmi_ges!((self, fmi3SetInt8, valueReferences, values)
     }
 
     pub fn setUInt8(
@@ -1063,7 +1318,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3UInt8],
     ) -> fmi3Status {
-        fmi_set!(self, fmi3SetUInt8, valueReferences, values)
+        todo!() //  fmi_ges!((self, fmi3SetUInt8, valueReferences, values)
     }
 
     pub fn setInt16(
@@ -1071,7 +1326,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Int16],
     ) -> fmi3Status {
-        fmi_set!(self, fmi3SetInt16, valueReferences, values)
+        todo!() //  fmi_ges!((self, fmi3SetInt16, valueReferences, values)
     }
 
     pub fn setUInt16(
@@ -1079,7 +1334,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3UInt16],
     ) -> fmi3Status {
-        fmi_set!(self, fmi3SetUInt16, valueReferences, values)
+        todo!() //  fmi_ges!((self, fmi3SetUInt16, valueReferences, values)
     }
 
     pub fn setInt32(
@@ -1087,7 +1342,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Int32],
     ) -> fmi3Status {
-        fmi_set!(self, fmi3SetInt32, valueReferences, values)
+        todo!() //  fmi_ges!((self, fmi3SetInt32, valueReferences, values)
     }
 
     pub fn setUInt32(
@@ -1095,7 +1350,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3UInt32],
     ) -> fmi3Status {
-        fmi_set!(self, fmi3SetUInt32, valueReferences, values)
+        todo!() //  fmi_ges!((self, fmi3SetUInt32, valueReferences, values)
     }
 
     pub fn setInt64(
@@ -1103,7 +1358,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Int64],
     ) -> fmi3Status {
-        fmi_set!(self, fmi3SetInt64, valueReferences, values)
+        todo!() //  fmi_ges!((self, fmi3SetInt64, valueReferences, values)
     }
 
     pub fn setUInt64(
@@ -1111,7 +1366,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3UInt64],
     ) -> fmi3Status {
-        fmi_set!(self, fmi3SetUInt64, valueReferences, values)
+        todo!() //  fmi_ges!((self, fmi3SetUInt64, valueReferences, values)
     }
 
     pub fn setBoolean(
@@ -1119,42 +1374,43 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Boolean],
     ) -> fmi3Status {
-        fmi_set!(self, fmi3SetBoolean, valueReferences, values)
+        todo!() //  fmi_ges!((self, fmi3SetBoolean, valueReferences, values)
     }
 
     pub fn setString(&self, valueReferences: &[fmi3ValueReference], values: &[&str]) -> fmi3Status {
-        debug_assert!(valueReferences.len() <= values.len());
+        todo!()
+        // debug_assert!(valueReferences.len() <= values.len());
 
-        let values: Vec<CString> = match values.iter().map(|&v| CString::new(v)).collect() {
-            Ok(values) => values,
-            Err(_) => return fmi3Status::Error,
-        };
+        // let values: Vec<CString> = match values.iter().map(|&v| CString::new(v)).collect() {
+        //     Ok(values) => values,
+        //     Err(_) => return fmi3Status::Error,
+        // };
 
-        let values2: Vec<fmi3String> = values.iter().map(|v| v.as_ptr() as fmi3String).collect();
+        // let values2: Vec<fmi3String> = values.iter().map(|v| v.as_ptr() as fmi3String).collect();
 
-        let status = unsafe {
-            (self.fmi3SetString)(
-                self.instance,
-                valueReferences.as_ptr(),
-                valueReferences.len(),
-                values2.as_ptr(),
-                values2.len(),
-            )
-        };
+        // let status = unsafe {
+        //     (self.fmi3SetString)(
+        //         self.instance,
+        //         valueReferences.as_ptr(),
+        //         valueReferences.len(),
+        //         values2.as_ptr(),
+        //         values2.len(),
+        //     )
+        // };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi3SetString(valueReferences={:?}, nValueReferences={}, values={:?}, nValues={}) -> {:?}",
-                valueReferences,
-                valueReferences.len(),
-                values,
-                values.len(),
-                status,
-            );
-            self.log_call(status, &message);
-        }
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3SetString(valueReferences={:?}, nValueReferences={}, values={:?}, nValues={}) -> {:?}",
+        //         valueReferences,
+        //         valueReferences.len(),
+        //         values,
+        //         values.len(),
+        //         status,
+        //     );
+        //     self.log_call(status, &message);
+        // }
 
-        status
+        // status
     }
 
     pub fn setClock(
@@ -1162,7 +1418,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Clock],
     ) -> fmi3Status {
-        fmi_set!(self, fmi3SetClock, valueReferences, values)
+        todo!() //  fmi_ges!((self, fmi3SetClock, valueReferences, values)
     }
 
     pub fn setBinary(
@@ -1170,104 +1426,109 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[&[fmi3Byte]],
     ) -> fmi3Status {
-        let sizes: Vec<usize> = values.iter().map(|v| v.len()).collect();
-        let value_ptrs: Vec<fmi3Binary> = values.iter().map(|v| v.as_ptr()).collect();
+        todo!()
+        // let sizes: Vec<usize> = values.iter().map(|v| v.len()).collect();
+        // let value_ptrs: Vec<fmi3Binary> = values.iter().map(|v| v.as_ptr()).collect();
 
-        let status = unsafe {
-            (self.fmi3SetBinary)(
-                self.instance,
-                valueReferences.as_ptr(),
-                valueReferences.len(),
-                sizes.as_ptr(),
-                value_ptrs.as_ptr(),
-                value_ptrs.len(),
-            )
-        };
+        // let status = unsafe {
+        //     (self.fmi3SetBinary)(
+        //         self.instance,
+        //         valueReferences.as_ptr(),
+        //         valueReferences.len(),
+        //         sizes.as_ptr(),
+        //         value_ptrs.as_ptr(),
+        //         value_ptrs.len(),
+        //     )
+        // };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi3SetBinary(valueReferences={:?}, nValueReferences={}, sizes={:?}, values={:?}, nValues={}) -> {:?}",
-                valueReferences,
-                valueReferences.len(),
-                sizes,
-                value_ptrs,
-                value_ptrs.len(),
-                status,
-            );
-            self.log_call(status, &message);
-        }
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3SetBinary(valueReferences={:?}, nValueReferences={}, sizes={:?}, values={:?}, nValues={}) -> {:?}",
+        //         valueReferences,
+        //         valueReferences.len(),
+        //         sizes,
+        //         value_ptrs,
+        //         value_ptrs.len(),
+        //         status,
+        //     );
+        //     self.log_call(status, &message);
+        // }
 
-        status
+        // status
     }
 
     pub fn setDebugLogging(&self, loggingOn: fmi3Boolean, categories: &[fmi3String]) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3SetDebugLogging)(
-                self.instance,
-                loggingOn,
-                categories.len(),
-                categories.as_ptr(),
-            )
-        };
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3SetDebugLogging)(
+        //         self.instance,
+        //         loggingOn,
+        //         categories.len(),
+        //         categories.as_ptr(),
+        //     )
+        // };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi3SetDebugLogging(loggingOn={}, nCategories={}) -> {:?}",
-                loggingOn,
-                categories.len(),
-                status,
-            );
-            self.log_call(status, &message);
-        }
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3SetDebugLogging(loggingOn={}, nCategories={}) -> {:?}",
+        //         loggingOn,
+        //         categories.len(),
+        //         status,
+        //     );
+        //     self.log_call(status, &message);
+        // }
 
-        status
+        // status
     }
 
     pub fn enterEventMode(&self) -> fmi3Status {
-        let status = unsafe { (self.fmi3EnterEventMode)(self.instance) };
-        if self.logCalls {
-            let message = format!("fmi3EnterEventMode() -> {status:?}");
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe { (self.fmi3EnterEventMode)(self.instance) };
+        // if self.logCalls {
+        //     let message = format!("fmi3EnterEventMode() -> {status:?}");
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn enterStepMode(&self) -> fmi3Status {
-        let status = unsafe { (self.fmi3EnterStepMode)(self.instance) };
-        if self.logCalls {
-            let message = format!("fmi3EnterStepMode() -> {status:?}");
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe { (self.fmi3EnterStepMode)(self.instance) };
+        // if self.logCalls {
+        //     let message = format!("fmi3EnterStepMode() -> {status:?}");
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn getNumberOfVariableDependencies(
         &self,
         valueReference: fmi3ValueReference,
     ) -> Result<usize, fmi3Status> {
-        let mut nDependencies: usize = 0;
+        todo!()
+        // let mut nDependencies: usize = 0;
 
-        let status = unsafe {
-            (self.fmi3GetNumberOfVariableDependencies)(
-                self.instance,
-                valueReference,
-                &mut nDependencies,
-            )
-        };
+        // let status = unsafe {
+        //     (self.fmi3GetNumberOfVariableDependencies)(
+        //         self.instance,
+        //         valueReference,
+        //         &mut nDependencies,
+        //     )
+        // };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetNumberOfVariableDependencies(valueReference={}, nDependencies={}) -> {:?}",
-                valueReference, nDependencies, status
-            );
-            self.log_call(status, &message);
-        }
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3GetNumberOfVariableDependencies(valueReference={}, nDependencies={}) -> {:?}",
+        //         valueReference, nDependencies, status
+        //     );
+        //     self.log_call(status, &message);
+        // }
 
-        if status == fmi3Status::Ok {
-            Ok(nDependencies)
-        } else {
-            Err(status)
-        }
+        // if status == fmi3Status::Ok {
+        //     Ok(nDependencies)
+        // } else {
+        //     Err(status)
+        // }
     }
 
     pub fn getVariableDependencies(
@@ -1278,69 +1539,74 @@ impl FMU3 {
         elementIndicesOfIndependents: &mut [usize],
         dependencyKinds: &mut [fmi3DependencyKind],
     ) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3GetVariableDependencies)(
-                self.instance,
-                valueReference,
-                elementIndicesOfDependent.as_mut_ptr(),
-                independentVariables.as_mut_ptr(),
-                elementIndicesOfIndependents.as_mut_ptr(),
-                dependencyKinds.as_mut_ptr(),
-            )
-        };
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3GetVariableDependencies)(
+        //         self.instance,
+        //         valueReference,
+        //         elementIndicesOfDependent.as_mut_ptr(),
+        //         independentVariables.as_mut_ptr(),
+        //         elementIndicesOfIndependents.as_mut_ptr(),
+        //         dependencyKinds.as_mut_ptr(),
+        //     )
+        // };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetVariableDependencies(valueReference={}) -> {:?}",
-                valueReference, status,
-            );
-            self.log_call(status, &message);
-        }
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3GetVariableDependencies(valueReference={}) -> {:?}",
+        //         valueReference, status,
+        //     );
+        //     self.log_call(status, &message);
+        // }
 
-        status
+        // status
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn getFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status {
-        let status = unsafe { (self.fmi3GetFMUState)(self.instance, FMUState) };
-        if self.logCalls {
-            let message = format!("fmi3GetFMUState(FMUState={FMUState:p}) -> {status:?}");
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe { (self.fmi3GetFMUState)(self.instance, FMUState) };
+        // if self.logCalls {
+        //     let message = format!("fmi3GetFMUState(FMUState={FMUState:p}) -> {status:?}");
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn setFMUState(&self, FMUState: fmi3FMUState) -> fmi3Status {
-        let status = unsafe { (self.fmi3SetFMUState)(self.instance, FMUState) };
-        if self.logCalls {
-            let message = format!("fmi3SetFMUState(FMUState={FMUState:p}) -> {status:?}");
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe { (self.fmi3SetFMUState)(self.instance, FMUState) };
+        // if self.logCalls {
+        //     let message = format!("fmi3SetFMUState(FMUState={FMUState:p}) -> {status:?}");
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn freeFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status {
-        let status = unsafe { (self.fmi3FreeFMUState)(self.instance, FMUState) };
-        if self.logCalls {
-            let message = format!("fmi3FreeFMUState(FMUState={FMUState:p}) -> {status:?}");
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe { (self.fmi3FreeFMUState)(self.instance, FMUState) };
+        // if self.logCalls {
+        //     let message = format!("fmi3FreeFMUState(FMUState={FMUState:p}) -> {status:?}");
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn serializedFMUStateSize(&self, FMUState: fmi3FMUState, size: &mut usize) -> fmi3Status {
-        let status = unsafe { (self.fmi3SerializedFMUStateSize)(self.instance, FMUState, size) };
-        if self.logCalls {
-            let message = format!(
-                "fmi3SerializedFMUStateSize(FMUState={:p}, size={}) -> {:?}",
-                FMUState, size, status
-            );
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe { (self.fmi3SerializedFMUStateSize)(self.instance, FMUState, size) };
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3SerializedFMUStateSize(FMUState={:p}, size={}) -> {:?}",
+        //         FMUState, size, status
+        //     );
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -1349,23 +1615,24 @@ impl FMU3 {
         fmuState: fmi3FMUState,
         serializedState: &mut [fmi3Byte],
     ) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3SerializeFMUState)(
-                self.instance,
-                fmuState,
-                serializedState.as_mut_ptr(),
-                serializedState.len(),
-            )
-        };
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3SerializeFMUState)(
+        //         self.instance,
+        //         fmuState,
+        //         serializedState.as_mut_ptr(),
+        //         serializedState.len(),
+        //     )
+        // };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi3SerializeFMUState(size={}) -> {status:?}",
-                serializedState.len()
-            );
-            self.log_call(status, &message);
-        }
-        status
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3SerializeFMUState(size={}) -> {status:?}",
+        //         serializedState.len()
+        //     );
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -1374,21 +1641,22 @@ impl FMU3 {
         serializedState: &[fmi3Byte],
         FMUState: &mut fmi3FMUState,
     ) -> fmi3Status {
-        let size = serializedState.len();
-        let serializedState = serializedState.as_ptr();
+        todo!()
+        // let size = serializedState.len();
+        // let serializedState = serializedState.as_ptr();
 
-        let status = unsafe {
-            (self.fmi3DeserializeFMUState)(self.instance, serializedState, size, FMUState)
-        };
+        // let status = unsafe {
+        //     (self.fmi3DeserializeFMUState)(self.instance, serializedState, size, FMUState)
+        // };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi3DeserializeFMUState(serializedState={serializedState:p}, size={size}, FMUState={FMUState:p}) -> {status:?}"
-            );
-            self.log_call(status, &message);
-        }
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3DeserializeFMUState(serializedState={serializedState:p}, size={size}, FMUState={FMUState:p}) -> {status:?}"
+        //     );
+        //     self.log_call(status, &message);
+        // }
 
-        status
+        // status
     }
 
     pub fn getDirectionalDerivative(
@@ -1398,35 +1666,36 @@ impl FMU3 {
         seed: &[fmi3Float64],
         sensitivity: &mut [fmi3Float64],
     ) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3GetDirectionalDerivative)(
-                self.instance,
-                unknowns.as_ptr(),
-                unknowns.len(),
-                knowns.as_ptr(),
-                knowns.len(),
-                seed.as_ptr(),
-                seed.len(),
-                sensitivity.as_mut_ptr(),
-                sensitivity.len(),
-            )
-        };
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetDirectionalDerivative(unknowns: {:?}, nUnknowns: {}, knowns: {:?}, nKnowns: {}, seed: {:?}, nSeed: {}, sensitivity: {:?}, nSensitivity: {}) -> {:?}",
-                unknowns,
-                unknowns.len(),
-                knowns,
-                knowns.len(),
-                seed,
-                seed.len(),
-                sensitivity,
-                sensitivity.len(),
-                status,
-            );
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3GetDirectionalDerivative)(
+        //         self.instance,
+        //         unknowns.as_ptr(),
+        //         unknowns.len(),
+        //         knowns.as_ptr(),
+        //         knowns.len(),
+        //         seed.as_ptr(),
+        //         seed.len(),
+        //         sensitivity.as_mut_ptr(),
+        //         sensitivity.len(),
+        //     )
+        // };
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3GetDirectionalDerivative(unknowns: {:?}, nUnknowns: {}, knowns: {:?}, nKnowns: {}, seed: {:?}, nSeed: {}, sensitivity: {:?}, nSensitivity: {}) -> {:?}",
+        //         unknowns,
+        //         unknowns.len(),
+        //         knowns,
+        //         knowns.len(),
+        //         seed,
+        //         seed.len(),
+        //         sensitivity,
+        //         sensitivity.len(),
+        //         status,
+        //     );
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn getAdjointDerivative(
@@ -1436,52 +1705,55 @@ impl FMU3 {
         seed: &[fmi3Float64],
         sensitivity: &mut [fmi3Float64],
     ) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3GetAdjointDerivative)(
-                self.instance,
-                unknowns.as_ptr(),
-                unknowns.len(),
-                knowns.as_ptr(),
-                knowns.len(),
-                seed.as_ptr(),
-                seed.len(),
-                sensitivity.as_mut_ptr(),
-                sensitivity.len(),
-            )
-        };
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetAdjointDerivative(unknowns={:?}, nUnknowns={}, knowns={:?}, nKnowns={}, seed={:?}, nSeed={}, sensitivity={:?}, nSensitivity={}) -> {status:?}",
-                unknowns,
-                unknowns.len(),
-                knowns,
-                knowns.len(),
-                seed,
-                seed.len(),
-                sensitivity,
-                sensitivity.len(),
-            );
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3GetAdjointDerivative)(
+        //         self.instance,
+        //         unknowns.as_ptr(),
+        //         unknowns.len(),
+        //         knowns.as_ptr(),
+        //         knowns.len(),
+        //         seed.as_ptr(),
+        //         seed.len(),
+        //         sensitivity.as_mut_ptr(),
+        //         sensitivity.len(),
+        //     )
+        // };
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3GetAdjointDerivative(unknowns={:?}, nUnknowns={}, knowns={:?}, nKnowns={}, seed={:?}, nSeed={}, sensitivity={:?}, nSensitivity={}) -> {status:?}",
+        //         unknowns,
+        //         unknowns.len(),
+        //         knowns,
+        //         knowns.len(),
+        //         seed,
+        //         seed.len(),
+        //         sensitivity,
+        //         sensitivity.len(),
+        //     );
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn enterConfigurationMode(&self) -> fmi3Status {
-        let status = unsafe { (self.fmi3EnterConfigurationMode)(self.instance) };
-        if self.logCalls {
-            let message = format!("fmi3EnterConfigurationMode() -> {status:?}");
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe { (self.fmi3EnterConfigurationMode)(self.instance) };
+        // if self.logCalls {
+        //     let message = format!("fmi3EnterConfigurationMode() -> {status:?}");
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn exitConfigurationMode(&self) -> fmi3Status {
-        let status = unsafe { (self.fmi3ExitConfigurationMode)(self.instance) };
-        if self.logCalls {
-            let message = format!("fmi3ExitConfigurationMode() -> {status:?}");
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe { (self.fmi3ExitConfigurationMode)(self.instance) };
+        // if self.logCalls {
+        //     let message = format!("fmi3ExitConfigurationMode() -> {status:?}");
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn getIntervalDecimal(
@@ -1490,26 +1762,27 @@ impl FMU3 {
         intervals: &mut [fmi3Float64],
         qualifiers: &mut [fmi3IntervalQualifier],
     ) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3GetIntervalDecimal)(
-                self.instance,
-                valueReferences.as_ptr(),
-                valueReferences.len(),
-                intervals.as_mut_ptr(),
-                qualifiers.as_mut_ptr(),
-            )
-        };
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetIntervalDecimal(valueReferences={:?}, ValueReferences={}, intervals={:?}, qualifiers={:?}) -> {status:?}",
-                valueReferences,
-                valueReferences.len(),
-                intervals,
-                qualifiers,
-            );
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3GetIntervalDecimal)(
+        //         self.instance,
+        //         valueReferences.as_ptr(),
+        //         valueReferences.len(),
+        //         intervals.as_mut_ptr(),
+        //         qualifiers.as_mut_ptr(),
+        //     )
+        // };
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3GetIntervalDecimal(valueReferences={:?}, ValueReferences={}, intervals={:?}, qualifiers={:?}) -> {status:?}",
+        //         valueReferences,
+        //         valueReferences.len(),
+        //         intervals,
+        //         qualifiers,
+        //     );
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn getIntervalFraction(
@@ -1519,28 +1792,29 @@ impl FMU3 {
         resolutions: &mut [fmi3UInt64],
         qualifiers: &mut [fmi3IntervalQualifier],
     ) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3GetIntervalFraction)(
-                self.instance,
-                valueReferences.as_ptr(),
-                valueReferences.len(),
-                counters.as_mut_ptr(),
-                resolutions.as_mut_ptr(),
-                qualifiers.as_mut_ptr(),
-            )
-        };
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetIntervalFraction(valueReferences={:?}, ValueReferences={}, counters={:?}, resolutions={:?}, qualifiers={:?}) -> {status:?}",
-                valueReferences,
-                valueReferences.len(),
-                counters,
-                resolutions,
-                qualifiers,
-            );
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3GetIntervalFraction)(
+        //         self.instance,
+        //         valueReferences.as_ptr(),
+        //         valueReferences.len(),
+        //         counters.as_mut_ptr(),
+        //         resolutions.as_mut_ptr(),
+        //         qualifiers.as_mut_ptr(),
+        //     )
+        // };
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3GetIntervalFraction(valueReferences={:?}, ValueReferences={}, counters={:?}, resolutions={:?}, qualifiers={:?}) -> {status:?}",
+        //         valueReferences,
+        //         valueReferences.len(),
+        //         counters,
+        //         resolutions,
+        //         qualifiers,
+        //     );
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn setIntervalDecimal(
@@ -1548,24 +1822,25 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         intervals: &[fmi3Float64],
     ) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3SetIntervalDecimal)(
-                self.instance,
-                valueReferences.as_ptr(),
-                valueReferences.len(),
-                intervals.as_ptr(),
-            )
-        };
-        if self.logCalls {
-            let message = format!(
-                "fmi3SetIntervalDecimal(valueReferences={:?}, nValueReferences={}, intervals={:?}) -> {status:?}",
-                valueReferences,
-                valueReferences.len(),
-                intervals,
-            );
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3SetIntervalDecimal)(
+        //         self.instance,
+        //         valueReferences.as_ptr(),
+        //         valueReferences.len(),
+        //         intervals.as_ptr(),
+        //     )
+        // };
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3SetIntervalDecimal(valueReferences={:?}, nValueReferences={}, intervals={:?}) -> {status:?}",
+        //         valueReferences,
+        //         valueReferences.len(),
+        //         intervals,
+        //     );
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn setIntervalFraction(
@@ -1574,35 +1849,37 @@ impl FMU3 {
         counters: &[fmi3UInt64],
         resolutions: &[fmi3UInt64],
     ) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3SetIntervalFraction)(
-                self.instance,
-                valueReferences.as_ptr(),
-                valueReferences.len(),
-                counters.as_ptr(),
-                resolutions.as_ptr(),
-            )
-        };
-        if self.logCalls {
-            let message = format!(
-                "fmi3SetIntervalFraction(valueReferences={:?}, nValueReferences={}, counters={:?}, resolutions={:?}) -> {status:?}",
-                valueReferences,
-                valueReferences.len(),
-                counters,
-                resolutions,
-            );
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3SetIntervalFraction)(
+        //         self.instance,
+        //         valueReferences.as_ptr(),
+        //         valueReferences.len(),
+        //         counters.as_ptr(),
+        //         resolutions.as_ptr(),
+        //     )
+        // };
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3SetIntervalFraction(valueReferences={:?}, nValueReferences={}, counters={:?}, resolutions={:?}) -> {status:?}",
+        //         valueReferences,
+        //         valueReferences.len(),
+        //         counters,
+        //         resolutions,
+        //     );
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn enterContinuousTimeMode(&self) -> fmi3Status {
-        let status = unsafe { (self.fmi3EnterContinuousTimeMode)(self.instance) };
-        if self.logCalls {
-            let message = format!("fmi3EnterContinuousTimeMode() -> {status:?}");
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe { (self.fmi3EnterContinuousTimeMode)(self.instance) };
+        // if self.logCalls {
+        //     let message = format!("fmi3EnterContinuousTimeMode() -> {status:?}");
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn completedIntegratorStep(
@@ -1611,165 +1888,175 @@ impl FMU3 {
         enterEventMode: &mut fmi3Boolean,
         terminateSimulation: &mut fmi3Boolean,
     ) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3CompletedIntegratorStep)(
-                self.instance,
-                noSetFMUStatePriorToCurrentPoint,
-                enterEventMode,
-                terminateSimulation,
-            )
-        };
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3CompletedIntegratorStep)(
+        //         self.instance,
+        //         noSetFMUStatePriorToCurrentPoint,
+        //         enterEventMode,
+        //         terminateSimulation,
+        //     )
+        // };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi3CompletedIntegratorStep(noSetFMUStatePriorToCurrentPoint={}, enterEventMode={}, terminateSimulation={}) -> {:?}",
-                noSetFMUStatePriorToCurrentPoint, enterEventMode, terminateSimulation, status,
-            );
-            self.log_call(status, &message);
-        }
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3CompletedIntegratorStep(noSetFMUStatePriorToCurrentPoint={}, enterEventMode={}, terminateSimulation={}) -> {:?}",
+        //         noSetFMUStatePriorToCurrentPoint, enterEventMode, terminateSimulation, status,
+        //     );
+        //     self.log_call(status, &message);
+        // }
 
-        status
+        // status
     }
 
     pub fn setTime(&self, time: fmi3Float64) -> fmi3Status {
-        let status = unsafe { (self.fmi3SetTime)(self.instance, time) };
-        if self.logCalls {
-            let message = format!("fmi3SetTime(time={time}) -> {status:?}");
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe { (self.fmi3SetTime)(self.instance, time) };
+        // if self.logCalls {
+        //     let message = format!("fmi3SetTime(time={time}) -> {status:?}");
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn setContinuousStates(&self, continuousStates: &[fmi3Float64]) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3SetContinuousStates)(
-                self.instance,
-                continuousStates.as_ptr(),
-                continuousStates.len(),
-            )
-        };
-        if self.logCalls {
-            let message = format!(
-                "fmi3SetContinuousStates(continuousStates={:?}, nContinuousStates={}) -> {status:?}",
-                continuousStates,
-                continuousStates.len(),
-            );
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3SetContinuousStates)(
+        //         self.instance,
+        //         continuousStates.as_ptr(),
+        //         continuousStates.len(),
+        //     )
+        // };
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3SetContinuousStates(continuousStates={:?}, nContinuousStates={}) -> {status:?}",
+        //         continuousStates,
+        //         continuousStates.len(),
+        //     );
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn getContinuousStates(&self, continuousStates: &mut [fmi3Float64]) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3GetContinuousStates)(
-                self.instance,
-                continuousStates.as_mut_ptr(),
-                continuousStates.len(),
-            )
-        };
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetContinuousStates(continuousStates={:?}, nContinuousStates={}) -> {status:?}",
-                continuousStates,
-                continuousStates.len(),
-            );
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3GetContinuousStates)(
+        //         self.instance,
+        //         continuousStates.as_mut_ptr(),
+        //         continuousStates.len(),
+        //     )
+        // };
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3GetContinuousStates(continuousStates={:?}, nContinuousStates={}) -> {status:?}",
+        //         continuousStates,
+        //         continuousStates.len(),
+        //     );
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn getContinuousStateDerivatives(&self, derivatives: &mut [fmi3Float64]) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3GetContinuousStateDerivatives)(
-                self.instance,
-                derivatives.as_mut_ptr(),
-                derivatives.len(),
-            )
-        };
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetContinuousStateDerivatives(derivatives={:?}, nDerivatives={}) -> {status:?}",
-                derivatives,
-                derivatives.len(),
-            );
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3GetContinuousStateDerivatives)(
+        //         self.instance,
+        //         derivatives.as_mut_ptr(),
+        //         derivatives.len(),
+        //     )
+        // };
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3GetContinuousStateDerivatives(derivatives={:?}, nDerivatives={}) -> {status:?}",
+        //         derivatives,
+        //         derivatives.len(),
+        //     );
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn getEventIndicators(&self, eventIndicators: &mut [fmi3Float64]) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3GetEventIndicators)(
-                self.instance,
-                eventIndicators.as_mut_ptr(),
-                eventIndicators.len(),
-            )
-        };
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetEventIndicators(eventIndicators={:?}, nEventIndicators={}) -> {status:?}",
-                eventIndicators,
-                eventIndicators.len(),
-            );
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3GetEventIndicators)(
+        //         self.instance,
+        //         eventIndicators.as_mut_ptr(),
+        //         eventIndicators.len(),
+        //     )
+        // };
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3GetEventIndicators(eventIndicators={:?}, nEventIndicators={}) -> {status:?}",
+        //         eventIndicators,
+        //         eventIndicators.len(),
+        //     );
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn getNominalsOfContinuousStates(&self, nominals: &mut [fmi3Float64]) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3GetNominalsOfContinuousStates)(
-                self.instance,
-                nominals.as_mut_ptr(),
-                nominals.len(),
-            )
-        };
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetNominalsOfContinuousStates(nominals={:?}, nNominals={}) -> {status:?}",
-                nominals,
-                nominals.len(),
-            );
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3GetNominalsOfContinuousStates)(
+        //         self.instance,
+        //         nominals.as_mut_ptr(),
+        //         nominals.len(),
+        //     )
+        // };
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3GetNominalsOfContinuousStates(nominals={:?}, nNominals={}) -> {status:?}",
+        //         nominals,
+        //         nominals.len(),
+        //     );
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn getNumberOfEventIndicators(&self, nEventIndicators: &mut usize) -> fmi3Status {
-        let status =
-            unsafe { (self.fmi3GetNumberOfEventIndicators)(self.instance, nEventIndicators) };
+        todo!()
+        // let status =
+        //     unsafe { (self.fmi3GetNumberOfEventIndicators)(self.instance, nEventIndicators) };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetNumberOfEventIndicators(nEventIndicators={nEventIndicators}) -> {status:?}"
-            );
-            self.log_call(status, &message);
-        }
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3GetNumberOfEventIndicators(nEventIndicators={nEventIndicators}) -> {status:?}"
+        //     );
+        //     self.log_call(status, &message);
+        // }
 
-        status
+        // status
     }
 
     pub fn getNumberOfContinuousStates(&self, nContinuousStates: &mut usize) -> fmi3Status {
-        let status =
-            unsafe { (self.fmi3GetNumberOfContinuousStates)(self.instance, nContinuousStates) };
+        todo!()
+        // let status =
+        //     unsafe { (self.fmi3GetNumberOfContinuousStates)(self.instance, nContinuousStates) };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetNumberOfContinuousStates(nContinuousStates={nContinuousStates}) -> {status:?}"
-            );
-            self.log_call(status, &message);
-        }
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3GetNumberOfContinuousStates(nContinuousStates={nContinuousStates}) -> {status:?}"
+        //     );
+        //     self.log_call(status, &message);
+        // }
 
-        status
+        // status
     }
 
     pub fn evaluateDiscreteStates(&self) -> fmi3Status {
-        let status = unsafe { (self.fmi3EvaluateDiscreteStates)(self.instance) };
-        if self.logCalls {
-            let message = format!("fmi3EvaluateDiscreteStates() -> {status:?}");
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe { (self.fmi3EvaluateDiscreteStates)(self.instance) };
+        // if self.logCalls {
+        //     let message = format!("fmi3EvaluateDiscreteStates() -> {status:?}");
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn updateDiscreteStates(
@@ -1780,35 +2067,36 @@ impl FMU3 {
         valuesOfContinuousStatesChanged: &mut fmi3Boolean,
         nextEventTime: &mut Option<fmi3Float64>,
     ) -> fmi3Status {
-        let mut nextEventTimeDefined = false;
-        let mut nextEventTimeValue = 0.0;
+        todo!()
+        // let mut nextEventTimeDefined = false;
+        // let mut nextEventTimeValue = 0.0;
 
-        let status = unsafe {
-            (self.fmi3UpdateDiscreteStates)(
-                self.instance,
-                discreteStatesNeedUpdate,
-                terminateSimulation,
-                nominalsOfContinuousStatesChanged,
-                valuesOfContinuousStatesChanged,
-                &mut nextEventTimeDefined,
-                &mut nextEventTimeValue,
-            )
-        };
+        // let status = unsafe {
+        //     (self.fmi3UpdateDiscreteStates)(
+        //         self.instance,
+        //         discreteStatesNeedUpdate,
+        //         terminateSimulation,
+        //         nominalsOfContinuousStatesChanged,
+        //         valuesOfContinuousStatesChanged,
+        //         &mut nextEventTimeDefined,
+        //         &mut nextEventTimeValue,
+        //     )
+        // };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi3UpdateDiscreteStates(discreteStatesNeedUpdate={discreteStatesNeedUpdate}, terminateSimulation={terminateSimulation}, nominalsOfContinuousStatesChanged={nominalsOfContinuousStatesChanged}, valuesOfContinuousStatesChanged={valuesOfContinuousStatesChanged}, nextEventTimeDefined={nextEventTimeDefined}, nextEventTime={nextEventTimeValue}) -> {status:?}"
-            );
-            self.log_call(status, &message);
-        }
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3UpdateDiscreteStates(discreteStatesNeedUpdate={discreteStatesNeedUpdate}, terminateSimulation={terminateSimulation}, nominalsOfContinuousStatesChanged={nominalsOfContinuousStatesChanged}, valuesOfContinuousStatesChanged={valuesOfContinuousStatesChanged}, nextEventTimeDefined={nextEventTimeDefined}, nextEventTime={nextEventTimeValue}) -> {status:?}"
+        //     );
+        //     self.log_call(status, &message);
+        // }
 
-        if nextEventTimeDefined {
-            *nextEventTime = Some(nextEventTimeValue);
-        } else {
-            *nextEventTime = None;
-        }
+        // if nextEventTimeDefined {
+        //     *nextEventTime = Some(nextEventTimeValue);
+        // } else {
+        //     *nextEventTime = None;
+        // }
 
-        status
+        // status
     }
 
     pub fn getOutputDerivatives(
@@ -1817,28 +2105,29 @@ impl FMU3 {
         orders: &[fmi3Int32],
         values: &mut [fmi3Float64],
     ) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3GetOutputDerivatives)(
-                self.instance,
-                valueReferences.as_ptr(),
-                valueReferences.len(),
-                orders.as_ptr(),
-                values.as_mut_ptr(),
-                values.len(),
-            )
-        };
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetOutputDerivatives(valueReferences={:?}, nValueReferences={}, orders={:?}, values={:?}, nValues={}) -> {status:?}",
-                valueReferences,
-                valueReferences.len(),
-                orders,
-                values,
-                values.len(),
-            );
-            self.log_call(status, &message);
-        }
-        status
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3GetOutputDerivatives)(
+        //         self.instance,
+        //         valueReferences.as_ptr(),
+        //         valueReferences.len(),
+        //         orders.as_ptr(),
+        //         values.as_mut_ptr(),
+        //         values.len(),
+        //     )
+        // };
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3GetOutputDerivatives(valueReferences={:?}, nValueReferences={}, orders={:?}, values={:?}, nValues={}) -> {status:?}",
+        //         valueReferences,
+        //         valueReferences.len(),
+        //         orders,
+        //         values,
+        //         values.len(),
+        //     );
+        //     self.log_call(status, &message);
+        // }
+        // status
     }
 
     pub fn activateModelPartition(
@@ -1847,23 +2136,24 @@ impl FMU3 {
         activationTime: fmi3Float64,
         priority: fmi3Float64,
     ) -> fmi3Status {
-        let status = unsafe {
-            (self.fmi3ActivateModelPartition)(
-                self.instance,
-                clockReference,
-                activationTime,
-                priority,
-            )
-        };
+        todo!()
+        // let status = unsafe {
+        //     (self.fmi3ActivateModelPartition)(
+        //         self.instance,
+        //         clockReference,
+        //         activationTime,
+        //         priority,
+        //     )
+        // };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi3ActivateModelPartition(clockReference={}, activationTime={}, priority={}) -> {:?}",
-                clockReference, activationTime, priority, status
-            );
-            self.log_call(status, &message);
-        }
+        // if self.logCalls {
+        //     let message = format!(
+        //         "fmi3ActivateModelPartition(clockReference={}, activationTime={}, priority={}) -> {:?}",
+        //         clockReference, activationTime, priority, status
+        //     );
+        //     self.log_call(status, &message);
+        // }
 
-        status
+        // status
     }
 }
