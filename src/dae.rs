@@ -3,9 +3,6 @@
 use std::{fs::File, io::BufReader, path::Path};
 
 use serde::{Deserialize, Serialize};
-use serde_with::StringWithSeparator;
-use serde_with::formats::SpaceSeparator;
-use serde_with::serde_as;
 use strum::{Display, EnumString};
 use thiserror::Error;
 
@@ -59,19 +56,59 @@ pub enum DependencyKind {
     Discrete,
 }
 
-#[serde_as]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Unknown {
     #[serde(rename = "@valueReference")]
     pub valueReference: u32,
 
     #[serde(rename = "@dependencies")]
-    #[serde_as(as = "Option<StringWithSeparator::<SpaceSeparator, u32>>")]
+    #[serde(with = "space_separated")]
     pub dependencies: Option<Vec<u32>>,
 
     #[serde(rename = "@dependenciesKind")]
-    #[serde_as(as = "Option<StringWithSeparator::<SpaceSeparator, DependencyKind>>")]
+    #[serde(with = "space_separated")]
     pub dependenciesKind: Option<Vec<DependencyKind>>,
+}
+
+mod space_separated {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error};
+    use std::fmt::Display;
+    use std::str::FromStr;
+
+    pub fn serialize<T, S>(value: &Option<Vec<T>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        T: Display,
+        S: Serializer,
+    {
+        match value {
+            Some(values) => {
+                let joined = values
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                serializer.serialize_some(&joined)
+            }
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<Option<Vec<T>>, D::Error>
+    where
+        T: FromStr,
+        T::Err: Display,
+        D: Deserializer<'de>,
+    {
+        Option::<String>::deserialize(deserializer)?
+            .map(|value| {
+                value
+                    .split_whitespace()
+                    .map(str::parse)
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(D::Error::custom)
+            })
+            .transpose()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

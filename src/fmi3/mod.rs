@@ -9,6 +9,7 @@ pub mod builder;
 pub mod log;
 pub mod native;
 pub mod types;
+pub mod wasm;
 
 use crate::fmi3::log::Logger;
 use crate::fmi3::native::NativeBackend;
@@ -103,17 +104,17 @@ macro_rules! fmi_set {
     }};
 }
 
-impl Drop for FMU3 {
-    fn drop(&mut self) {
-        // if !self.instance.is_null() {
-        //     unsafe { (self.fmi3FreeInstance)(self.instance) };
-        //     self.instance = null_mut();
-        //     if self.logCalls {
-        //         self.log_call(fmi3Status::Ok, "fmi3FreeInstance()");
-        //     }
-        // }
-    }
-}
+// impl Drop for FMU3 {
+//     fn drop(&mut self) {
+//         // if !self.instance.is_null() {
+//         //     unsafe { (self.fmi3FreeInstance)(self.instance) };
+//         //     self.instance = null_mut();
+//         //     if self.logCalls {
+//         //         self.log_call(fmi3Status::Ok, "fmi3FreeInstance()");
+//         //     }
+//         // }
+//     }
+// }
 
 #[derive(Debug)]
 pub struct Call {

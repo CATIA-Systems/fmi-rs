@@ -455,3 +455,11 @@ impl Backend for NativeBackend {
     }
 }
 
+impl Drop for NativeBackend {
+    fn drop(&mut self) {
+        if !self.instance.is_null() {
+            unsafe { (self.fmi3FreeInstance)(self.instance) };
+            self.instance = null_mut();
+        }
+    }
+}
