@@ -13,6 +13,7 @@ pub mod wasm;
 
 use crate::fmi3::log::Logger;
 use crate::fmi3::native::NativeBackend;
+use crate::fmi3::wasm::WasmBackend;
 use crate::sim::SimulationError::{self};
 use crate::{CStrExt, get_symbol, load_platform_binary};
 use std::ffi::{CStr, CString};
@@ -427,7 +428,8 @@ impl FMU3 {
         let resourcePath = "";
         let requiredIntermediateVariables = vec![];
 
-        let mut backend = NativeBackend::new(unzipdir, modelIdentifier)?;
+        // let mut backend = NativeBackend::new(unzipdir, modelIdentifier)?;
+        let mut backend = WasmBackend::new()?;
 
         backend.instantiateCoSimulation(instanceName, 
             instantiationToken, resourcePath, visible, loggingOn, 

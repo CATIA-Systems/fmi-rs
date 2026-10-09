@@ -8,160 +8,142 @@ use std::cell::RefCell;
 use std::ffi::{CStr, CString};
 use std::ops::DerefMut;
 use std::os::raw::c_void;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::ptr::{self, null, null_mut};
 use std::sync::Arc;
 
 use wasmtime::component::{Component, Linker, ResourceAny};
-use wasmtime::{Config, Engine, Store};
+use wasmtime::{Config, Engine, Instance, Memory, Module, Store, TypedFunc};
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
 
-// ---------------------------------------------------------------------------
-// WIT bindings (host side)
-// ---------------------------------------------------------------------------
-wasmtime::component::bindgen!({
-    world: "co-simulation-fmu",
-    path:  "wit",
-});
+const WASM_PAGE_SIZE: u64 = 65536;
 
-use fmi::fmi3::types::Status;
-
-/// Combined state for the wasmtime store.
-///
-/// Must implement [`WasiView`] (for WASI P2 imports from the Rust std-lib
-/// embedded in the component) and the FMI callback host traits.
-struct HostState {
-    wasi:  WasiCtx,
-    table: wasmtime::component::ResourceTable,
+struct WasmAddLibraryState {
+    store: RefCell<Store<()>>,
+    memory: Memory,
+    adder_create: TypedFunc<f64, i32>,
+    adder_add: TypedFunc<(i32, f64), ()>,
+    adder_value: TypedFunc<(i32, i32, i32), ()>,
+    adder_destroy: TypedFunc<i32, ()>,
 }
 
-impl WasiView for HostState {
-    fn ctx(&mut self) -> WasiCtxView<'_> {
-        WasiCtxView {
-            ctx: &mut self.wasi,
-            table: &mut self.table,
-        }
-    }
+pub struct WasmAddLibrary {
+    state: Arc<WasmAddLibraryState>,
+    path: PathBuf,
 }
-
-/// Host implementation of `fmi:fmi3/callbacks`.
-impl fmi::fmi3::callbacks::Host for HostState {
-    fn log_message(
-        &mut self,
-        instance_name: String,
-        status:        Status,
-        category:      String,
-        message:       String,
-    ) {
-        eprintln!("[{status:?}] {instance_name} ({category}): {message}");
-    }
-
-    fn clock_update(&mut self) {}
-
-    fn lock_preemption(&mut self) {}
-
-    fn unlock_preemption(&mut self) {}
-}
-
-/// Host implementation of `fmi:fmi3/intermediate-update-callbacks`.
-///
-/// The adder FMU does not use early-return mode, so this is a no-op.
-impl fmi::fmi3::intermediate_update_callbacks::Host for HostState {
-    fn intermediate_update(
-        &mut self,
-        _intermediate_update_time:            f64,
-        _intermediate_variable_set_requested: bool,
-        _intermediate_variable_get_allowed:   bool,
-        _intermediate_step_finished:          bool,
-        _can_return_early:                    bool,
-    ) -> (bool, f64) {
-        (false, 0.0)
-    }
-}
-
-/// Host implementation for `fmi:fmi3/types`.
-///
-/// This interface only contains type definitions, so no methods are required.
-impl fmi::fmi3::types::Host for HostState {}
 
 pub struct WasmBackend {
-    store: RefCell<Store<HostState>>,
-    world: CoSimulationFmu,
-    cs: ResourceAny,
+    state: Arc<WasmAddLibraryState>,
+    handle: i32,
 }
 
-impl WasmBackend {
-    pub fn new(unzipdir: &Path, modelIdentifier: &str) -> Result<WasmBackend, SimulationError> {
+impl WasmAddLibraryState {
+    /// Reserves `len` consecutive `f64` slots in guest linear memory and returns
+    /// the byte offset as a Wasm `i32` pointer suitable for `adder_value`.
+    ///
+    /// Grows memory if needed, placing the buffer at the current end of used data.
+    fn guest_f64_buffer(&self, len: usize) -> Result<i32, SimulationError> {
+        if len == 0 {
+            eprintln!("cannot allocate zero-length guest buffer");
+            return Err(SimulationError::FMICall);
+        }
+        let mut store = self.store.borrow_mut();
+        let bytes = len * 8;
+        let offset = self.memory.data_size(&mut *store);
+        let end = offset + bytes;
+        let current_pages = self.memory.size(&mut *store);
+        let needed_pages = (end as u64).div_ceil(WASM_PAGE_SIZE);
+        if needed_pages > current_pages {
+            self.memory
+                .grow(&mut *store, needed_pages - current_pages)?;
+        }
+        Ok(offset as i32)
+    }
 
-        // ── Engine & component ─────────────────────────────────────────────────
-        let mut cfg = Config::new();
-        cfg.wasm_component_model(true);
-        let engine = Engine::new(&cfg)?;
+    /// Copies `out.len()` little-endian `f64` values from guest memory starting at
+    /// `offset` into the host slice `out`.
+    fn read_guest_f64s(&self, offset: usize, out: &mut [f64]) -> Result<(), SimulationError> {
+        let store = self.store.borrow();
+        let data = self.memory.data(&*store);
+        for (i, slot) in out.iter_mut().enumerate() {
+            let base = offset + i * 8;
+            let chunk = data
+                .get(base..base + 8)
+                .ok_or_else(|| { eprintln!("guest memory read out of bounds"); SimulationError::FMICall })?;
+            *slot = f64::from_le_bytes(chunk.try_into().unwrap());
+        }
+        Ok(())
+    }
+}
 
-        let wasm_path = "";
-
-        let component = Component::from_file(&engine, &wasm_path)?;
-
-        // ── Linker: WASI P2 + FMI callbacks ───────────────────────────────────
-        let mut linker: Linker<HostState> = Linker::new(&engine);
+impl WasmAddLibrary {
+    pub fn load() -> Result<Self, SimulationError> {
+        let path = r#"E:\WS\fmusim\target\wasm32-unknown-unknown\release\bouncing_ball.wasm"#.into();
         
-        wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
+        let engine = Engine::default();
         
-        CoSimulationFmu::add_to_linker::<HostState, wasmtime::component::HasSelf<HostState>>(
-            &mut linker,
-            |s: &mut HostState| s,
-        )?;
+        let module = Module::from_file(&engine, &path)?;
+        
+        let mut store = Store::new(&engine, ());
+        
+        let instance = Instance::new(&mut store, &module, &[])?;
 
-        // ── Store ──────────────────────────────────────────────────────────────
-        let mut store = Store::new(
-            &engine,
-            HostState {
-                wasi:  WasiCtxBuilder::new().build(),
-                table: wasmtime::component::ResourceTable::new(),
-            },
-        );
+        let memory = instance
+            .get_memory(&mut store, "memory")
+            .ok_or_else(|| {
+                eprintln!("wasm module does not export memory");
+                SimulationError::FMICall
+            })?;
+        
+        let adder_create = instance.get_typed_func(&mut store, "adder_create")?;
+        let adder_add = instance.get_typed_func(&mut store, "adder_add")?;
+        let adder_value = instance.get_typed_func(&mut store, "adder_value")?;
+        let adder_destroy = instance.get_typed_func(&mut store, "adder_destroy")?;
+        
+        let state = Arc::new(WasmAddLibraryState {
+            store: RefCell::new(store),
+            memory,
+            adder_create,
+            adder_add,
+            adder_value,
+            adder_destroy,
+        });
+        
+        Ok(Self { state, path })
+    }
 
-        // ── Instantiate the component ──────────────────────────────────────────
-        let mut world = CoSimulationFmu::instantiate(&mut store, &component, &linker)?;
+    pub fn create_backend(&self) -> Result<WasmBackend, SimulationError> {
+        let initial = 0.0;
+        let mut store = self.state.store.borrow_mut();
 
-        // ── Create and initialise a single co-simulation instance ──────────────
-        let cs = world
-            .fmi_fmi3_co_simulation()
-            .co_simulation_instance()
-            .call_instantiate_co_simulation(
-                &mut store,
-                "adder-1",  // instance name
-                "",         // instantiation token
-                "",         // resource path
-                false,      // visible
-                false,      // logging on
-                false,      // event mode used
-                false,      // early return allowed
-                &[],        // required intermediate variables
-            )?
-            .ok_or(SimulationError::FMICall)?;
+        let handle = self.state.adder_create.call(store.deref_mut(), initial)?;
+
+        if handle == 0 {
+            eprintln!("adder_create returned null");
+            return Err(SimulationError::FMICall);
+        }
 
         Ok(WasmBackend {
-            store: RefCell::new(store),
-            world,
-            cs,
+            state: self.state.clone(),
+            handle,
         })
     }
 }
 
-impl Into<fmi3Status> for Status {
-    fn into(self) -> fmi3Status {
-        match self {
-            Status::Ok => fmi3Status::Ok,
-            Status::Warning =>fmi3Status::Warning,
-            Status::Discard => fmi3Status::Discard,
-            Status::Error => fmi3Status::Error,
-            Status::Fatal => fmi3Status::Fatal,
+macro_rules! handle_error {
+    ($s:expr) => {
+        match $s {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("Error: {e}");
+                return fmi3Status::Error;
+            },
         }
-    }
+    };
 }
 
 impl Backend for WasmBackend {
+
     fn getVersion(&self) -> String {
         todo!()
     }
@@ -181,28 +163,7 @@ impl Backend for WasmBackend {
         earlyReturnAllowed: bool,
         requiredIntermediateVariables: &[fmi3ValueReference],
     ) -> Result<(), SimulationError> {
-
         Ok(())
-        // // ── Create and initialise a single co-simulation instance ──────────────
-        // let cs = self.world
-        //     .fmi_fmi3_co_simulation()
-        //     .co_simulation_instance()
-        //     .call_instantiate_co_simulation(
-        //         &mut self.store,
-        //         instanceName,  // instance name
-        //         instantiationToken, // instantiation token
-        //         resourcePath,         // resource path
-        //         visible,      // visible
-        //         loggingOn,      // logging on
-        //         eventModeUsed,      // event mode used
-        //         earlyReturnAllowed,      // early return allowed
-        //         requiredIntermediateVariables,        // required intermediate variables
-        //     );
-
-        // match cs {
-        //     Ok(_) => Ok(()),
-        //     _ => Err(SimulationError::FMICall),
-        // }
     }
     
     fn enterInitializationMode(
@@ -211,57 +172,78 @@ impl Backend for WasmBackend {
         startTime: fmi3Float64,
         stopTime: Option<fmi3Float64>,
     ) -> fmi3Status {
-        let mut store = self.store.borrow_mut();
-        
-        let status = self.world
-            .fmi_fmi3_co_simulation()
-            .co_simulation_instance()
-            .call_enter_initialization_mode(store.deref_mut(), self.cs, tolerance, startTime, stopTime)
-            .unwrap_or(Status::Error);
-
-        status.into()
+        fmi3Status::Warning
     }
     
     fn exitInitializationMode(&self) -> fmi3Status {
-        todo!()
+        fmi3Status::Warning
     }
     
     fn terminate(&self) -> fmi3Status {
-        todo!()
+        fmi3Status::Warning
     }
+
+    // fn fill_value(&self, out: &mut [i32]) -> anyhow::Result<()> {
+    //     if out.is_empty() {
+    //         return Ok(());
+    //     }
+    //     let guest_ptr = self.state.guest_i32_buffer(out.len())?;
+    //     let len = i32::try_from(out.len())
+    //         .map_err(|_| anyhow::anyhow!("buffer length overflows i32"))?;
+    //     {
+    //         let mut store = self.state.store.borrow_mut();
+    //         self.state.adder_value.call(
+    //             &mut *store,
+    //             (self.handle, guest_ptr, len),
+    //         )?;
+    //     }
+    //     self.state
+    //         .read_guest_i32s(guest_ptr as usize, out)?;
+    //     Ok(())
+    // }
+
+    //  fn fill_value(&self, out: &mut [f64]) -> anyhow::Result<()> {
+    //     if out.is_empty() {
+    //         return Ok(());
+    //     }
+    //     let guest_ptr = self.state.guest_f64_buffer(out.len())?;
+    //     let len = i32::try_from(out.len())
+    //         .map_err(|_| anyhow::anyhow!("buffer length overflows i32"))?;
+    //     {
+    //         let mut store = self.state.store.borrow_mut();
+    //         self.state.adder_value.call(
+    //             &mut *store,
+    //             (self.handle, guest_ptr, len),
+    //         )?;
+    //     }
+    //     self.state
+    //         .read_guest_f64s(guest_ptr as usize, out)?;
+    //     Ok(())
+    // }
     
     fn getFloat64(
         &self,
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Float64],
     ) -> fmi3Status {
-        let mut store = self.store.borrow_mut();
-
-        let result = self.world
-            .fmi_fmi3_co_simulation()
-            .co_simulation_instance()
-            .call_get_float64(store.deref_mut(), self.cs, valueReferences);
-
-        match result {
-            Ok(Ok(v)) => {
-                 values.copy_from_slice(&v);
-                fmi3Status::Ok
-            },
-            _ => return fmi3Status::Error,
+        if values.is_empty() {
+            return fmi3Status::Ok;
         }
 
-        // match result {
-        //     Ok(r) => {
-        //         match r {
-        //             Ok(v) => {
-        //                 values.copy_from_slice(&v);
-        //                 fmi3Status::Ok
-        //             },
-        //             Err(e) => e.into()
-        //         }
-        //     },
-        //     Err(_) => return fmi3Status::Error,
-        // }
+        let guest_ptr = handle_error!(self.state.guest_f64_buffer(values.len()));
+
+        let len = handle_error!(i32::try_from(values.len()));
+        {
+            let mut store = self.state.store.borrow_mut();
+            handle_error!(self.state.adder_value.call(
+                &mut *store,
+                (self.handle, guest_ptr, len),
+            ));
+        }
+
+        handle_error!(self.state.read_guest_f64s(guest_ptr as usize, values));
+
+        fmi3Status::Ok
     }
     
     fn doStep(
@@ -274,6 +256,25 @@ impl Backend for WasmBackend {
         earlyReturn: &mut fmi3Boolean,
         lastSuccessfulTime: &mut fmi3Float64,
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.state.store.borrow_mut();
+
+        let result = self.state
+            .adder_add
+            .call(&mut *store, (self.handle, communicationStepSize));
+
+        match result {
+            Ok(_) => fmi3Status::Ok,
+            Err(_) => fmi3Status::Error,
+        }
     }
+}
+
+impl WasmBackend {
+
+    pub fn new() -> Result<WasmBackend, SimulationError> {
+        let library = WasmAddLibrary::load()?;
+        let backend = library.create_backend()?;
+        Ok(backend)
+    }
+    
 }
