@@ -344,45 +344,45 @@ impl Backend for NativeBackend {
         }
     }
     
-    fn instantiateCoSimulation(
-        &mut self,
-        instanceName: &str,
-        instantiationToken: &str,
-        resourcePath: &str,
-        visible: bool,
-        loggingOn: bool,
-        eventModeUsed: bool,
-        earlyReturnAllowed: bool,
-        requiredIntermediateVariables: &[fmi3ValueReference],
-    ) -> Result<(), SimulationError> {
+    // fn instantiateCoSimulation(
+    //     unzipdir: &Path,
+    //     instanceName: &str,
+    //     instantiationToken: &str,
+    //     resourcePath: &str,
+    //     visible: bool,
+    //     loggingOn: bool,
+    //     eventModeUsed: bool,
+    //     earlyReturnAllowed: bool,
+    //     requiredIntermediateVariables: &[fmi3ValueReference],
+    // ) -> Result<Box<dyn Backend>, SimulationError> {
+    //     todo!()
+        // let instanceEnvironment = null_mut();
+        // let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
+        // let intermediate_update = ptr::null_mut() as *const fmi3IntermediateUpdateCallback;
 
-        let instanceEnvironment = null_mut();
-        let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
-        let intermediate_update = ptr::null_mut() as *const fmi3IntermediateUpdateCallback;
+        // self.instance = unsafe {
+        //     (self.fmi3InstantiateCoSimulation)(
+        //         CString::new(instanceName)?.as_ptr(),
+        //         CString::new(instantiationToken)?.as_ptr(),
+        //         CString::new(resourcePath)?.as_ptr(),
+        //         visible,
+        //         loggingOn,
+        //         eventModeUsed,
+        //         earlyReturnAllowed,
+        //         requiredIntermediateVariables.as_ptr(),
+        //         requiredIntermediateVariables.len(),
+        //         instanceEnvironment,
+        //         log_message,
+        //         intermediate_update,
+        //     )
+        // };
 
-        self.instance = unsafe {
-            (self.fmi3InstantiateCoSimulation)(
-                CString::new(instanceName)?.as_ptr(),
-                CString::new(instantiationToken)?.as_ptr(),
-                CString::new(resourcePath)?.as_ptr(),
-                visible,
-                loggingOn,
-                eventModeUsed,
-                earlyReturnAllowed,
-                requiredIntermediateVariables.as_ptr(),
-                requiredIntermediateVariables.len(),
-                instanceEnvironment,
-                log_message,
-                intermediate_update,
-            )
-        };
-
-        if self.instance.is_null() {
-            Err(SimulationError::FMICall)
-        } else {
-            Ok(())
-        }
-    }
+        // if self.instance.is_null() {
+        //     Err(SimulationError::FMICall)
+        // } else {
+        //     Ok(())
+        // }
+    // }
     
     fn enterInitializationMode(
         &self,

@@ -12,11 +12,9 @@ pub mod types;
 pub mod wasm;
 
 use crate::fmi3::log::Logger;
-use crate::fmi3::native::NativeBackend;
-use crate::fmi3::wasm::WasmBackend;
+use crate::fmi3::wasm::{WasmBackend, WasmLibrary};
 use crate::sim::SimulationError::{self};
-use crate::{CStrExt, get_symbol, load_platform_binary};
-use std::ffi::{CStr, CString};
+use crate::{CStrExt};
 use std::os::raw::c_void;
 use std::path::Path;
 use std::ptr::{self, null, null_mut};
@@ -130,11 +128,9 @@ pub struct Message {
     pub message: String,
 }
 
-trait Backend {
-    fn getVersion(&self) -> String;
-    fn setDebugLogging(&self, loggingOn: fmi3Boolean, categories: &[fmi3String]) -> fmi3Status;
+trait Implementation {
     fn instantiateCoSimulation(
-        &mut self,
+        &self,
         instanceName: &str,
         instantiationToken: &str,
         resourcePath: &str,
@@ -143,14 +139,38 @@ trait Backend {
         eventModeUsed: bool,
         earlyReturnAllowed: bool,
         requiredIntermediateVariables: &[fmi3ValueReference],
-    ) -> Result<(), SimulationError>;
+    ) -> Result<Box<dyn Backend>, SimulationError>
+        where
+        Self: Sized;
+}
+
+trait Backend {
+    fn getVersion(&self) -> String;
+
+    fn setDebugLogging(&self, loggingOn: fmi3Boolean, categories: &[fmi3String]) -> fmi3Status;
+    
+    // fn instantiateCoSimulation(
+    //     instanceName: &str,
+    //     instantiationToken: &str,
+    //     resourcePath: &str,
+    //     visible: bool,
+    //     loggingOn: bool,
+    //     eventModeUsed: bool,
+    //     earlyReturnAllowed: bool,
+    //     requiredIntermediateVariables: &[fmi3ValueReference],
+    // ) -> Result<Box<dyn Backend>, SimulationError>
+    //     where
+    //     Self: Sized;
+    
     fn enterInitializationMode(
         &self,
         tolerance: Option<fmi3Float64>,
         startTime: fmi3Float64,
         stopTime: Option<fmi3Float64>,
     ) -> fmi3Status;
+    
     fn exitInitializationMode(&self) -> fmi3Status;
+    
     fn terminate(&self) -> fmi3Status;
 
     fn getFloat64(
@@ -435,9 +455,14 @@ impl FMU3 {
         let requiredIntermediateVariables = vec![];
 
         // let mut backend = NativeBackend::new(unzipdir, modelIdentifier)?;
-        let mut backend = WasmBackend::new()?;
+        // let mut backend = WasmBackend::instantiateCoSimulation(&mut self, instanceName, instantiationToken, resourcePath, visible, loggingOn, eventModeUsed, earlyReturnAllowed, &requiredIntermediateVariables);
 
-        backend.instantiateCoSimulation(instanceName, 
+        let wasm_file = unzipdir.join("binaries/wasm32-wasip2/adder_rust_fmu.wasm");
+
+        let implementation = WasmLibrary::load(wasm_file)?;
+
+        let backend = implementation.instantiateCoSimulation(
+            instanceName, 
             instantiationToken, resourcePath, visible, loggingOn, 
             eventModeUsed, earlyReturnAllowed, &requiredIntermediateVariables)?;
 
@@ -470,7 +495,7 @@ impl FMU3 {
             logger,
             intermediateUpdateHandler,
             logCalls,
-            backend: Box::new(backend),
+            backend,
         };
 
         // #[allow(clippy::arc_with_non_send_sync)]
