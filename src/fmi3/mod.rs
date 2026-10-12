@@ -159,6 +159,12 @@ trait Backend {
         values: &mut [fmi3Float64],
     ) -> fmi3Status;
 
+    fn setFloat64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3Float64],
+    ) -> fmi3Status;
+
     fn doStep(
         &self,
         currentCommunicationPoint: fmi3Float64,
@@ -659,8 +665,6 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Float64],
     ) -> fmi3Status {
-        debug_assert!(valueReferences.len() <= values.len());
-
         let status = self.backend.getFloat64(valueReferences, values);
         
         if self.logCalls {
@@ -860,7 +864,15 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Float64],
     ) -> fmi3Status {
-        todo!() //  fmi_ges!((self, fmi3SetFloat64, valueReferences, values)
+        let status = self.backend.setFloat64(valueReferences, values);
+        
+        if self.logCalls {
+            let message = format!(
+                "fmi3SetFloat64(valueReferences={valueReferences:?}, values={values:?}) -> {status:?}");
+            self.log_call(status, &message);
+        }
+
+        status
     }
 
     pub fn setInt8(

@@ -452,6 +452,23 @@ impl Backend for WasmBackend {
         // handle_error!(self.state.read_guest_f64s(guest_ptr as usize, values));
     }
     
+    fn setFloat64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3Float64],
+    ) -> fmi3Status {
+        let world = &self.world;
+        let mut store = self.store.borrow_mut();
+        let cs = self.cs.clone();
+
+        let set_result = world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_float64(&mut *store, cs, valueReferences, values).unwrap();
+
+        set_result.into()
+    }
+    
     fn doStep(
         &self,
         currentCommunicationPoint: fmi3Float64,
@@ -466,7 +483,6 @@ impl Backend for WasmBackend {
         let world = &self.world;
         let mut store = self.store.borrow_mut();
         let cs = self.cs.clone();
-
 
         // -- 2. Advance time by one step -------------------------------------
         let do_step_result = world

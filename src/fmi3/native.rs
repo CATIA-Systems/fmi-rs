@@ -429,7 +429,15 @@ impl Backend for NativeBackend {
     ) -> fmi3Status {
         unsafe { (self.fmi3GetFloat64)(self.instance, valueReferences.as_ptr(), valueReferences.len(), values.as_mut_ptr(), values.len()) }
     }
-    
+       
+    fn setFloat64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3Float64],
+    ) -> fmi3Status {
+        todo!()
+    }
+
     fn doStep(
         &self,
         currentCommunicationPoint: fmi3Float64,
