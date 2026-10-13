@@ -4,7 +4,6 @@ use std::path::Path;
 use super::types::*;
 use crate::fmi3::{Backend, Implementation};
 
-
 use wasmtime::component::{Component, Linker, ResourceAny};
 use wasmtime::{Config, Engine, Store};
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
@@ -33,16 +32,16 @@ impl Into<fmi3Status> for Status {
 }
 
 struct HostState {
-    wasi:  WasiCtx,
+    wasi: WasiCtx,
     table: wasmtime::component::ResourceTable,
 }
 
 impl Default for HostState {
     fn default() -> Self {
-        Self { 
-            wasi:  WasiCtxBuilder::new().build(),
+        Self {
+            wasi: WasiCtxBuilder::new().build(),
             table: wasmtime::component::ResourceTable::new(),
-         }
+        }
     }
 }
 
@@ -59,9 +58,9 @@ impl fmi::fmi3::callbacks::Host for HostState {
     fn log_message(
         &mut self,
         instance_name: String,
-        status:        Status,
-        category:      String,
-        message:       String,
+        status: Status,
+        category: String,
+        message: String,
     ) {
         eprintln!("[{status:?}] {instance_name} ({category}): {message}");
     }
@@ -76,11 +75,11 @@ impl fmi::fmi3::callbacks::Host for HostState {
 impl fmi::fmi3::intermediate_update_callbacks::Host for HostState {
     fn intermediate_update(
         &mut self,
-        _intermediate_update_time:            f64,
+        _intermediate_update_time: f64,
         _intermediate_variable_set_requested: bool,
-        _intermediate_variable_get_allowed:   bool,
-        _intermediate_step_finished:          bool,
-        _can_return_early:                    bool,
+        _intermediate_variable_get_allowed: bool,
+        _intermediate_step_finished: bool,
+        _can_return_early: bool,
     ) -> (bool, f64) {
         (false, 0.0)
     }
@@ -88,31 +87,31 @@ impl fmi::fmi3::intermediate_update_callbacks::Host for HostState {
 
 impl fmi::fmi3::types::Host for HostState {}
 
-pub struct WasmBackend {
-    world: CoSimulationFmu,
-    store: RefCell<Store<HostState>>,
-    cs: ResourceAny,
-}
-
 pub struct WasmLibrary {
     engine: Engine,
     component: Component,
     linker: Linker<HostState>,
 }
 
+pub struct WasmBackend {
+    world: CoSimulationFmu,
+    store: RefCell<Store<HostState>>,
+    cs: ResourceAny,
+}
+
 impl WasmLibrary {
     pub fn load(file: impl AsRef<Path>) -> Result<WasmLibrary, SimulationError> {
         let mut cfg = Config::new();
         cfg.wasm_component_model(true);
-        
+
         let engine = Engine::new(&cfg)?;
-        
+
         let component = Component::from_file(&engine, file)?;
-        
+
         let mut linker: Linker<HostState> = Linker::new(&engine);
-        
+
         wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
-        
+
         CoSimulationFmu::add_to_linker::<HostState, wasmtime::component::HasSelf<HostState>>(
             &mut linker,
             |s: &mut HostState| s,
@@ -122,7 +121,7 @@ impl WasmLibrary {
             engine,
             component,
             linker,
-         })
+        })
     }
 }
 
@@ -137,14 +136,8 @@ impl Implementation for WasmLibrary {
         eventModeUsed: bool,
         earlyReturnAllowed: bool,
         requiredIntermediateVariables: &[fmi3ValueReference],
-    ) -> Result<Box<dyn Backend>, SimulationError>
-        where
-        Self: Sized {
-            
-        let mut store = Store::new(
-            &self.engine,
-            HostState::default(),
-        );
+    ) -> Result<Box<dyn Backend>, SimulationError> {
+        let mut store = Store::new(&self.engine, HostState::default());
 
         let world = CoSimulationFmu::instantiate(&mut store, &self.component, &self.linker)?;
 
@@ -161,9 +154,9 @@ impl Implementation for WasmLibrary {
                 eventModeUsed,
                 earlyReturnAllowed,
                 requiredIntermediateVariables,
-        )
-        .unwrap()
-        .unwrap();
+            )
+            .unwrap()
+            .unwrap();
 
         Ok(Box::new(WasmBackend {
             world,
@@ -174,7 +167,6 @@ impl Implementation for WasmLibrary {
 }
 
 impl Backend for WasmBackend {
-
     fn getVersion(&self) -> String {
         todo!()
     }
@@ -182,7 +174,7 @@ impl Backend for WasmBackend {
     fn setDebugLogging(&self, loggingOn: fmi3Boolean, categories: &[fmi3String]) -> fmi3Status {
         todo!()
     }
-    
+
     fn enterInitializationMode(
         &self,
         tolerance: Option<fmi3Float64>,
@@ -199,15 +191,15 @@ impl Backend for WasmBackend {
 
         fmi3Status::Ok
     }
-    
+
     fn exitInitializationMode(&self) -> fmi3Status {
         fmi3Status::Warning
     }
-    
+
     fn terminate(&self) -> fmi3Status {
         fmi3Status::Warning
     }
-    
+
     fn getFloat64(
         &self,
         valueReferences: &[fmi3ValueReference],
@@ -220,17 +212,18 @@ impl Backend for WasmBackend {
         let get_result = world
             .fmi_fmi3_co_simulation()
             .co_simulation_instance()
-            .call_get_float64(&mut *store, cs, valueReferences).unwrap();
+            .call_get_float64(&mut *store, cs, valueReferences)
+            .unwrap();
 
         match get_result {
             Ok(get_values) => {
                 values.copy_from_slice(&get_values);
                 fmi3Status::Ok
-            },
+            }
             Err(status) => status.into(),
         }
     }
-    
+
     fn setFloat64(
         &self,
         valueReferences: &[fmi3ValueReference],
@@ -243,11 +236,12 @@ impl Backend for WasmBackend {
         let set_result = world
             .fmi_fmi3_co_simulation()
             .co_simulation_instance()
-            .call_set_float64(&mut *store, cs, valueReferences, values).unwrap();
+            .call_set_float64(&mut *store, cs, valueReferences, values)
+            .unwrap();
 
         set_result.into()
     }
-    
+
     fn doStep(
         &self,
         currentCommunicationPoint: fmi3Float64,
@@ -258,7 +252,6 @@ impl Backend for WasmBackend {
         earlyReturn: &mut fmi3Boolean,
         lastSuccessfulTime: &mut fmi3Float64,
     ) -> fmi3Status {
-
         let world = &self.world;
         let mut store = self.store.borrow_mut();
         let cs = self.cs.clone();
@@ -266,7 +259,14 @@ impl Backend for WasmBackend {
         let do_step_result = world
             .fmi_fmi3_co_simulation()
             .co_simulation_instance()
-            .call_do_step(&mut *store, cs, currentCommunicationPoint, communicationStepSize, false).unwrap();
+            .call_do_step(
+                &mut *store,
+                cs,
+                currentCommunicationPoint,
+                communicationStepSize,
+                false,
+            )
+            .unwrap();
 
         fmi3Status::Ok
     }

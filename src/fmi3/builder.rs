@@ -1,9 +1,7 @@
 #![allow(non_snake_case)]
 
 use crate::{
-    fmi3::{self, FMU3, log::DefaultLogger},
-    sim::SimulationError,
-    zip::extract_zip_archive,
+    fmi3::{self, FMU3, Implementation, log::DefaultLogger, native::NativeLibrary}, sim::SimulationError, zip::extract_zip_archive,
 };
 use std::{
     path::{Path, PathBuf},
@@ -99,7 +97,13 @@ impl FMU3Builder {
                 DefaultLogger::default()
             });
 
+            let implementation: Box<dyn Implementation> = Box::new(NativeLibrary::load(
+                self.unzipdir.path(),
+                &cs.modelIdentifier
+            )?);
+
             FMU3::instantiateCoSimulation(
+                implementation,
                 self.unzipdir.path(),
                 &cs.modelIdentifier,
                 instanceName,

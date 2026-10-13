@@ -11,10 +11,10 @@ pub mod native;
 pub mod types;
 pub mod wasm;
 
+use crate::CStrExt;
 use crate::fmi3::log::Logger;
 use crate::fmi3::wasm::{WasmBackend, WasmLibrary};
 use crate::sim::SimulationError::{self};
-use crate::{CStrExt};
 use std::os::raw::c_void;
 use std::path::Path;
 use std::ptr::{self, null, null_mut};
@@ -128,7 +128,7 @@ pub struct Message {
     pub message: String,
 }
 
-trait Implementation {
+pub trait Implementation {
     fn instantiateCoSimulation(
         &self,
         instanceName: &str,
@@ -139,25 +139,23 @@ trait Implementation {
         eventModeUsed: bool,
         earlyReturnAllowed: bool,
         requiredIntermediateVariables: &[fmi3ValueReference],
-    ) -> Result<Box<dyn Backend>, SimulationError>
-        where
-        Self: Sized;
+    ) -> Result<Box<dyn Backend>, SimulationError>;
 }
 
-trait Backend {
+pub trait Backend {
     fn getVersion(&self) -> String;
 
     fn setDebugLogging(&self, loggingOn: fmi3Boolean, categories: &[fmi3String]) -> fmi3Status;
-    
+
     fn enterInitializationMode(
         &self,
         tolerance: Option<fmi3Float64>,
         startTime: fmi3Float64,
         stopTime: Option<fmi3Float64>,
     ) -> fmi3Status;
-    
+
     fn exitInitializationMode(&self) -> fmi3Status;
-    
+
     fn terminate(&self) -> fmi3Status;
 
     fn getFloat64(
@@ -279,7 +277,6 @@ pub extern "C" fn intermediateUpdate(
 }
 
 impl FMU3 {
-
     fn log_call(&self, status: fmi3Status, message: &str) {
         self.logger.log_call(status, message);
     }
@@ -380,6 +377,7 @@ impl FMU3 {
     }
 
     pub fn instantiateCoSimulation(
+        implementation: Box<dyn Implementation>,
         unzipdir: &Path,
         modelIdentifier: &str,
         instanceName: &str,
@@ -427,14 +425,20 @@ impl FMU3 {
         // let mut backend = NativeBackend::new(unzipdir, modelIdentifier)?;
         // let mut backend = WasmBackend::instantiateCoSimulation(&mut self, instanceName, instantiationToken, resourcePath, visible, loggingOn, eventModeUsed, earlyReturnAllowed, &requiredIntermediateVariables);
 
-        let wasm_file = unzipdir.join("binaries/wasm32-wasip2/adder_rust_fmu.wasm");
+        // let wasm_file = unzipdir.join("binaries/wasm32-wasip2/adder_rust_fmu.wasm");
 
-        let implementation = WasmLibrary::load(wasm_file)?;
+        // let implementation = WasmLibrary::load(wasm_file)?;
 
         let backend = implementation.instantiateCoSimulation(
-            instanceName, 
-            instantiationToken, resourcePath, visible, loggingOn, 
-            eventModeUsed, earlyReturnAllowed, &requiredIntermediateVariables)?;
+            instanceName,
+            instantiationToken,
+            resourcePath,
+            visible,
+            loggingOn,
+            eventModeUsed,
+            earlyReturnAllowed,
+            &requiredIntermediateVariables,
+        )?;
 
         if logCalls {
             let message = format!(
@@ -476,8 +480,6 @@ impl FMU3 {
         //     logCalls,
         //     intermediateUpdateHandler,
         // )?);
-
-        
 
         // let instanceEnvironment = Arc::as_ptr(&fmu).cast::<c_void>() as *mut c_void;
 
@@ -534,7 +536,6 @@ impl FMU3 {
         // }
 
         Ok(Arc::new(fmu))
-
     }
 
     pub fn terminate(&self) -> fmi3Status {
@@ -576,7 +577,9 @@ impl FMU3 {
         //     )
         // };
 
-        let status = self.backend.enterInitializationMode(tolerance, startTime, stopTime);
+        let status = self
+            .backend
+            .enterInitializationMode(tolerance, startTime, stopTime);
 
         if self.logCalls {
             let message = format!(
@@ -617,16 +620,15 @@ impl FMU3 {
         earlyReturn: &mut fmi3Boolean,
         lastSuccessfulTime: &mut fmi3Float64,
     ) -> fmi3Status {
-        let status = 
-            self.backend.doStep(
-                currentCommunicationPoint,
-                communicationStepSize,
-                noSetFMUStatePriorToCurrentPoint,
-                eventHandlingNeeded,
-                terminateSimulation,
-                earlyReturn,
-                lastSuccessfulTime,
-            )            ;
+        let status = self.backend.doStep(
+            currentCommunicationPoint,
+            communicationStepSize,
+            noSetFMUStatePriorToCurrentPoint,
+            eventHandlingNeeded,
+            terminateSimulation,
+            earlyReturn,
+            lastSuccessfulTime,
+        );
 
         if self.logCalls {
             let message = format!(
@@ -661,10 +663,11 @@ impl FMU3 {
         values: &mut [fmi3Float64],
     ) -> fmi3Status {
         let status = self.backend.getFloat64(valueReferences, values);
-        
+
         if self.logCalls {
             let message = format!(
-                "fmi3GetFloat64(valueReferences={valueReferences:?}, values={values:?}) -> {status:?}");
+                "fmi3GetFloat64(valueReferences={valueReferences:?}, values={values:?}) -> {status:?}"
+            );
             self.log_call(status, &message);
         }
 
@@ -695,7 +698,7 @@ impl FMU3 {
         values: &mut [fmi3Int16],
     ) -> fmi3Status {
         todo!()
-       //  fmi_get!(self, fmi3GetInt16, valueReferences, values)
+        //  fmi_get!(self, fmi3GetInt16, valueReferences, values)
     }
 
     pub fn getUInt16(
@@ -704,7 +707,7 @@ impl FMU3 {
         values: &mut [fmi3UInt16],
     ) -> fmi3Status {
         todo!()
-       //  fmi_get!(self, fmi3GetUInt16, valueReferences, values)
+        //  fmi_get!(self, fmi3GetUInt16, valueReferences, values)
     }
 
     pub fn getInt32(
@@ -713,7 +716,7 @@ impl FMU3 {
         values: &mut [fmi3Int32],
     ) -> fmi3Status {
         todo!()
-       //  fmi_get!(self, fmi3GetInt32, valueReferences, values)
+        //  fmi_get!(self, fmi3GetInt32, valueReferences, values)
     }
 
     pub fn getUInt32(
@@ -722,7 +725,7 @@ impl FMU3 {
         values: &mut [fmi3UInt32],
     ) -> fmi3Status {
         todo!()
-       //  fmi_get!(self, fmi3GetUInt32, valueReferences, values)
+        //  fmi_get!(self, fmi3GetUInt32, valueReferences, values)
     }
 
     pub fn getInt64(
@@ -731,7 +734,7 @@ impl FMU3 {
         values: &mut [fmi3Int64],
     ) -> fmi3Status {
         todo!()
-       //  fmi_get!(self, fmi3GetInt64, valueReferences, values)
+        //  fmi_get!(self, fmi3GetInt64, valueReferences, values)
     }
 
     pub fn getUInt64(
@@ -740,7 +743,7 @@ impl FMU3 {
         values: &mut [fmi3UInt64],
     ) -> fmi3Status {
         todo!()
-       //  fmi_get!(self, fmi3GetUInt64, valueReferences, values)
+        //  fmi_get!(self, fmi3GetUInt64, valueReferences, values)
     }
 
     pub fn getBoolean(
@@ -749,7 +752,7 @@ impl FMU3 {
         values: &mut [fmi3Boolean],
     ) -> fmi3Status {
         todo!()
-       //  fmi_get!(self, fmi3GetBoolean, valueReferences, values)
+        //  fmi_get!(self, fmi3GetBoolean, valueReferences, values)
     }
 
     pub fn getString(
@@ -797,7 +800,7 @@ impl FMU3 {
         values: &mut [fmi3Clock],
     ) -> fmi3Status {
         todo!()
-       //  fmi_get!(self, fmi3GetClock, valueReferences, values)
+        //  fmi_get!(self, fmi3GetClock, valueReferences, values)
     }
 
     pub fn getBinary(
@@ -860,10 +863,11 @@ impl FMU3 {
         values: &[fmi3Float64],
     ) -> fmi3Status {
         let status = self.backend.setFloat64(valueReferences, values);
-        
+
         if self.logCalls {
             let message = format!(
-                "fmi3SetFloat64(valueReferences={valueReferences:?}, values={values:?}) -> {status:?}");
+                "fmi3SetFloat64(valueReferences={valueReferences:?}, values={values:?}) -> {status:?}"
+            );
             self.log_call(status, &message);
         }
 

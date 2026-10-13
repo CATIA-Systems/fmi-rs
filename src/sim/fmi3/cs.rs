@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::fmi3::IntermediateUpdateHandler;
 use crate::fmi3::log::DefaultLogger;
 use crate::fmi3::types::{fmi3Boolean, fmi3Float64, fmi3ValueReference};
+use crate::fmi3::wasm::WasmLibrary;
 use crate::sim::fmi3::{
     SimulationSettings, call, read_initial_fmu_state, set_start_values, write_final_fmu_state,
 };
@@ -104,7 +105,14 @@ pub fn simulate(
             None
         };
 
+    let wasm_file = settings
+        .unzipdir
+        .join("binaries/wasm32-wasip2/adder_rust_fmu.wasm");
+
+    let implementation = WasmLibrary::load(wasm_file)?;
+
     let fmu = FMU3::instantiateCoSimulation(
+        Box::new(implementation),
         &settings.unzipdir,
         &co_simulation.modelIdentifier,
         &settings.model_description.modelName,

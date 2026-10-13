@@ -20,7 +20,6 @@ use crate::{model_description::ModelDescriptionError, zip::ZipError};
 
 #[derive(Debug, Error)]
 pub enum SimulationError {
-
     #[error("Wasm error: {0}")]
     Wasm(#[from] wasmtime::Error),
 

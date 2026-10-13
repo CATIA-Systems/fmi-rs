@@ -1,16 +1,16 @@
 use super::types::*;
-use libloading::Library;
-use crate::fmi3::{Backend, PLATFORM_TUPLE, fmi3_logger_callback};
 use crate::fmi3::log::Logger;
+use crate::fmi3::{Backend, Implementation, PLATFORM_TUPLE, fmi3_logger_callback};
 use crate::sim::SimulationError::{self};
 use crate::{CStrExt, get_symbol, load_platform_binary};
+use libloading::Library;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_void;
 use std::path::Path;
 use std::ptr::{self, null, null_mut};
 use std::sync::Arc;
 
-pub struct NativeBackend {
+pub struct NativeLibrary {
     _lib: Box<Library>,
 
     fmi3GetVersion: fmi3GetVersionTYPE,
@@ -88,13 +88,12 @@ pub struct NativeBackend {
     fmi3GetOutputDerivatives: fmi3GetOutputDerivativesTYPE,
     fmi3DoStep: fmi3DoStepTYPE,
     fmi3ActivateModelPartition: fmi3ActivateModelPartitionTYPE,
-
-    instance: fmi3Instance,
 }
 
-impl NativeBackend {
+impl NativeLibrary {
 
-    pub fn new(unzipdir: &Path, modelIdentifier: &str) -> Result<NativeBackend, SimulationError> {
+    pub fn load(unzipdir: &Path, modelIdentifier: &str) -> Result<Arc<NativeLibrary>, SimulationError> {
+
         let library = load_platform_binary(unzipdir, PLATFORM_TUPLE, modelIdentifier)?;
 
         /***************************************************
@@ -242,7 +241,7 @@ impl NativeBackend {
         let fmi3ActivateModelPartition =
             *get_symbol::<fmi3ActivateModelPartitionTYPE>(&library, b"fmi3ActivateModelPartition")?;
 
-        Ok(NativeBackend {
+        Ok(Arc::new(NativeLibrary {
             _lib: library,
             fmi3GetVersion,
             fmi3SetDebugLogging,
@@ -319,23 +318,72 @@ impl NativeBackend {
             fmi3GetOutputDerivatives,
             fmi3DoStep,
             fmi3ActivateModelPartition,
-            instance: ptr::null_mut(),
-        })
+        }))
     }
-    
+}
+
+impl Implementation for Arc<NativeLibrary> {
+    fn instantiateCoSimulation(
+        &self,
+        instanceName: &str,
+        instantiationToken: &str,
+        resourcePath: &str,
+        visible: bool,
+        loggingOn: bool,
+        eventModeUsed: bool,
+        earlyReturnAllowed: bool,
+        requiredIntermediateVariables: &[fmi3ValueReference],
+    ) -> Result<Box<dyn Backend>, SimulationError> {
+
+        let instanceEnvironment = null_mut();
+        let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
+        let intermediate_update = ptr::null_mut() as *const fmi3IntermediateUpdateCallback;
+
+        let instance = unsafe {
+            (self.fmi3InstantiateCoSimulation)(
+                CString::new(instanceName)?.as_ptr(),
+                CString::new(instantiationToken)?.as_ptr(),
+                CString::new(resourcePath)?.as_ptr(),
+                visible,
+                loggingOn,
+                eventModeUsed,
+                earlyReturnAllowed,
+                requiredIntermediateVariables.as_ptr(),
+                requiredIntermediateVariables.len(),
+                instanceEnvironment,
+                log_message,
+                intermediate_update,
+            )
+        };
+
+        if instance.is_null() {
+            return Err(SimulationError::FMICall);
+        }
+
+        Ok(Box::new(NativeBackend {
+            library: Arc::clone(self),
+            instance,
+        }))
+    }
+}
+
+pub struct NativeBackend {
+    library: Arc<NativeLibrary>,
+    instance: fmi3Instance,
 }
 
 impl Backend for NativeBackend {
+    
     fn getVersion(&self) -> String {
         unsafe {
-            let version_cstr = (self.fmi3GetVersion)();
+            let version_cstr = (self.library.fmi3GetVersion)();
             CStr::from_ptr(version_cstr).to_string_lossy().into_owned()
         }
     }
 
     fn setDebugLogging(&self, loggingOn: fmi3Boolean, categories: &[fmi3String]) -> fmi3Status {
         unsafe {
-            (self.fmi3SetDebugLogging)(
+            (self.library.fmi3SetDebugLogging)(
                 self.instance,
                 loggingOn,
                 categories.len(),
@@ -343,7 +391,7 @@ impl Backend for NativeBackend {
             )
         }
     }
-    
+
     // fn instantiateCoSimulation(
     //     unzipdir: &Path,
     //     instanceName: &str,
@@ -356,34 +404,34 @@ impl Backend for NativeBackend {
     //     requiredIntermediateVariables: &[fmi3ValueReference],
     // ) -> Result<Box<dyn Backend>, SimulationError> {
     //     todo!()
-        // let instanceEnvironment = null_mut();
-        // let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
-        // let intermediate_update = ptr::null_mut() as *const fmi3IntermediateUpdateCallback;
+    // let instanceEnvironment = null_mut();
+    // let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
+    // let intermediate_update = ptr::null_mut() as *const fmi3IntermediateUpdateCallback;
 
-        // self.instance = unsafe {
-        //     (self.fmi3InstantiateCoSimulation)(
-        //         CString::new(instanceName)?.as_ptr(),
-        //         CString::new(instantiationToken)?.as_ptr(),
-        //         CString::new(resourcePath)?.as_ptr(),
-        //         visible,
-        //         loggingOn,
-        //         eventModeUsed,
-        //         earlyReturnAllowed,
-        //         requiredIntermediateVariables.as_ptr(),
-        //         requiredIntermediateVariables.len(),
-        //         instanceEnvironment,
-        //         log_message,
-        //         intermediate_update,
-        //     )
-        // };
+    // self.instance = unsafe {
+    //     (self.fmi3InstantiateCoSimulation)(
+    //         CString::new(instanceName)?.as_ptr(),
+    //         CString::new(instantiationToken)?.as_ptr(),
+    //         CString::new(resourcePath)?.as_ptr(),
+    //         visible,
+    //         loggingOn,
+    //         eventModeUsed,
+    //         earlyReturnAllowed,
+    //         requiredIntermediateVariables.as_ptr(),
+    //         requiredIntermediateVariables.len(),
+    //         instanceEnvironment,
+    //         log_message,
+    //         intermediate_update,
+    //     )
+    // };
 
-        // if self.instance.is_null() {
-        //     Err(SimulationError::FMICall)
-        // } else {
-        //     Ok(())
-        // }
+    // if self.instance.is_null() {
+    //     Err(SimulationError::FMICall)
+    // } else {
+    //     Ok(())
     // }
-    
+    // }
+
     fn enterInitializationMode(
         &self,
         tolerance: Option<fmi3Float64>,
@@ -403,7 +451,7 @@ impl Backend for NativeBackend {
         };
 
         unsafe {
-            (self.fmi3EnterInitializationMode)(
+            (self.library.fmi3EnterInitializationMode)(
                 self.instance,    // instance
                 toleranceDefined, // toleranceDefined
                 tolerance,        // tolerance
@@ -413,23 +461,31 @@ impl Backend for NativeBackend {
             )
         }
     }
-    
+
     fn exitInitializationMode(&self) -> fmi3Status {
-        unsafe { (self.fmi3ExitInitializationMode)(self.instance) }
+        unsafe { (self.library.fmi3ExitInitializationMode)(self.instance) }
     }
-    
+
     fn terminate(&self) -> fmi3Status {
-        unsafe { (self.fmi3Terminate)(self.instance) }
+        unsafe { (self.library.fmi3Terminate)(self.instance) }
     }
-    
+
     fn getFloat64(
         &self,
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Float64],
     ) -> fmi3Status {
-        unsafe { (self.fmi3GetFloat64)(self.instance, valueReferences.as_ptr(), valueReferences.len(), values.as_mut_ptr(), values.len()) }
+        unsafe {
+            (self.library.fmi3GetFloat64)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_mut_ptr(),
+                values.len(),
+            )
+        }
     }
-       
+
     fn setFloat64(
         &self,
         valueReferences: &[fmi3ValueReference],
@@ -448,9 +504,9 @@ impl Backend for NativeBackend {
         earlyReturn: &mut fmi3Boolean,
         lastSuccessfulTime: &mut fmi3Float64,
     ) -> fmi3Status {
-        unsafe { 
-            (self.fmi3DoStep)(
-                self.instance, 
+        unsafe {
+            (self.library.fmi3DoStep)(
+                self.instance,
                 currentCommunicationPoint,
                 communicationStepSize,
                 noSetFMUStatePriorToCurrentPoint,
@@ -458,7 +514,7 @@ impl Backend for NativeBackend {
                 terminateSimulation,
                 earlyReturn,
                 lastSuccessfulTime,
-            ) 
+            )
         }
     }
 }
@@ -466,7 +522,7 @@ impl Backend for NativeBackend {
 impl Drop for NativeBackend {
     fn drop(&mut self) {
         if !self.instance.is_null() {
-            unsafe { (self.fmi3FreeInstance)(self.instance) };
+            unsafe { (self.library.fmi3FreeInstance)(self.instance) };
             self.instance = null_mut();
         }
     }

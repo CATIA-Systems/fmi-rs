@@ -9,10 +9,10 @@ use fmi_rs::sim::fmi2::{SimulationSettings, Trajectories};
 use fmi_rs::zip::extract_zip_archive;
 use fmi_rs::{fmi2::types::*, sim::fmi2::cs::simulate};
 use rstest::{fixture, rstest};
-use tempfile::TempDir;
 use std::path::Path;
 use std::sync::Arc;
 use std::vec;
+use tempfile::TempDir;
 
 use crate::common::{reference_fmus_dir, resources_dir};
 
