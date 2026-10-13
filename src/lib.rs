@@ -1,6 +1,7 @@
 use std::{
     ffi::{CStr, c_char},
-    path::Path,
+    path::{Path, PathBuf},
+    ptr,
 };
 
 use libloading::{Library, Symbol};
@@ -61,15 +62,21 @@ fn get_symbol<T>(
     }
 }
 
-fn load_platform_binary(
-    unzipdir: &Path,
+fn platform_binary_path(
+    unzipdir: impl AsRef<Path>,
     platform: &str,
     model_identifier: &str,
-) -> Result<Box<Library>, SimulationError> {
-    let library_directory = unzipdir.join("binaries").join(platform);
+) -> PathBuf {
+    unzipdir
+        .as_ref()
+        .join("binaries")
+        .join(platform)
+        .join(format!("{model_identifier}{SHARED_LIBRARY_EXTENSION}"))
+}
 
-    let shared_library_path =
-        library_directory.join(format!("{model_identifier}{SHARED_LIBRARY_EXTENSION}"));
+fn load_platform_binary(file: impl AsRef<Path>) -> Result<Box<Library>, SimulationError> {
+    let shared_library_path = PathBuf::from(file.as_ref());
+    let library_directory = shared_library_path.parent();
 
     #[cfg(target_os = "windows")]
     let library = {
@@ -80,13 +87,16 @@ fn load_platform_binary(
         };
 
         unsafe {
-            let libary_directory_wide: Vec<u16> = library_directory
-                .as_os_str()
-                .encode_wide()
-                .chain(std::iter::once(0))
-                .collect();
-
-            let cookie = AddDllDirectory(libary_directory_wide.as_ptr());
+            let cookie = if let Some(library_directory) = library_directory {
+                let libary_directory_wide: Vec<u16> = library_directory
+                    .as_os_str()
+                    .encode_wide()
+                    .chain(std::iter::once(0))
+                    .collect();
+                AddDllDirectory(libary_directory_wide.as_ptr())
+            } else {
+                ptr::null_mut()
+            };
 
             let library =
                 WinLibrary::load_with_flags(&shared_library_path, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS)

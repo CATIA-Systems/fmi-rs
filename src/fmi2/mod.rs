@@ -11,7 +11,7 @@ pub mod types;
 
 use crate::fmi2::log::Logger;
 use crate::sim::SimulationError;
-use crate::{CStrExt, get_symbol, load_platform_binary};
+use crate::{CStrExt, get_symbol, load_platform_binary, platform_binary_path};
 use libloading::Library;
 use std::ffi::{CStr, CString};
 use std::path::Path;
@@ -745,7 +745,8 @@ impl FMU2<ME> {
         logger: Arc<dyn Logger>,
         provideMemoryManagementFunctions: bool,
     ) -> Result<Arc<FMU2<ME>>, SimulationError> {
-        let library = load_platform_binary(unzipdir, PLATFORM, modelIdentifier)?;
+        let file = platform_binary_path(unzipdir, PLATFORM, modelIdentifier);
+        let library = load_platform_binary(file)?;
 
         let fmi2EnterEventMode = *get_symbol(&library, b"fmi2EnterEventMode")?;
         let fmi2NewDiscreteStates = *get_symbol(&library, b"fmi2NewDiscreteStates")?;
@@ -980,7 +981,8 @@ impl FMU2<CS> {
         logger: Arc<dyn Logger>,
         provideMemoryManagementFunctions: bool,
     ) -> Result<Arc<FMU2<CS>>, SimulationError> {
-        let library = load_platform_binary(unzipdir, PLATFORM, modelIdentifier)?;
+        let file = platform_binary_path(unzipdir, PLATFORM, modelIdentifier);
+        let library = load_platform_binary(file)?;
 
         let fmi2SetRealInputDerivatives = *get_symbol(&library, b"fmi2SetRealInputDerivatives")?;
         let fmi2GetRealOutputDerivatives = *get_symbol(&library, b"fmi2GetRealOutputDerivatives")?;

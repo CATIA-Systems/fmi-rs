@@ -91,10 +91,8 @@ pub struct NativeLibrary {
 }
 
 impl NativeLibrary {
-
-    pub fn load(unzipdir: &Path, modelIdentifier: &str) -> Result<Arc<NativeLibrary>, SimulationError> {
-
-        let library = load_platform_binary(unzipdir, PLATFORM_TUPLE, modelIdentifier)?;
+    pub fn load(file: impl AsRef<Path>) -> Result<Arc<NativeLibrary>, SimulationError> {
+        let library = load_platform_binary(file)?;
 
         /***************************************************
         Common Functions
@@ -334,7 +332,6 @@ impl Implementation for Arc<NativeLibrary> {
         earlyReturnAllowed: bool,
         requiredIntermediateVariables: &[fmi3ValueReference],
     ) -> Result<Box<dyn Backend>, SimulationError> {
-
         let instanceEnvironment = null_mut();
         let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
         let intermediate_update = ptr::null_mut() as *const fmi3IntermediateUpdateCallback;
@@ -373,7 +370,6 @@ pub struct NativeBackend {
 }
 
 impl Backend for NativeBackend {
-    
     fn getVersion(&self) -> String {
         unsafe {
             let version_cstr = (self.library.fmi3GetVersion)();

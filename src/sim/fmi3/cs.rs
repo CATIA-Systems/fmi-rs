@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
-use crate::fmi3::IntermediateUpdateHandler;
 use crate::fmi3::log::DefaultLogger;
+use crate::fmi3::native::NativeLibrary;
 use crate::fmi3::types::{fmi3Boolean, fmi3Float64, fmi3ValueReference};
 use crate::fmi3::wasm::WasmLibrary;
+use crate::fmi3::{Implementation, IntermediateUpdateHandler, LibraryKind, PLATFORM_TUPLE};
+use crate::platform_binary_path;
 use crate::sim::fmi3::{
     SimulationSettings, call, read_initial_fmu_state, set_start_values, write_final_fmu_state,
 };
@@ -105,16 +107,25 @@ pub fn simulate(
             None
         };
 
-    let wasm_file = settings
-        .unzipdir
-        .join("binaries/wasm32-wasip2/adder_rust_fmu.wasm");
+    let model_identifier = &co_simulation.modelIdentifier;
 
-    let implementation = WasmLibrary::load(wasm_file)?;
+    let implementation: Box<dyn Implementation> = match settings.library_kind {
+        LibraryKind::Native => {
+            let file = platform_binary_path(&settings.unzipdir, PLATFORM_TUPLE, model_identifier);
+            Box::new(NativeLibrary::load(file)?)
+        }
+        LibraryKind::Wasm32 => {
+            let wasm_file = settings
+                .unzipdir
+                .join(format!("binaries/wasm32-wasip2/{}.wasm", model_identifier));
+            Box::new(WasmLibrary::load(wasm_file)?)
+        }
+    };
 
     let fmu = FMU3::instantiateCoSimulation(
-        Box::new(implementation),
+        implementation,
         &settings.unzipdir,
-        &co_simulation.modelIdentifier,
+        model_identifier,
         &settings.model_description.modelName,
         &settings.model_description.instantiationToken,
         false,

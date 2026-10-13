@@ -8,6 +8,7 @@ pub mod recorder;
 use std::sync::Arc;
 use std::{fs, ptr};
 
+use crate::fmi3::LibraryKind;
 use crate::model_description::fmi3::{Causality, ModelDescription};
 use crate::sim::SimulationError;
 use crate::{
@@ -20,6 +21,7 @@ use std::path::{Path, PathBuf};
 pub struct SimulationSettings {
     pub unzipdir: PathBuf,
     pub model_description: Arc<ModelDescription>,
+    pub library_kind: LibraryKind,
     pub enable_dae: bool,
     pub start_time: f64,
     pub stop_time: f64,
