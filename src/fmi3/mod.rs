@@ -22,29 +22,16 @@ use types::*;
 
 macro_rules! fmi_get {
     ($self:expr, $func:ident, $value_refs:expr, $values:expr) => {{
-        debug_assert!($value_refs.len() <= $values.len());
-
-        let status = unsafe {
-            ($self.$func)(
-                $self.instance,
-                $value_refs.as_ptr(),
-                $value_refs.len(),
-                $values.as_mut_ptr(),
-                $values.len(),
-            )
-        };
-
-        let message = format!(
-            "{}(valueReferences={:?}, nValueReferences={}, values={:?}, nValues={}) -> {:?}",
-            stringify!($func),
-            $value_refs,
-            $value_refs.len(),
-            $values,
-            $values.len(),
-            status
-        );
+        let status = $self.backend.$func($value_refs, $values);
 
         if $self.logCalls {
+            let message = format!(
+                "{}(valueReferences={:?}, values={:?}) -> {:?}",
+                stringify!($func),
+                $value_refs,
+                $values,
+                status
+            );
             $self.log_call(status, &message);
         }
 
@@ -54,29 +41,16 @@ macro_rules! fmi_get {
 
 macro_rules! fmi_set {
     ($self:expr, $func:ident, $value_refs:expr, $values:expr) => {{
-        debug_assert!($value_refs.len() <= $values.len());
-
-        let status = unsafe {
-            ($self.$func)(
-                $self.instance,
-                $value_refs.as_ptr(),
-                $value_refs.len(),
-                $values.as_ptr(),
-                $values.len(),
-            )
-        };
-
-        let message = format!(
-            "{}(valueReferences={:?}, nValueReferences={}, values={:?}, nValues={}) -> {:?}",
-            stringify!($func),
-            $value_refs,
-            $value_refs.len(),
-            $values,
-            $values.len(),
-            status
-        );
+        let status = $self.backend.$func($value_refs, $values);
 
         if $self.logCalls {
+            let message = format!(
+                "{}(valueReferences={:?}, values={:?}) -> {:?}",
+                stringify!($func),
+                $value_refs,
+                $values,
+                status
+            );
             $self.log_call(status, &message);
         }
 
@@ -118,6 +92,10 @@ pub trait Implementation {
 }
 
 pub trait Instance {
+    /***************************************************
+    Common Functions
+    ****************************************************/
+
     fn getVersion(&self) -> String;
 
     fn setDebugLogging(&self, loggingOn: fmi3Boolean, categories: &[fmi3String]) -> fmi3Status;
@@ -131,7 +109,17 @@ pub trait Instance {
 
     fn exitInitializationMode(&self) -> fmi3Status;
 
+    fn enterEventMode(&self) -> fmi3Status;
+
     fn terminate(&self) -> fmi3Status;
+
+    fn reset(&self) -> fmi3Status;
+
+    fn getFloat32(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Float32],
+    ) -> fmi3Status;
 
     fn getFloat64(
         &self,
@@ -139,10 +127,294 @@ pub trait Instance {
         values: &mut [fmi3Float64],
     ) -> fmi3Status;
 
+    fn getInt8(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Int8],
+    ) -> fmi3Status;
+
+    fn getUInt8(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3UInt8],
+    ) -> fmi3Status;
+
+    fn getInt16(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Int16],
+    ) -> fmi3Status;
+
+    fn getUInt16(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3UInt16],
+    ) -> fmi3Status;
+
+    fn getInt32(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Int32],
+    ) -> fmi3Status;
+
+    fn getUInt32(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3UInt32],
+    ) -> fmi3Status;
+
+    fn getInt64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Int64],
+    ) -> fmi3Status;
+
+    fn getUInt64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3UInt64],
+    ) -> fmi3Status;
+
+    fn getBoolean(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Boolean],
+    ) -> fmi3Status;
+
+    fn getString(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [String],
+    ) -> fmi3Status;
+
+    fn getBinary(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [Vec<fmi3Byte>],
+    ) -> fmi3Status;
+
+    fn getClock(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Clock],
+    ) -> fmi3Status;
+
+    fn setFloat32(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3Float32],
+    ) -> fmi3Status;
+
     fn setFloat64(
         &self,
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Float64],
+    ) -> fmi3Status;
+
+    fn setInt8(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int8]) -> fmi3Status;
+
+    fn setUInt8(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3UInt8]) -> fmi3Status;
+
+    fn setInt16(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int16]) -> fmi3Status;
+
+    fn setUInt16(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3UInt16],
+    ) -> fmi3Status;
+
+    fn setInt32(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int32]) -> fmi3Status;
+
+    fn setUInt32(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3UInt32],
+    ) -> fmi3Status;
+
+    fn setInt64(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int64]) -> fmi3Status;
+
+    fn setUInt64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3UInt64],
+    ) -> fmi3Status;
+
+    fn setBoolean(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3Boolean],
+    ) -> fmi3Status;
+
+    fn setString(&self, valueReferences: &[fmi3ValueReference], values: &[&str]) -> fmi3Status;
+
+    fn setBinary(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[&[fmi3Byte]],
+    ) -> fmi3Status;
+
+    fn setClock(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Clock]) -> fmi3Status;
+
+    fn getNumberOfVariableDependencies(
+        &self,
+        valueReference: fmi3ValueReference,
+        nDependencies: &mut usize,
+    ) -> fmi3Status;
+
+    fn getVariableDependencies(
+        &self,
+        valueReference: fmi3ValueReference,
+        elementIndicesOfDependent: &mut [usize],
+        independentVariables: &mut [fmi3ValueReference],
+        elementIndicesOfIndependents: &mut [usize],
+        dependencyKinds: &mut [fmi3DependencyKind],
+    ) -> fmi3Status;
+
+    fn getFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status;
+
+    fn setFMUState(&self, FMUState: fmi3FMUState) -> fmi3Status;
+
+    fn freeFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status;
+
+    fn serializedFMUStateSize(&self, FMUState: fmi3FMUState, size: &mut usize) -> fmi3Status;
+
+    fn serializeFMUState(
+        &self,
+        fmuState: fmi3FMUState,
+        serializedState: &mut [fmi3Byte],
+    ) -> fmi3Status;
+
+    fn deserializeFMUState(
+        &self,
+        serializedState: &[fmi3Byte],
+        FMUState: &mut fmi3FMUState,
+    ) -> fmi3Status;
+
+    fn getDirectionalDerivative(
+        &self,
+        unknowns: &[fmi3ValueReference],
+        knowns: &[fmi3ValueReference],
+        seed: &[fmi3Float64],
+        sensitivity: &mut [fmi3Float64],
+    ) -> fmi3Status;
+
+    fn getAdjointDerivative(
+        &self,
+        unknowns: &[fmi3ValueReference],
+        knowns: &[fmi3ValueReference],
+        seed: &[fmi3Float64],
+        sensitivity: &mut [fmi3Float64],
+    ) -> fmi3Status;
+
+    fn enterConfigurationMode(&self) -> fmi3Status;
+
+    fn exitConfigurationMode(&self) -> fmi3Status;
+
+    fn getIntervalDecimal(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        intervals: &mut [fmi3Float64],
+        qualifiers: &mut [fmi3IntervalQualifier],
+    ) -> fmi3Status;
+
+    fn getIntervalFraction(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        counters: &mut [fmi3UInt64],
+        resolutions: &mut [fmi3UInt64],
+        qualifiers: &mut [fmi3IntervalQualifier],
+    ) -> fmi3Status;
+
+    fn getShiftDecimal(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        shifts: &mut [fmi3Float64],
+    ) -> fmi3Status;
+
+    fn getShiftFraction(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        counters: &mut [fmi3UInt64],
+        resolutions: &mut [fmi3UInt64],
+    ) -> fmi3Status;
+
+    fn setIntervalDecimal(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        intervals: &[fmi3Float64],
+    ) -> fmi3Status;
+
+    fn setIntervalFraction(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        counters: &[fmi3UInt64],
+        resolutions: &[fmi3UInt64],
+    ) -> fmi3Status;
+
+    fn setShiftDecimal(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        shifts: &[fmi3Float64],
+    ) -> fmi3Status;
+
+    fn setShiftFraction(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        counters: &[fmi3UInt64],
+        resolutions: &[fmi3UInt64],
+    ) -> fmi3Status;
+
+    fn evaluateDiscreteStates(&self) -> fmi3Status;
+
+    fn updateDiscreteStates(
+        &self,
+        discreteStatesNeedUpdate: &mut fmi3Boolean,
+        terminateSimulation: &mut fmi3Boolean,
+        nominalsOfContinuousStatesChanged: &mut fmi3Boolean,
+        valuesOfContinuousStatesChanged: &mut fmi3Boolean,
+        nextEventTime: &mut Option<fmi3Float64>,
+    ) -> fmi3Status;
+
+    /***************************************************
+    Functions for Model Exchange
+    ****************************************************/
+
+    fn enterContinuousTimeMode(&self) -> fmi3Status;
+
+    fn completedIntegratorStep(
+        &self,
+        noSetFMUStatePriorToCurrentPoint: fmi3Boolean,
+        enterEventMode: &mut fmi3Boolean,
+        terminateSimulation: &mut fmi3Boolean,
+    ) -> fmi3Status;
+
+    fn setTime(&self, time: fmi3Float64) -> fmi3Status;
+
+    fn setContinuousStates(&self, continuousStates: &[fmi3Float64]) -> fmi3Status;
+
+    fn getContinuousStateDerivatives(&self, derivatives: &mut [fmi3Float64]) -> fmi3Status;
+
+    fn getEventIndicators(&self, eventIndicators: &mut [fmi3Float64]) -> fmi3Status;
+
+    fn getContinuousStates(&self, continuousStates: &mut [fmi3Float64]) -> fmi3Status;
+
+    fn getNominalsOfContinuousStates(&self, nominals: &mut [fmi3Float64]) -> fmi3Status;
+
+    fn getNumberOfEventIndicators(&self, nEventIndicators: &mut usize) -> fmi3Status;
+
+    fn getNumberOfContinuousStates(&self, nContinuousStates: &mut usize) -> fmi3Status;
+
+    /***************************************************
+    Functions for Co-Simulation
+    ****************************************************/
+
+    fn enterStepMode(&self) -> fmi3Status;
+
+    fn getOutputDerivatives(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        orders: &[fmi3Int32],
+        values: &mut [fmi3Float64],
     ) -> fmi3Status;
 
     fn doStep(
@@ -154,6 +426,17 @@ pub trait Instance {
         terminateSimulation: &mut fmi3Boolean,
         earlyReturn: &mut fmi3Boolean,
         lastSuccessfulTime: &mut fmi3Float64,
+    ) -> fmi3Status;
+
+    /***************************************************
+    Functions for Scheduled Execution
+    ****************************************************/
+
+    fn activateModelPartition(
+        &self,
+        clockReference: fmi3ValueReference,
+        activationTime: fmi3Float64,
+        priority: fmi3Float64,
     ) -> fmi3Status;
 }
 
@@ -628,8 +911,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Float32],
     ) -> fmi3Status {
-        todo!()
-        // fmi_get!(self, fmi3GetFloat32, valueReferences, values)
+        fmi_get!(self, getFloat32, valueReferences, values)
     }
 
     pub fn getFloat64(
@@ -637,16 +919,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Float64],
     ) -> fmi3Status {
-        let status = self.backend.getFloat64(valueReferences, values);
-
-        if self.logCalls {
-            let message = format!(
-                "fmi3GetFloat64(valueReferences={valueReferences:?}, values={values:?}) -> {status:?}"
-            );
-            self.log_call(status, &message);
-        }
-
-        status
+        fmi_get!(self, getFloat64, valueReferences, values)
     }
 
     pub fn getInt8(
@@ -654,8 +927,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int8],
     ) -> fmi3Status {
-        todo!()
-        // fmi_get!(self, fmi3GetInt8, valueReferences, values)
+        fmi_get!(self, getInt8, valueReferences, values)
     }
 
     pub fn getUInt8(
@@ -663,8 +935,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt8],
     ) -> fmi3Status {
-        todo!()
-        // fmi_get!(self, fmi3GetUInt8, valueReferences, values)
+        fmi_get!(self, getUInt8, valueReferences, values)
     }
 
     pub fn getInt16(
@@ -672,8 +943,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int16],
     ) -> fmi3Status {
-        todo!()
-        //  fmi_get!(self, fmi3GetInt16, valueReferences, values)
+        fmi_get!(self, getInt16, valueReferences, values)
     }
 
     pub fn getUInt16(
@@ -681,8 +951,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt16],
     ) -> fmi3Status {
-        todo!()
-        //  fmi_get!(self, fmi3GetUInt16, valueReferences, values)
+        fmi_get!(self, getUInt16, valueReferences, values)
     }
 
     pub fn getInt32(
@@ -690,8 +959,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int32],
     ) -> fmi3Status {
-        todo!()
-        //  fmi_get!(self, fmi3GetInt32, valueReferences, values)
+        fmi_get!(self, getInt32, valueReferences, values)
     }
 
     pub fn getUInt32(
@@ -699,8 +967,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt32],
     ) -> fmi3Status {
-        todo!()
-        //  fmi_get!(self, fmi3GetUInt32, valueReferences, values)
+        fmi_get!(self, getUInt32, valueReferences, values)
     }
 
     pub fn getInt64(
@@ -708,8 +975,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int64],
     ) -> fmi3Status {
-        todo!()
-        //  fmi_get!(self, fmi3GetInt64, valueReferences, values)
+        fmi_get!(self, getInt64, valueReferences, values)
     }
 
     pub fn getUInt64(
@@ -717,8 +983,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt64],
     ) -> fmi3Status {
-        todo!()
-        //  fmi_get!(self, fmi3GetUInt64, valueReferences, values)
+        fmi_get!(self, getUInt64, valueReferences, values)
     }
 
     pub fn getBoolean(
@@ -726,8 +991,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Boolean],
     ) -> fmi3Status {
-        todo!()
-        //  fmi_get!(self, fmi3GetBoolean, valueReferences, values)
+        fmi_get!(self, getBoolean, valueReferences, values)
     }
 
     pub fn getString(
@@ -735,7 +999,8 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [String],
     ) -> fmi3Status {
-        todo!()
+        fmi_get!(self, getString, valueReferences, values)
+
         // debug_assert!(valueReferences.len() <= values.len());
 
         // let mut buffer: Vec<fmi3String> = vec![null(); values.len()];
@@ -774,8 +1039,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Clock],
     ) -> fmi3Status {
-        todo!()
-        //  fmi_get!(self, fmi3GetClock, valueReferences, values)
+        fmi_get!(self, getClock, valueReferences, values)
     }
 
     pub fn getBinary(
@@ -783,7 +1047,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [Vec<fmi3Byte>],
     ) -> fmi3Status {
-        todo!()
+        fmi_get!(self, getBinary, valueReferences, values)
         // let mut sizes: Vec<usize> = vec![0; values.len()];
         // let mut value_ptrs = vec![null(); values.len()];
 
@@ -829,7 +1093,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Float32],
     ) -> fmi3Status {
-        todo!() //  fmi_ges!((self, fmi3SetFloat32, valueReferences, values)
+        fmi_set!(self, setFloat32, valueReferences, values)
     }
 
     pub fn setFloat64(
@@ -837,16 +1101,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Float64],
     ) -> fmi3Status {
-        let status = self.backend.setFloat64(valueReferences, values);
-
-        if self.logCalls {
-            let message = format!(
-                "fmi3SetFloat64(valueReferences={valueReferences:?}, values={values:?}) -> {status:?}"
-            );
-            self.log_call(status, &message);
-        }
-
-        status
+        fmi_set!(self, setFloat64, valueReferences, values)
     }
 
     pub fn setInt8(
@@ -854,7 +1109,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Int8],
     ) -> fmi3Status {
-        todo!() //  fmi_ges!((self, fmi3SetInt8, valueReferences, values)
+        fmi_set!(self, setInt8, valueReferences, values)
     }
 
     pub fn setUInt8(
@@ -862,7 +1117,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3UInt8],
     ) -> fmi3Status {
-        todo!() //  fmi_ges!((self, fmi3SetUInt8, valueReferences, values)
+        fmi_set!(self, setUInt8, valueReferences, values)
     }
 
     pub fn setInt16(
@@ -870,7 +1125,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Int16],
     ) -> fmi3Status {
-        todo!() //  fmi_ges!((self, fmi3SetInt16, valueReferences, values)
+        fmi_set!(self, setInt16, valueReferences, values)
     }
 
     pub fn setUInt16(
@@ -878,7 +1133,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3UInt16],
     ) -> fmi3Status {
-        todo!() //  fmi_ges!((self, fmi3SetUInt16, valueReferences, values)
+        fmi_set!(self, setUInt16, valueReferences, values)
     }
 
     pub fn setInt32(
@@ -886,7 +1141,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Int32],
     ) -> fmi3Status {
-        todo!() //  fmi_ges!((self, fmi3SetInt32, valueReferences, values)
+        fmi_set!(self, setInt32, valueReferences, values)
     }
 
     pub fn setUInt32(
@@ -894,7 +1149,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3UInt32],
     ) -> fmi3Status {
-        todo!() //  fmi_ges!((self, fmi3SetUInt32, valueReferences, values)
+        fmi_set!(self, setUInt32, valueReferences, values)
     }
 
     pub fn setInt64(
@@ -902,7 +1157,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Int64],
     ) -> fmi3Status {
-        todo!() //  fmi_ges!((self, fmi3SetInt64, valueReferences, values)
+        fmi_set!(self, setInt64, valueReferences, values)
     }
 
     pub fn setUInt64(
@@ -910,7 +1165,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3UInt64],
     ) -> fmi3Status {
-        todo!() //  fmi_ges!((self, fmi3SetUInt64, valueReferences, values)
+        fmi_set!(self, setUInt64, valueReferences, values)
     }
 
     pub fn setBoolean(
@@ -918,11 +1173,11 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Boolean],
     ) -> fmi3Status {
-        todo!() //  fmi_ges!((self, fmi3SetBoolean, valueReferences, values)
+        fmi_set!(self, setBoolean, valueReferences, values)
     }
 
     pub fn setString(&self, valueReferences: &[fmi3ValueReference], values: &[&str]) -> fmi3Status {
-        todo!()
+        fmi_set!(self, setString, valueReferences, values)
         // debug_assert!(valueReferences.len() <= values.len());
 
         // let values: Vec<CString> = match values.iter().map(|&v| CString::new(v)).collect() {
@@ -962,7 +1217,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Clock],
     ) -> fmi3Status {
-        todo!() //  fmi_ges!((self, fmi3SetClock, valueReferences, values)
+        fmi_set!(self, setClock, valueReferences, values)
     }
 
     pub fn setBinary(
@@ -970,7 +1225,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[&[fmi3Byte]],
     ) -> fmi3Status {
-        todo!()
+        fmi_set!(self, setBinary, valueReferences, values)
         // let sizes: Vec<usize> = values.iter().map(|v| v.len()).collect();
         // let value_ptrs: Vec<fmi3Binary> = values.iter().map(|v| v.as_ptr()).collect();
 

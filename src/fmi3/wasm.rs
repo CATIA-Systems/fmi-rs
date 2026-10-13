@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::path::Path;
 
 use super::types::*;
-use crate::fmi3::{Instance, Implementation};
+use crate::fmi3::{Implementation, Instance};
 
 use wasmtime::component::{Component, Linker, ResourceAny};
 use wasmtime::{Config, Engine, Store};
@@ -269,5 +269,424 @@ impl Instance for WasmBackend {
             .unwrap();
 
         fmi3Status::Ok
+    }
+
+    fn enterEventMode(&self) -> fmi3Status {
+        todo!()
+    }
+
+    fn reset(&self) -> fmi3Status {
+        todo!()
+    }
+
+    fn getFloat32(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Float32],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getInt8(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Int8],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getUInt8(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3UInt8],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getInt16(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Int16],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getUInt16(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3UInt16],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getInt32(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Int32],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getUInt32(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3UInt32],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getInt64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Int64],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getUInt64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3UInt64],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getBoolean(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Boolean],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getString(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [String],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getBinary(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [Vec<fmi3Byte>],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getClock(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Clock],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn setFloat32(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3Float32],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn setInt8(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int8]) -> fmi3Status {
+        todo!()
+    }
+
+    fn setUInt8(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3UInt8]) -> fmi3Status {
+        todo!()
+    }
+
+    fn setInt16(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int16]) -> fmi3Status {
+        todo!()
+    }
+
+    fn setUInt16(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3UInt16],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn setInt32(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int32]) -> fmi3Status {
+        todo!()
+    }
+
+    fn setUInt32(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3UInt32],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn setInt64(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int64]) -> fmi3Status {
+        todo!()
+    }
+
+    fn setUInt64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3UInt64],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn setBoolean(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3Boolean],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn setString(&self, valueReferences: &[fmi3ValueReference], values: &[&str]) -> fmi3Status {
+        todo!()
+    }
+
+    fn setBinary(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[&[fmi3Byte]],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn setClock(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Clock]) -> fmi3Status {
+        todo!()
+    }
+
+    fn getNumberOfVariableDependencies(
+        &self,
+        valueReference: fmi3ValueReference,
+        nDependencies: &mut usize,
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getVariableDependencies(
+        &self,
+        valueReference: fmi3ValueReference,
+        elementIndicesOfDependent: &mut [usize],
+        independentVariables: &mut [fmi3ValueReference],
+        elementIndicesOfIndependents: &mut [usize],
+        dependencyKinds: &mut [fmi3DependencyKind],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status {
+        todo!()
+    }
+
+    fn setFMUState(&self, FMUState: fmi3FMUState) -> fmi3Status {
+        todo!()
+    }
+
+    fn freeFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status {
+        todo!()
+    }
+
+    fn serializedFMUStateSize(&self, FMUState: fmi3FMUState, size: &mut usize) -> fmi3Status {
+        todo!()
+    }
+
+    fn serializeFMUState(
+        &self,
+        fmuState: fmi3FMUState,
+        serializedState: &mut [fmi3Byte],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn deserializeFMUState(
+        &self,
+        serializedState: &[fmi3Byte],
+        FMUState: &mut fmi3FMUState,
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getDirectionalDerivative(
+        &self,
+        unknowns: &[fmi3ValueReference],
+        knowns: &[fmi3ValueReference],
+        seed: &[fmi3Float64],
+        sensitivity: &mut [fmi3Float64],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getAdjointDerivative(
+        &self,
+        unknowns: &[fmi3ValueReference],
+        knowns: &[fmi3ValueReference],
+        seed: &[fmi3Float64],
+        sensitivity: &mut [fmi3Float64],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn enterConfigurationMode(&self) -> fmi3Status {
+        todo!()
+    }
+
+    fn exitConfigurationMode(&self) -> fmi3Status {
+        todo!()
+    }
+
+    fn getIntervalDecimal(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        intervals: &mut [fmi3Float64],
+        qualifiers: &mut [fmi3IntervalQualifier],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getIntervalFraction(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        counters: &mut [fmi3UInt64],
+        resolutions: &mut [fmi3UInt64],
+        qualifiers: &mut [fmi3IntervalQualifier],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getShiftDecimal(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        shifts: &mut [fmi3Float64],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn getShiftFraction(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        counters: &mut [fmi3UInt64],
+        resolutions: &mut [fmi3UInt64],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn setIntervalDecimal(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        intervals: &[fmi3Float64],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn setIntervalFraction(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        counters: &[fmi3UInt64],
+        resolutions: &[fmi3UInt64],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn setShiftDecimal(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        shifts: &[fmi3Float64],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn setShiftFraction(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        counters: &[fmi3UInt64],
+        resolutions: &[fmi3UInt64],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn evaluateDiscreteStates(&self) -> fmi3Status {
+        todo!()
+    }
+
+    fn updateDiscreteStates(
+        &self,
+        discreteStatesNeedUpdate: &mut fmi3Boolean,
+        terminateSimulation: &mut fmi3Boolean,
+        nominalsOfContinuousStatesChanged: &mut fmi3Boolean,
+        valuesOfContinuousStatesChanged: &mut fmi3Boolean,
+        nextEventTime: &mut Option<fmi3Float64>,
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn enterContinuousTimeMode(&self) -> fmi3Status {
+        todo!()
+    }
+
+    fn completedIntegratorStep(
+        &self,
+        noSetFMUStatePriorToCurrentPoint: fmi3Boolean,
+        enterEventMode: &mut fmi3Boolean,
+        terminateSimulation: &mut fmi3Boolean,
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn setTime(&self, time: fmi3Float64) -> fmi3Status {
+        todo!()
+    }
+
+    fn setContinuousStates(&self, continuousStates: &[fmi3Float64]) -> fmi3Status {
+        todo!()
+    }
+
+    fn getContinuousStateDerivatives(&self, derivatives: &mut [fmi3Float64]) -> fmi3Status {
+        todo!()
+    }
+
+    fn getEventIndicators(&self, eventIndicators: &mut [fmi3Float64]) -> fmi3Status {
+        todo!()
+    }
+
+    fn getContinuousStates(&self, continuousStates: &mut [fmi3Float64]) -> fmi3Status {
+        todo!()
+    }
+
+    fn getNominalsOfContinuousStates(&self, nominals: &mut [fmi3Float64]) -> fmi3Status {
+        todo!()
+    }
+
+    fn getNumberOfEventIndicators(&self, nEventIndicators: &mut usize) -> fmi3Status {
+        todo!()
+    }
+
+    fn getNumberOfContinuousStates(&self, nContinuousStates: &mut usize) -> fmi3Status {
+        todo!()
+    }
+
+    fn enterStepMode(&self) -> fmi3Status {
+        todo!()
+    }
+
+    fn getOutputDerivatives(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        orders: &[fmi3Int32],
+        values: &mut [fmi3Float64],
+    ) -> fmi3Status {
+        todo!()
+    }
+
+    fn activateModelPartition(
+        &self,
+        clockReference: fmi3ValueReference,
+        activationTime: fmi3Float64,
+        priority: fmi3Float64,
+    ) -> fmi3Status {
+        todo!()
     }
 }

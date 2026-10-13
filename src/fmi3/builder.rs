@@ -1,7 +1,14 @@
 #![allow(non_snake_case)]
 
 use crate::{
-    fmi3::{self, FMU3, Implementation, log::DefaultLogger, native::{NativeLibrary, PLATFORM_TUPLE}}, platform_binary_path, sim::SimulationError, zip::extract_zip_archive,
+    fmi3::{
+        self, FMU3, Implementation,
+        log::DefaultLogger,
+        native::{NativeLibrary, PLATFORM_TUPLE},
+    },
+    platform_binary_path,
+    sim::SimulationError,
+    zip::extract_zip_archive,
 };
 use std::{
     path::{Path, PathBuf},

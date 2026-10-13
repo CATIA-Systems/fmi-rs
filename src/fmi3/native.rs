@@ -1,7 +1,8 @@
 use super::types::*;
-use crate::fmi3::{Instance, Implementation, fmi3_logger_callback};
+use crate::fmi3::{Implementation, Instance, fmi3_logger_callback};
 use crate::sim::SimulationError::{self};
 use crate::{get_symbol, load_platform_binary};
+use itertools::izip;
 use libloading::Library;
 use std::ffi::{CStr, CString};
 use std::path::Path;
@@ -404,46 +405,6 @@ impl Instance for NativeBackend {
         }
     }
 
-    // fn instantiateCoSimulation(
-    //     unzipdir: &Path,
-    //     instanceName: &str,
-    //     instantiationToken: &str,
-    //     resourcePath: &str,
-    //     visible: bool,
-    //     loggingOn: bool,
-    //     eventModeUsed: bool,
-    //     earlyReturnAllowed: bool,
-    //     requiredIntermediateVariables: &[fmi3ValueReference],
-    // ) -> Result<Box<dyn Backend>, SimulationError> {
-    //     todo!()
-    // let instanceEnvironment = null_mut();
-    // let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
-    // let intermediate_update = ptr::null_mut() as *const fmi3IntermediateUpdateCallback;
-
-    // self.instance = unsafe {
-    //     (self.fmi3InstantiateCoSimulation)(
-    //         CString::new(instanceName)?.as_ptr(),
-    //         CString::new(instantiationToken)?.as_ptr(),
-    //         CString::new(resourcePath)?.as_ptr(),
-    //         visible,
-    //         loggingOn,
-    //         eventModeUsed,
-    //         earlyReturnAllowed,
-    //         requiredIntermediateVariables.as_ptr(),
-    //         requiredIntermediateVariables.len(),
-    //         instanceEnvironment,
-    //         log_message,
-    //         intermediate_update,
-    //     )
-    // };
-
-    // if self.instance.is_null() {
-    //     Err(SimulationError::FMICall)
-    // } else {
-    //     Ok(())
-    // }
-    // }
-
     fn enterInitializationMode(
         &self,
         tolerance: Option<fmi3Float64>,
@@ -498,14 +459,6 @@ impl Instance for NativeBackend {
         }
     }
 
-    fn setFloat64(
-        &self,
-        valueReferences: &[fmi3ValueReference],
-        values: &[fmi3Float64],
-    ) -> fmi3Status {
-        todo!()
-    }
-
     fn doStep(
         &self,
         currentCommunicationPoint: fmi3Float64,
@@ -526,6 +479,879 @@ impl Instance for NativeBackend {
                 terminateSimulation,
                 earlyReturn,
                 lastSuccessfulTime,
+            )
+        }
+    }
+
+    fn enterEventMode(&self) -> fmi3Status {
+        unsafe { (self.library.fmi3EnterEventMode)(self.instance) }
+    }
+
+    fn reset(&self) -> fmi3Status {
+        unsafe { (self.library.fmi3Reset)(self.instance) }
+    }
+
+    fn getFloat32(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Float32],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetFloat32)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_mut_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn getInt8(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Int8],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetInt8)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_mut_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn getUInt8(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3UInt8],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetUInt8)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_mut_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn getInt16(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Int16],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetInt16)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_mut_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn getUInt16(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3UInt16],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetUInt16)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_mut_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn getInt32(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Int32],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetInt32)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_mut_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn getUInt32(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3UInt32],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetUInt32)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_mut_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn getInt64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Int64],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetInt64)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_mut_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn getUInt64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3UInt64],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetUInt64)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_mut_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn getBoolean(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Boolean],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetBoolean)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_mut_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn getString(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [String],
+    ) -> fmi3Status {
+        // TODO: move to instance
+        let mut buffer: Vec<fmi3String> = vec![ptr::null(); values.len()];
+
+        let status = unsafe {
+            (self.library.fmi3GetString)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                buffer.as_mut_ptr(),
+                buffer.len(),
+            )
+        };
+
+        for (value, v) in values.iter_mut().zip(buffer.iter()) {
+            *value = unsafe { CStr::from_ptr(*v).to_string_lossy().into_owned() };
+        }
+
+        status
+    }
+
+    fn getBinary(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [Vec<fmi3Byte>],
+    ) -> fmi3Status {
+        // TODO: move to instance
+        let mut sizes: Vec<usize> = vec![0; values.len()];
+        let mut value_ptrs = vec![ptr::null(); values.len()];
+
+        let status = unsafe {
+            (self.library.fmi3GetBinary)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                sizes.as_mut_ptr(),
+                value_ptrs.as_mut_ptr(),
+                values.len(),
+            )
+        };
+
+        for (value_ptr, size, value) in izip!(value_ptrs, sizes, values) {
+            *value = if !value_ptr.is_null() && size > 0 {
+                let slice: &[u8] =
+                    unsafe { std::slice::from_raw_parts(value_ptr as *const fmi3Byte, size) };
+                slice.to_vec()
+            } else {
+                Vec::new()
+            };
+        }
+
+        status
+    }
+
+    fn getClock(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &mut [fmi3Clock],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetClock)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_mut_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn setFloat32(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3Float32],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetFloat32)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn setFloat64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3Float64],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetFloat64)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn setInt8(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int8]) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetInt8)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn setUInt8(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3UInt8]) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetUInt8)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn setInt16(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int16]) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetInt16)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn setUInt16(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3UInt16],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetUInt16)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn setInt32(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int32]) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetInt32)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn setUInt32(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3UInt32],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetUInt32)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn setInt64(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int64]) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetInt64)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn setUInt64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3UInt64],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetUInt64)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn setBoolean(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3Boolean],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetBoolean)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn setString(&self, valueReferences: &[fmi3ValueReference], values: &[&str]) -> fmi3Status {
+        let values: Vec<CString> = match values.iter().map(|&v| CString::new(v)).collect() {
+            Ok(values) => values,
+            Err(_) => return fmi3Status::Error,
+        };
+
+        let values2: Vec<fmi3String> = values.iter().map(|v| v.as_ptr() as fmi3String).collect();
+
+        let status = unsafe {
+            (self.library.fmi3SetString)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values2.as_ptr(),
+                values2.len(),
+            )
+        };
+
+        status
+    }
+
+    fn setBinary(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[&[fmi3Byte]],
+    ) -> fmi3Status {
+        let sizes: Vec<usize> = values.iter().map(|v| v.len()).collect();
+        let value_ptrs: Vec<fmi3Binary> = values.iter().map(|v| v.as_ptr()).collect();
+
+        let status = unsafe {
+            (self.library.fmi3SetBinary)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                sizes.as_ptr(),
+                value_ptrs.as_ptr(),
+                value_ptrs.len(),
+            )
+        };
+
+        status
+    }
+
+    fn setClock(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Clock]) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetClock)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                values.as_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn getNumberOfVariableDependencies(
+        &self,
+        valueReference: fmi3ValueReference,
+        nDependencies: &mut usize,
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetNumberOfVariableDependencies)(
+                self.instance,
+                valueReference,
+                nDependencies,
+            )
+        }
+    }
+
+    fn getVariableDependencies(
+        &self,
+        valueReference: fmi3ValueReference,
+        elementIndicesOfDependent: &mut [usize],
+        independentVariables: &mut [fmi3ValueReference],
+        elementIndicesOfIndependents: &mut [usize],
+        dependencyKinds: &mut [fmi3DependencyKind],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetVariableDependencies)(
+                self.instance,
+                valueReference,
+                elementIndicesOfDependent.as_mut_ptr(),
+                independentVariables.as_mut_ptr(),
+                elementIndicesOfIndependents.as_mut_ptr(),
+                dependencyKinds.as_mut_ptr(),
+            )
+        }
+    }
+
+    fn getFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status {
+        unsafe { (self.library.fmi3GetFMUState)(self.instance, FMUState) }
+    }
+
+    fn setFMUState(&self, FMUState: fmi3FMUState) -> fmi3Status {
+        unsafe { (self.library.fmi3SetFMUState)(self.instance, FMUState) }
+    }
+
+    fn freeFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status {
+        unsafe { (self.library.fmi3FreeFMUState)(self.instance, FMUState) }
+    }
+
+    fn serializedFMUStateSize(&self, FMUState: fmi3FMUState, size: &mut usize) -> fmi3Status {
+        unsafe { (self.library.fmi3SerializedFMUStateSize)(self.instance, FMUState, size) }
+    }
+
+    fn serializeFMUState(
+        &self,
+        fmuState: fmi3FMUState,
+        serializedState: &mut [fmi3Byte],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SerializeFMUState)(
+                self.instance,
+                fmuState,
+                serializedState.as_mut_ptr(),
+                serializedState.len(),
+            )
+        }
+    }
+
+    fn deserializeFMUState(
+        &self,
+        serializedState: &[fmi3Byte],
+        FMUState: &mut fmi3FMUState,
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3DeserializeFMUState)(
+                self.instance,
+                serializedState.as_ptr(),
+                serializedState.len(),
+                FMUState,
+            )
+        }
+    }
+
+    fn getDirectionalDerivative(
+        &self,
+        unknowns: &[fmi3ValueReference],
+        knowns: &[fmi3ValueReference],
+        seed: &[fmi3Float64],
+        sensitivity: &mut [fmi3Float64],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetDirectionalDerivative)(
+                self.instance,
+                unknowns.as_ptr(),
+                unknowns.len(),
+                knowns.as_ptr(),
+                knowns.len(),
+                seed.as_ptr(),
+                seed.len(),
+                sensitivity.as_mut_ptr(),
+                sensitivity.len(),
+            )
+        }
+    }
+
+    fn getAdjointDerivative(
+        &self,
+        unknowns: &[fmi3ValueReference],
+        knowns: &[fmi3ValueReference],
+        seed: &[fmi3Float64],
+        sensitivity: &mut [fmi3Float64],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetAdjointDerivative)(
+                self.instance,
+                unknowns.as_ptr(),
+                unknowns.len(),
+                knowns.as_ptr(),
+                knowns.len(),
+                seed.as_ptr(),
+                seed.len(),
+                sensitivity.as_mut_ptr(),
+                sensitivity.len(),
+            )
+        }
+    }
+
+    fn enterConfigurationMode(&self) -> fmi3Status {
+        unsafe { (self.library.fmi3EnterConfigurationMode)(self.instance) }
+    }
+
+    fn exitConfigurationMode(&self) -> fmi3Status {
+        unsafe { (self.library.fmi3ExitConfigurationMode)(self.instance) }
+    }
+
+    fn getIntervalDecimal(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        intervals: &mut [fmi3Float64],
+        qualifiers: &mut [fmi3IntervalQualifier],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetIntervalDecimal)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                intervals.as_mut_ptr(),
+                qualifiers.as_mut_ptr(),
+            )
+        }
+    }
+
+    fn getIntervalFraction(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        counters: &mut [fmi3UInt64],
+        resolutions: &mut [fmi3UInt64],
+        qualifiers: &mut [fmi3IntervalQualifier],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetIntervalFraction)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                counters.as_mut_ptr(),
+                resolutions.as_mut_ptr(),
+                qualifiers.as_mut_ptr(),
+            )
+        }
+    }
+
+    fn getShiftDecimal(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        shifts: &mut [fmi3Float64],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetShiftDecimal)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                shifts.as_mut_ptr(),
+            )
+        }
+    }
+
+    fn getShiftFraction(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        counters: &mut [fmi3UInt64],
+        resolutions: &mut [fmi3UInt64],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetShiftFraction)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                counters.as_mut_ptr(),
+                resolutions.as_mut_ptr(),
+            )
+        }
+    }
+
+    fn setIntervalDecimal(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        intervals: &[fmi3Float64],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetIntervalDecimal)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                intervals.as_ptr(),
+            )
+        }
+    }
+
+    fn setIntervalFraction(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        counters: &[fmi3UInt64],
+        resolutions: &[fmi3UInt64],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetIntervalFraction)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                counters.as_ptr(),
+                resolutions.as_ptr(),
+            )
+        }
+    }
+
+    fn setShiftDecimal(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        shifts: &[fmi3Float64],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetShiftDecimal)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                shifts.as_ptr(),
+            )
+        }
+    }
+
+    fn setShiftFraction(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        counters: &[fmi3UInt64],
+        resolutions: &[fmi3UInt64],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetShiftFraction)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                counters.as_ptr(),
+                resolutions.as_ptr(),
+            )
+        }
+    }
+
+    fn evaluateDiscreteStates(&self) -> fmi3Status {
+        unsafe { (self.library.fmi3EvaluateDiscreteStates)(self.instance) }
+    }
+
+    fn updateDiscreteStates(
+        &self,
+        discreteStatesNeedUpdate: &mut fmi3Boolean,
+        terminateSimulation: &mut fmi3Boolean,
+        nominalsOfContinuousStatesChanged: &mut fmi3Boolean,
+        valuesOfContinuousStatesChanged: &mut fmi3Boolean,
+        nextEventTime: &mut Option<fmi3Float64>,
+    ) -> fmi3Status {
+        let mut next_event_time_defined = false;
+        let mut next_event_time = 0.0;
+
+        let status = unsafe {
+            (self.library.fmi3UpdateDiscreteStates)(
+                self.instance,
+                discreteStatesNeedUpdate,
+                terminateSimulation,
+                nominalsOfContinuousStatesChanged,
+                valuesOfContinuousStatesChanged,
+                &mut next_event_time_defined,
+                &mut next_event_time,
+            )
+        };
+
+        *nextEventTime = if next_event_time_defined {
+            Some(next_event_time)
+        } else {
+            None
+        };
+
+        status
+    }
+
+    fn enterContinuousTimeMode(&self) -> fmi3Status {
+        unsafe { (self.library.fmi3EnterContinuousTimeMode)(self.instance) }
+    }
+
+    fn completedIntegratorStep(
+        &self,
+        noSetFMUStatePriorToCurrentPoint: fmi3Boolean,
+        enterEventMode: &mut fmi3Boolean,
+        terminateSimulation: &mut fmi3Boolean,
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3CompletedIntegratorStep)(
+                self.instance,
+                noSetFMUStatePriorToCurrentPoint,
+                enterEventMode,
+                terminateSimulation,
+            )
+        }
+    }
+
+    fn setTime(&self, time: fmi3Float64) -> fmi3Status {
+        unsafe { (self.library.fmi3SetTime)(self.instance, time) }
+    }
+
+    fn setContinuousStates(&self, continuousStates: &[fmi3Float64]) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3SetContinuousStates)(
+                self.instance,
+                continuousStates.as_ptr(),
+                continuousStates.len(),
+            )
+        }
+    }
+
+    fn getContinuousStateDerivatives(&self, derivatives: &mut [fmi3Float64]) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetContinuousStateDerivatives)(
+                self.instance,
+                derivatives.as_mut_ptr(),
+                derivatives.len(),
+            )
+        }
+    }
+
+    fn getEventIndicators(&self, eventIndicators: &mut [fmi3Float64]) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetEventIndicators)(
+                self.instance,
+                eventIndicators.as_mut_ptr(),
+                eventIndicators.len(),
+            )
+        }
+    }
+
+    fn getContinuousStates(&self, continuousStates: &mut [fmi3Float64]) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetContinuousStates)(
+                self.instance,
+                continuousStates.as_mut_ptr(),
+                continuousStates.len(),
+            )
+        }
+    }
+
+    fn getNominalsOfContinuousStates(&self, nominals: &mut [fmi3Float64]) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetNominalsOfContinuousStates)(
+                self.instance,
+                nominals.as_mut_ptr(),
+                nominals.len(),
+            )
+        }
+    }
+
+    fn getNumberOfEventIndicators(&self, nEventIndicators: &mut usize) -> fmi3Status {
+        unsafe { (self.library.fmi3GetNumberOfEventIndicators)(self.instance, nEventIndicators) }
+    }
+
+    fn getNumberOfContinuousStates(&self, nContinuousStates: &mut usize) -> fmi3Status {
+        unsafe { (self.library.fmi3GetNumberOfContinuousStates)(self.instance, nContinuousStates) }
+    }
+
+    fn enterStepMode(&self) -> fmi3Status {
+        unsafe { (self.library.fmi3EnterStepMode)(self.instance) }
+    }
+
+    fn getOutputDerivatives(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        orders: &[fmi3Int32],
+        values: &mut [fmi3Float64],
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3GetOutputDerivatives)(
+                self.instance,
+                valueReferences.as_ptr(),
+                valueReferences.len(),
+                orders.as_ptr(),
+                values.as_mut_ptr(),
+                values.len(),
+            )
+        }
+    }
+
+    fn activateModelPartition(
+        &self,
+        clockReference: fmi3ValueReference,
+        activationTime: fmi3Float64,
+        priority: fmi3Float64,
+    ) -> fmi3Status {
+        unsafe {
+            (self.library.fmi3ActivateModelPartition)(
+                self.instance,
+                clockReference,
+                activationTime,
+                priority,
             )
         }
     }
