@@ -149,19 +149,6 @@ trait Backend {
 
     fn setDebugLogging(&self, loggingOn: fmi3Boolean, categories: &[fmi3String]) -> fmi3Status;
     
-    // fn instantiateCoSimulation(
-    //     instanceName: &str,
-    //     instantiationToken: &str,
-    //     resourcePath: &str,
-    //     visible: bool,
-    //     loggingOn: bool,
-    //     eventModeUsed: bool,
-    //     earlyReturnAllowed: bool,
-    //     requiredIntermediateVariables: &[fmi3ValueReference],
-    // ) -> Result<Box<dyn Backend>, SimulationError>
-    //     where
-    //     Self: Sized;
-    
     fn enterInitializationMode(
         &self,
         tolerance: Option<fmi3Float64>,
@@ -292,23 +279,6 @@ pub extern "C" fn intermediateUpdate(
 }
 
 impl FMU3 {
-    // fn new(
-    //     unzipdir: &Path,
-    //     modelIdentifier: &str,
-    //     logger: Arc<dyn Logger>,
-    //     logCalls: bool,
-    //     intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
-    // ) -> Result<FMU3, SimulationError> {
-        
-    //     let backend = Box::new(NativeBackend::new(unzipdir, modelIdentifier)?);
-
-    //     Ok(FMU3 {
-    //         logger,
-    //         intermediateUpdateHandler,
-    //         logCalls,
-    //         backend,
-    //     })
-    // }
 
     fn log_call(&self, status: fmi3Status, message: &str) {
         self.logger.log_call(status, message);
