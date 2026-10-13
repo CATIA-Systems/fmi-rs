@@ -71,7 +71,7 @@ pub struct Unknown {
 }
 
 mod space_separated {
-    use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error};
+    use serde::{Deserialize, Deserializer, Serializer, de::Error};
     use std::fmt::Display;
     use std::str::FromStr;
 

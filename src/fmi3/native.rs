@@ -1,13 +1,11 @@
 use super::types::*;
-use crate::fmi3::log::Logger;
 use crate::fmi3::{Backend, Implementation, fmi3_logger_callback};
 use crate::sim::SimulationError::{self};
-use crate::{CStrExt, get_symbol, load_platform_binary};
+use crate::{get_symbol, load_platform_binary};
 use libloading::Library;
 use std::ffi::{CStr, CString};
-use std::os::raw::c_void;
 use std::path::Path;
-use std::ptr::{self, null, null_mut};
+use std::ptr::{self, null_mut};
 use std::sync::Arc;
 
 #[cfg(all(target_arch = "aarch64", target_os = "linux"))]

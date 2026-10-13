@@ -19,9 +19,9 @@ use crate::sim::SimulationError;
 
 const TARGET_PLATFORM: &str = "wasm32-wasip2";
 
-impl Into<fmi3Status> for Status {
-    fn into(self) -> fmi3Status {
-        match self {
+impl From<Status> for fmi3Status {
+    fn from(val: Status) -> Self {
+        match val {
             Status::Ok => fmi3Status::Ok,
             Status::Warning => fmi3Status::Warning,
             Status::Discard => fmi3Status::Discard,
@@ -207,7 +207,7 @@ impl Backend for WasmBackend {
     ) -> fmi3Status {
         let world = &self.world;
         let mut store = self.store.borrow_mut();
-        let cs = self.cs.clone();
+        let cs = self.cs;
 
         let get_result = world
             .fmi_fmi3_co_simulation()
@@ -231,7 +231,7 @@ impl Backend for WasmBackend {
     ) -> fmi3Status {
         let world = &self.world;
         let mut store = self.store.borrow_mut();
-        let cs = self.cs.clone();
+        let cs = self.cs;
 
         let set_result = world
             .fmi_fmi3_co_simulation()

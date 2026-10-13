@@ -16,7 +16,7 @@ use crate::fmi3::log::Logger;
 use crate::sim::SimulationError::{self};
 use std::os::raw::c_void;
 use std::path::Path;
-use std::ptr::{self, null, null_mut};
+use std::ptr::null_mut;
 use std::sync::Arc;
 use types::*;
 
