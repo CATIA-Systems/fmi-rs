@@ -111,7 +111,6 @@ impl FMU3Builder {
             FMU3::instantiateCoSimulation(
                 implementation,
                 self.unzipdir.path(),
-                &cs.modelIdentifier,
                 instanceName,
                 &self.model_description.instantiationToken,
                 self.visible,

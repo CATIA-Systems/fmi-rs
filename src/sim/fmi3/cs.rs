@@ -125,7 +125,6 @@ pub fn simulate(
     let fmu = FMU3::instantiateCoSimulation(
         implementation,
         &settings.unzipdir,
-        model_identifier,
         &settings.model_description.modelName,
         &settings.model_description.instantiationToken,
         false,

@@ -342,7 +342,7 @@ impl Implementation for Arc<NativeLibrary> {
         &self,
         instanceName: &str,
         instantiationToken: &str,
-        resourcePath: &str,
+        resourcePath: Option<&Path>,
         visible: bool,
         loggingOn: bool,
         eventModeUsed: bool,
@@ -353,11 +353,15 @@ impl Implementation for Arc<NativeLibrary> {
         let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
         let intermediate_update = ptr::null_mut() as *const fmi3IntermediateUpdateCallback;
 
+        let resource_path = resourcePath
+            .map(|path| CString::new(path.to_string_lossy().as_ref()).unwrap())
+            .unwrap_or_else(|| CString::new("").unwrap());
+
         let instance = unsafe {
             (self.fmi3InstantiateCoSimulation)(
                 CString::new(instanceName)?.as_ptr(),
                 CString::new(instantiationToken)?.as_ptr(),
-                CString::new(resourcePath)?.as_ptr(),
+                resource_path.as_ptr(),
                 visible,
                 loggingOn,
                 eventModeUsed,
@@ -970,22 +974,27 @@ impl Instance for NativeBackend {
         }
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn getFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status {
         unsafe { (self.library.fmi3GetFMUState)(self.instance, FMUState) }
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn setFMUState(&self, FMUState: fmi3FMUState) -> fmi3Status {
         unsafe { (self.library.fmi3SetFMUState)(self.instance, FMUState) }
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn freeFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status {
         unsafe { (self.library.fmi3FreeFMUState)(self.instance, FMUState) }
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn serializedFMUStateSize(&self, FMUState: fmi3FMUState, size: &mut usize) -> fmi3Status {
         unsafe { (self.library.fmi3SerializedFMUStateSize)(self.instance, FMUState, size) }
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn serializeFMUState(
         &self,
         fmuState: fmi3FMUState,
@@ -1001,6 +1010,7 @@ impl Instance for NativeBackend {
         }
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn deserializeFMUState(
         &self,
         serializedState: &[fmi3Byte],

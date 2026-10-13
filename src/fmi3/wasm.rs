@@ -130,7 +130,7 @@ impl Implementation for WasmLibrary {
         &self,
         instanceName: &str,
         instantiationToken: &str,
-        resourcePath: &str,
+        resourcePath: Option<&Path>,
         visible: bool,
         loggingOn: bool,
         eventModeUsed: bool,
@@ -148,7 +148,7 @@ impl Implementation for WasmLibrary {
                 &mut store,
                 instanceName,
                 instantiationToken,
-                resourcePath,
+                "",
                 visible,
                 loggingOn,
                 eventModeUsed,
@@ -163,6 +163,21 @@ impl Implementation for WasmLibrary {
             store: RefCell::new(store),
             cs,
         }))
+    }
+}
+
+// impl From<wasmtime::Error> for SimulationError {
+//     fn from(err: wasmtime::Error) -> Self {
+//         SimulationError::Wasm { source: err }
+//     }
+// }
+
+impl From<Result<Status, wasmtime::Error>> for fmi3Status {
+    fn from(result: Result<Status, wasmtime::Error>) -> Self {
+        match result {
+            Ok(status) => status.into(),
+            Err(_) => fmi3Status::Error,
+        }
     }
 }
 
@@ -182,22 +197,29 @@ impl Instance for WasmBackend {
         stopTime: Option<fmi3Float64>,
     ) -> fmi3Status {
         let mut store = self.store.borrow_mut();
-        let cs = self.cs.clone();
-
         self.world
             .fmi_fmi3_co_simulation()
             .co_simulation_instance()
-            .call_enter_initialization_mode(&mut *store, cs, None, 0.0, None);
-
-        fmi3Status::Ok
+            .call_enter_initialization_mode(&mut *store, self.cs, tolerance, startTime, stopTime)
+            .into()
     }
 
     fn exitInitializationMode(&self) -> fmi3Status {
-        fmi3Status::Warning
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_exit_initialization_mode(&mut *store, self.cs)
+            .into()
     }
 
     fn terminate(&self) -> fmi3Status {
-        fmi3Status::Warning
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_terminate(&mut *store, self.cs)
+            .into()
     }
 
     fn getFloat64(
@@ -209,37 +231,19 @@ impl Instance for WasmBackend {
         let mut store = self.store.borrow_mut();
         let cs = self.cs;
 
-        let get_result = world
+        let result = world
             .fmi_fmi3_co_simulation()
             .co_simulation_instance()
             .call_get_float64(&mut *store, cs, valueReferences)
             .unwrap();
 
-        match get_result {
+        match result {
             Ok(get_values) => {
                 values.copy_from_slice(&get_values);
                 fmi3Status::Ok
             }
             Err(status) => status.into(),
         }
-    }
-
-    fn setFloat64(
-        &self,
-        valueReferences: &[fmi3ValueReference],
-        values: &[fmi3Float64],
-    ) -> fmi3Status {
-        let world = &self.world;
-        let mut store = self.store.borrow_mut();
-        let cs = self.cs;
-
-        let set_result = world
-            .fmi_fmi3_co_simulation()
-            .co_simulation_instance()
-            .call_set_float64(&mut *store, cs, valueReferences, values)
-            .unwrap();
-
-        set_result.into()
     }
 
     fn doStep(
@@ -264,7 +268,7 @@ impl Instance for WasmBackend {
                 cs,
                 currentCommunicationPoint,
                 communicationStepSize,
-                false,
+                noSetFMUStatePriorToCurrentPoint,
             )
             .unwrap();
 
@@ -389,6 +393,24 @@ impl Instance for WasmBackend {
         values: &[fmi3Float32],
     ) -> fmi3Status {
         todo!()
+    }
+
+    fn setFloat64(
+        &self,
+        valueReferences: &[fmi3ValueReference],
+        values: &[fmi3Float64],
+    ) -> fmi3Status {
+        let world = &self.world;
+        let mut store = self.store.borrow_mut();
+        let cs = self.cs;
+
+        let set_result = world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_float64(&mut *store, cs, valueReferences, values)
+            .unwrap();
+
+        set_result.into()
     }
 
     fn setInt8(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int8]) -> fmi3Status {
