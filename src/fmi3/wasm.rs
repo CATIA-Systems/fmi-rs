@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::path::Path;
 
 use super::types::*;
-use crate::fmi3::{Backend, Implementation};
+use crate::fmi3::{Instance, Implementation};
 
 use wasmtime::component::{Component, Linker, ResourceAny};
 use wasmtime::{Config, Engine, Store};
@@ -136,7 +136,7 @@ impl Implementation for WasmLibrary {
         eventModeUsed: bool,
         earlyReturnAllowed: bool,
         requiredIntermediateVariables: &[fmi3ValueReference],
-    ) -> Result<Box<dyn Backend>, SimulationError> {
+    ) -> Result<Box<dyn Instance>, SimulationError> {
         let mut store = Store::new(&self.engine, HostState::default());
 
         let world = CoSimulationFmu::instantiate(&mut store, &self.component, &self.linker)?;
@@ -166,7 +166,7 @@ impl Implementation for WasmLibrary {
     }
 }
 
-impl Backend for WasmBackend {
+impl Instance for WasmBackend {
     fn getVersion(&self) -> String {
         todo!()
     }

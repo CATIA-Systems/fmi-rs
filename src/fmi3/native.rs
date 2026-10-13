@@ -1,5 +1,5 @@
 use super::types::*;
-use crate::fmi3::{Backend, Implementation, fmi3_logger_callback};
+use crate::fmi3::{Instance, Implementation, fmi3_logger_callback};
 use crate::sim::SimulationError::{self};
 use crate::{get_symbol, load_platform_binary};
 use libloading::Library;
@@ -347,7 +347,7 @@ impl Implementation for Arc<NativeLibrary> {
         eventModeUsed: bool,
         earlyReturnAllowed: bool,
         requiredIntermediateVariables: &[fmi3ValueReference],
-    ) -> Result<Box<dyn Backend>, SimulationError> {
+    ) -> Result<Box<dyn Instance>, SimulationError> {
         let instanceEnvironment = null_mut();
         let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
         let intermediate_update = ptr::null_mut() as *const fmi3IntermediateUpdateCallback;
@@ -385,7 +385,7 @@ pub struct NativeBackend {
     instance: fmi3Instance,
 }
 
-impl Backend for NativeBackend {
+impl Instance for NativeBackend {
     fn getVersion(&self) -> String {
         unsafe {
             let version_cstr = (self.library.fmi3GetVersion)();

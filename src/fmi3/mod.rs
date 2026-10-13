@@ -114,10 +114,10 @@ pub trait Implementation {
         eventModeUsed: bool,
         earlyReturnAllowed: bool,
         requiredIntermediateVariables: &[fmi3ValueReference],
-    ) -> Result<Box<dyn Backend>, SimulationError>;
+    ) -> Result<Box<dyn Instance>, SimulationError>;
 }
 
-pub trait Backend {
+pub trait Instance {
     fn getVersion(&self) -> String;
 
     fn setDebugLogging(&self, loggingOn: fmi3Boolean, categories: &[fmi3String]) -> fmi3Status;
@@ -161,7 +161,7 @@ pub struct FMU3 {
     logger: Arc<dyn Logger>,
     intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
     logCalls: bool,
-    backend: Box<dyn Backend>,
+    backend: Box<dyn Instance>,
 }
 
 #[unsafe(no_mangle)]
