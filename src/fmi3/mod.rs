@@ -20,24 +20,6 @@ use std::ptr::{self, null, null_mut};
 use std::sync::Arc;
 use types::*;
 
-#[cfg(all(target_arch = "aarch64", target_os = "linux"))]
-pub const PLATFORM_TUPLE: &str = "aarch64-linux";
-
-#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
-pub const PLATFORM_TUPLE: &str = "x86_64-linux";
-
-#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
-pub const PLATFORM_TUPLE: &str = "aarch64-darwin";
-
-#[cfg(all(target_arch = "x86_64", target_os = "macos"))]
-pub const PLATFORM_TUPLE: &str = "x86_64-darwin";
-
-#[cfg(all(target_arch = "x86", target_os = "windows"))]
-pub const PLATFORM_TUPLE: &str = "x86-windows";
-
-#[cfg(all(target_arch = "x86_64", target_os = "windows"))]
-pub const PLATFORM_TUPLE: &str = "x86_64-windows";
-
 macro_rules! fmi_get {
     ($self:expr, $func:ident, $value_refs:expr, $values:expr) => {{
         debug_assert!($value_refs.len() <= $values.len());

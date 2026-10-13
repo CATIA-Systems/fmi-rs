@@ -1,6 +1,6 @@
 use super::types::*;
 use crate::fmi3::log::Logger;
-use crate::fmi3::{Backend, Implementation, PLATFORM_TUPLE, fmi3_logger_callback};
+use crate::fmi3::{Backend, Implementation, fmi3_logger_callback};
 use crate::sim::SimulationError::{self};
 use crate::{CStrExt, get_symbol, load_platform_binary};
 use libloading::Library;
@@ -9,6 +9,24 @@ use std::os::raw::c_void;
 use std::path::Path;
 use std::ptr::{self, null, null_mut};
 use std::sync::Arc;
+
+#[cfg(all(target_arch = "aarch64", target_os = "linux"))]
+pub const PLATFORM_TUPLE: &str = "aarch64-linux";
+
+#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
+pub const PLATFORM_TUPLE: &str = "x86_64-linux";
+
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+pub const PLATFORM_TUPLE: &str = "aarch64-darwin";
+
+#[cfg(all(target_arch = "x86_64", target_os = "macos"))]
+pub const PLATFORM_TUPLE: &str = "x86_64-darwin";
+
+#[cfg(all(target_arch = "x86", target_os = "windows"))]
+pub const PLATFORM_TUPLE: &str = "x86-windows";
+
+#[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+pub const PLATFORM_TUPLE: &str = "x86_64-windows";
 
 pub struct NativeLibrary {
     _lib: Box<Library>,

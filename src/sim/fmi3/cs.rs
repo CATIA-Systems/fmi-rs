@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use crate::fmi3::log::DefaultLogger;
-use crate::fmi3::native::NativeLibrary;
+use crate::fmi3::native::{NativeLibrary, PLATFORM_TUPLE};
 use crate::fmi3::types::{fmi3Boolean, fmi3Float64, fmi3ValueReference};
 use crate::fmi3::wasm::WasmLibrary;
-use crate::fmi3::{Implementation, IntermediateUpdateHandler, LibraryKind, PLATFORM_TUPLE};
+use crate::fmi3::{Implementation, IntermediateUpdateHandler, LibraryKind};
 use crate::platform_binary_path;
 use crate::sim::fmi3::{
     SimulationSettings, call, read_initial_fmu_state, set_start_values, write_final_fmu_state,
