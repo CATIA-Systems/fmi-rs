@@ -13,6 +13,7 @@ pub mod wasm;
 
 use crate::CStrExt;
 use crate::fmi3::log::Logger;
+use crate::log_call;
 use crate::sim::SimulationError::{self};
 use std::os::raw::c_void;
 use std::path::Path;
@@ -868,6 +869,7 @@ impl FMU3 {
         // status
     }
 
+    #[log_call]
     pub fn doStep(
         &self,
         currentCommunicationPoint: fmi3Float64,
@@ -878,7 +880,7 @@ impl FMU3 {
         earlyReturn: &mut fmi3Boolean,
         lastSuccessfulTime: &mut fmi3Float64,
     ) -> fmi3Status {
-        let status = self.backend.doStep(
+        self.backend.doStep(
             currentCommunicationPoint,
             communicationStepSize,
             noSetFMUStatePriorToCurrentPoint,
@@ -886,24 +888,7 @@ impl FMU3 {
             terminateSimulation,
             earlyReturn,
             lastSuccessfulTime,
-        );
-
-        if self.logCalls {
-            let message = format!(
-                "fmi3DoStep(currentCommunicationPoint={}, communicationStepSize={}, noSetFMUStatePriorToCurrentPoint={}, eventHandlingNeeded={:?}, terminateSimulation={:?}, earlyReturn={:?}, lastSuccessfulTime={:?}) -> {:?}",
-                currentCommunicationPoint,
-                communicationStepSize,
-                noSetFMUStatePriorToCurrentPoint,
-                eventHandlingNeeded,
-                terminateSimulation,
-                earlyReturn,
-                lastSuccessfulTime,
-                status,
-            );
-            self.log_call(status, &message);
-        }
-
-        status
+        )
     }
 
     pub fn getFloat32(

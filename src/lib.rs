@@ -4,6 +4,7 @@ use std::{
     ptr,
 };
 
+pub use fmi_rs_macros::log_call;
 use libloading::{Library, Symbol};
 
 use crate::sim::SimulationError;
