@@ -4,14 +4,19 @@ use syn::{FnArg, ItemFn, Pat, parse_macro_input};
 
 #[proc_macro_attribute]
 pub fn log_call(attribute: TokenStream, item: TokenStream) -> TokenStream {
-    if !attribute.is_empty() {
-        return syn::Error::new(
-            proc_macro2::Span::call_site(),
-            "log_call does not accept arguments",
-        )
-        .to_compile_error()
-        .into();
-    }
+    let prefix = if attribute.is_empty() {
+        "fmi3".to_owned()
+    } else {
+        match syn::parse::<syn::Ident>(attribute) {
+            Ok(prefix) if prefix == "fmi2" || prefix == "fmi3" => prefix.to_string(),
+            Ok(prefix) => {
+                return syn::Error::new_spanned(prefix, "expected `fmi2` or `fmi3`")
+                    .to_compile_error()
+                    .into();
+            }
+            Err(error) => return error.to_compile_error().into(),
+        }
+    };
 
     let mut function = parse_macro_input!(item as ItemFn);
     let name = function.sig.ident.to_string();
@@ -22,7 +27,7 @@ pub fn log_call(attribute: TokenStream, item: TokenStream) -> TokenStream {
         name
     };
     let function_name = syn::LitStr::new(
-        &format!("fmi3{capitalized_name}"),
+        &format!("{prefix}{capitalized_name}"),
         proc_macro2::Span::call_site(),
     );
     let mut argument_names = Vec::new();

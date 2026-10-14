@@ -10,6 +10,7 @@ pub mod log;
 pub mod types;
 
 use crate::fmi2::log::Logger;
+use crate::log_call;
 use crate::sim::SimulationError;
 use crate::{CStrExt, get_symbol, load_platform_binary, platform_binary_path};
 use libloading::Library;
@@ -55,18 +56,6 @@ macro_rules! fmi2_get {
             )
         };
 
-        if $self.logCalls {
-            let message = format!(
-                "{}(valueReferences={:?}, nvr={}, values={:?}) -> {:?}",
-                stringify!($func),
-                $value_refs,
-                $value_refs.len(),
-                $values,
-                status
-            );
-            $self.log_call(status, message.as_str());
-        }
-
         status
     }};
 }
@@ -87,17 +76,6 @@ macro_rules! fmi2_set {
                 $values.as_ptr(),
             )
         };
-
-        if $self.logCalls {
-            let message = format!(
-                "{}(valueReferences={:?}, nvr={}, values={:?})",
-                stringify!($func),
-                $value_refs,
-                $value_refs.len(),
-                $values
-            );
-            $self.log_call(status, message.as_str());
-        }
 
         status
     }};
@@ -399,15 +377,13 @@ impl<T> FMU2<T> {
         types_platform
     }
 
+    #[log_call(fmi2)]
     pub fn terminate(&self) -> fmi2Status {
         let status = unsafe { (self.fmi2Terminate)(self.component) };
-        if self.logCalls {
-            let message = format!("fmi2Terminate() -> {:?}", status);
-            self.log_call(status, &message);
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn setupExperiment(
         &self,
         tolerance: Option<fmi2Real>,
@@ -437,44 +413,28 @@ impl<T> FMU2<T> {
             )
         };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi2SetupExperiment(toleranceDefined={}, tolerance={}, startTime={}, stopTimeDefined={}, stopTime={}) -> {:?}",
-                toleranceDefined, tolerance, startTime, stopTimeDefined, stopTime, status
-            );
-            self.log_call(status, message.as_str());
-        }
-
         status
     }
 
+    #[log_call(fmi2)]
     pub fn enterInitializationMode(&self) -> fmi2Status {
         let status = unsafe { (self.fmi2EnterInitializationMode)(self.component) };
-        if self.logCalls {
-            let message = format!("fmi2EnterInitializationMode() -> {:?}", status);
-            self.log_call(status, &message);
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn exitInitializationMode(&self) -> fmi2Status {
         let status = unsafe { (self.fmi2ExitInitializationMode)(self.component) };
-        if self.logCalls {
-            let message = format!("fmi2ExitInitializationMode() -> {:?}", status);
-            self.log_call(status, &message);
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn reset(&self) -> fmi2Status {
         let status = unsafe { (self.fmi2Reset)(self.component) };
-        if self.logCalls {
-            let message = format!("fmi2Reset() -> {:?}", status);
-            self.log_call(status, &message);
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn getReal(
         &self,
         valueReferences: &[fmi2ValueReference],
@@ -483,6 +443,7 @@ impl<T> FMU2<T> {
         fmi2_get!(self, fmi2GetReal, valueReferences, values)
     }
 
+    #[log_call(fmi2)]
     pub fn getInteger(
         &self,
         valueReferences: &[fmi2ValueReference],
@@ -491,6 +452,7 @@ impl<T> FMU2<T> {
         fmi2_get!(self, fmi2GetInteger, valueReferences, values)
     }
 
+    #[log_call(fmi2)]
     pub fn getBoolean(
         &self,
         valueReferences: &[fmi2ValueReference],
@@ -499,6 +461,7 @@ impl<T> FMU2<T> {
         fmi2_get!(self, fmi2GetBoolean, valueReferences, values)
     }
 
+    #[log_call(fmi2)]
     pub fn getString(
         &self,
         valueReferences: &[fmi2ValueReference],
@@ -521,20 +484,10 @@ impl<T> FMU2<T> {
             *value = unsafe { CStr::from_ptr(*value_ptr).to_string_lossy().into_owned() };
         }
 
-        if self.logCalls {
-            let message = format!(
-                "fmi2GetString(valueReferences={:?}, nvr={}, values={:?}) -> {:?}",
-                valueReferences,
-                valueReferences.len(),
-                values,
-                status
-            );
-            self.log_call(status, message.as_str());
-        }
-
         status
     }
 
+    #[log_call(fmi2)]
     pub fn setReal(
         &self,
         valueReferences: &[fmi2ValueReference],
@@ -543,6 +496,7 @@ impl<T> FMU2<T> {
         fmi2_set!(self, fmi2SetReal, valueReferences, values)
     }
 
+    #[log_call(fmi2)]
     pub fn setInteger(
         &self,
         valueReferences: &[fmi2ValueReference],
@@ -551,6 +505,7 @@ impl<T> FMU2<T> {
         fmi2_set!(self, fmi2SetInteger, valueReferences, values)
     }
 
+    #[log_call(fmi2)]
     pub fn setBoolean(
         &self,
         valueReferences: &[fmi2ValueReference],
@@ -559,6 +514,7 @@ impl<T> FMU2<T> {
         fmi2_set!(self, fmi2SetBoolean, valueReferences, values)
     }
 
+    #[log_call(fmi2)]
     pub fn setString(&self, valueReferences: &[fmi2ValueReference], values: &[&str]) -> fmi2Status {
         debug_assert_eq!(valueReferences.len(), values.len());
 
@@ -578,69 +534,39 @@ impl<T> FMU2<T> {
             )
         };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi2SetString(valueReferences={:?}, nvr={}, values={:?}) -> {:?}",
-                valueReferences,
-                valueReferences.len(),
-                values,
-                status
-            );
-            self.log_call(status, message.as_str());
-        }
-
         status
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    #[log_call(fmi2)]
     pub fn getFMUstate(&self, FMUstate: *mut fmi2FMUstate) -> fmi2Status {
         let status = unsafe { (self.fmi2GetFMUstate)(self.component, FMUstate) };
-
-        if self.logCalls {
-            let message = format!("fmi2GetFMUstate(FMUstate={:p}) -> {:?}", FMUstate, status);
-            self.log_call(status, message.as_str());
-        }
-
         status
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    #[log_call(fmi2)]
     pub fn setFMUstate(&self, FMUstate: fmi2FMUstate) -> fmi2Status {
         let status = unsafe { (self.fmi2SetFMUstate)(self.component, FMUstate) };
-
-        if self.logCalls {
-            let message = format!("fmi2SetFMUstate(FMUstate={:p}) -> {:?}", FMUstate, status);
-            self.log_call(status, message.as_str());
-        }
-
         status
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    #[log_call(fmi2)]
     pub fn freeFMUstate(&self, FMUstate: *mut fmi2FMUstate) -> fmi2Status {
         let status = unsafe { (self.fmi2FreeFMUstate)(self.component, FMUstate) };
-
-        if self.logCalls {
-            let message = format!("fmi2FreeFMUstate(FMUstate={:p}) -> {:?}", FMUstate, status);
-            self.log_call(status, message.as_str());
-        }
-
         status
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    #[log_call(fmi2)]
     pub fn serializedFMUstateSize(&self, FMUstate: fmi2FMUstate, size: &mut usize) -> fmi2Status {
         let status = unsafe { (self.fmi2SerializedFMUstateSize)(self.component, FMUstate, size) };
-        if self.logCalls {
-            let message = format!(
-                "fmi2SerializedFMUstateSize(FMUstate={FMUstate:p}, size={size}) -> {status:?}"
-            );
-            self.log_call(status, message.as_str());
-        }
         status
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    #[log_call(fmi2)]
     pub fn serializeFMUstate(
         &self,
         FMUstate: fmi2FMUstate,
@@ -653,17 +579,11 @@ impl<T> FMU2<T> {
             (self.fmi2SerializeFMUstate)(self.component, FMUstate, serializedState, size)
         };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi2SerializeFMUstate(FMUstate={FMUstate:p}, serializedState={serializedState:p}, size={size}) -> {status:?}"
-            );
-            self.log_call(status, message.as_str());
-        }
-
         status
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    #[log_call(fmi2)]
     pub fn deSerializeFMUstate(
         &self,
         serializedState: &[fmi2Byte],
@@ -678,21 +598,11 @@ impl<T> FMU2<T> {
             )
         };
 
-        if self.logCalls {
-            let message = format!(
-                "fmi2DeSerializeFMUstate(serializedState={:p}, size={}, FMUstate={:p}) -> {:?}",
-                serializedState.as_ptr(),
-                serializedState.len(),
-                FMUstate,
-                status
-            );
-            self.log_call(status, message.as_str());
-        }
-
         status
     }
 
     // FMI 2.0 Getting partial derivatives
+    #[log_call(fmi2)]
     pub fn getDirectionalDerivative(
         &self,
         vUnknown_ref: &[fmi2ValueReference],
@@ -714,20 +624,6 @@ impl<T> FMU2<T> {
                 dvUnknown.as_mut_ptr(),
             )
         };
-
-        if self.logCalls {
-            let message = format!(
-                "fmi2GetDirectionalDerivative(vUnknown_ref: {:?}, nUnknown: {}, vKnown_ref: {:?}, nKnown: {}, dvKnown: {:?}, dvUnknown: {:?}) -> {:?}",
-                vUnknown_ref,
-                vUnknown_ref.len(),
-                vKnown_ref,
-                vKnown_ref.len(),
-                dvKnown,
-                dvUnknown,
-                status,
-            );
-            self.log_call(status, message.as_str());
-        }
 
         status
     }
@@ -790,15 +686,13 @@ impl FMU2<ME> {
         Ok(fmu)
     }
 
+    #[log_call(fmi2)]
     pub fn enterEventMode(&self) -> fmi2Status {
         let status = unsafe { (self.interfaceType.fmi2EnterEventMode)(self.component) };
-        if self.logCalls {
-            let message = format!("fmi2EnterEventMode() -> {:?}", status);
-            self.log_call(status, &message);
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn newDiscreteStates(
         &self,
         newDiscreteStatesNeeded: &mut bool,
@@ -811,14 +705,6 @@ impl FMU2<ME> {
 
         let status =
             unsafe { (self.interfaceType.fmi2NewDiscreteStates)(self.component, &mut eventInfo) };
-
-        if self.logCalls {
-            let message = format!(
-                "fmi2NewDiscreteStates(eventInfo={:?}) -> {:?}",
-                eventInfo, status
-            );
-            self.log_call(status, &message);
-        }
 
         *newDiscreteStatesNeeded = eventInfo.newDiscreteStatesNeeded != fmi2False;
         *terminateSimulation = eventInfo.terminateSimulation != fmi2False;
@@ -834,15 +720,13 @@ impl FMU2<ME> {
         status
     }
 
+    #[log_call(fmi2)]
     pub fn enterContinuousTimeMode(&self) -> fmi2Status {
         let status = unsafe { (self.interfaceType.fmi2EnterContinuousTimeMode)(self.component) };
-        if self.logCalls {
-            let message = format!("fmi2EnterContinuousTimeMode() -> {:?}", status);
-            self.log_call(status, &message);
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn completedIntegratorStep(
         &self,
         noSetFMUStatePriorToCurrentPoint: fmi2Boolean,
@@ -857,41 +741,24 @@ impl FMU2<ME> {
                 terminateSimulation,
             )
         };
-        if self.logCalls {
-            let message = format!(
-                "fmi2CompletedIntegratorStep(noSetFMUStatePriorToCurrentPoint={}, enterEventMode={:?}, terminateSimulation={:?}) -> {:?}",
-                noSetFMUStatePriorToCurrentPoint, enterEventMode, terminateSimulation, status
-            );
-            self.log_call(status, &message);
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn setTime(&self, time: fmi2Real) -> fmi2Status {
         let status = unsafe { (self.interfaceType.fmi2SetTime)(self.component, time) };
-        if self.logCalls {
-            let message = format!("fmi2SetTime(time={}) -> {:?}", time, status);
-            self.log_call(status, &message);
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn setContinuousStates(&self, x: &[fmi2Real]) -> fmi2Status {
         let status = unsafe {
             (self.interfaceType.fmi2SetContinuousStates)(self.component, x.as_ptr(), x.len())
         };
-        if self.logCalls {
-            let message = format!(
-                "fmi2SetContinuousStates(x={:?}, nx={}) -> {:?}",
-                x,
-                x.len(),
-                status
-            );
-            self.log_call(status, message.as_str());
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn getDerivatives(&self, derivatives: &mut [fmi2Real]) -> fmi2Status {
         let status = unsafe {
             (self.interfaceType.fmi2GetDerivatives)(
@@ -900,18 +767,10 @@ impl FMU2<ME> {
                 derivatives.len(),
             )
         };
-        if self.logCalls {
-            let message = format!(
-                "fmi2GetDerivatives(derivatives={:?}, nx={}) -> {:?}",
-                derivatives,
-                derivatives.len(),
-                status
-            );
-            self.log_call(status, message.as_str());
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn getEventIndicators(&self, eventIndicators: &mut [fmi2Real]) -> fmi2Status {
         let status = unsafe {
             (self.interfaceType.fmi2GetEventIndicators)(
@@ -920,34 +779,18 @@ impl FMU2<ME> {
                 eventIndicators.len(),
             )
         };
-        if self.logCalls {
-            let message = format!(
-                "fmi2GetEventIndicators(eventIndicators={:?}, ni={}) -> {:?}",
-                eventIndicators,
-                eventIndicators.len(),
-                status
-            );
-            self.log_call(status, message.as_str());
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn getContinuousStates(&self, x: &mut [fmi2Real]) -> fmi2Status {
         let status = unsafe {
             (self.interfaceType.fmi2GetContinuousStates)(self.component, x.as_mut_ptr(), x.len())
         };
-        if self.logCalls {
-            let message = format!(
-                "fmi2GetContinuousStates(x={:?}, nx={}) -> {:?}",
-                x,
-                x.len(),
-                status
-            );
-            self.log_call(status, message.as_str());
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn getNominalsOfContinuousStates(&self, nominals: &mut [fmi2Real]) -> fmi2Status {
         let status = unsafe {
             (self.interfaceType.fmi2GetNominalsOfContinuousStates)(
@@ -956,15 +799,6 @@ impl FMU2<ME> {
                 nominals.len(),
             )
         };
-        if self.logCalls {
-            let message = format!(
-                "fmi2GetNominalsOfContinuousStates(nominals={:?}, nx={}) -> {:?}",
-                nominals,
-                nominals.len(),
-                status
-            );
-            self.log_call(status, message.as_str());
-        }
         status
     }
 }
@@ -1023,6 +857,7 @@ impl FMU2<CS> {
         Ok(fmu)
     }
 
+    #[log_call(fmi2)]
     pub fn doStep(
         &self,
         currentCommunicationPoint: fmi2Real,
@@ -1037,76 +872,42 @@ impl FMU2<CS> {
                 noSetFMUStatePriorToCurrentPoint,
             )
         };
-        if self.logCalls {
-            let message = format!(
-                "fmi2DoStep(currentCommunicationPoint={}, communicationStepSize={}, noSetFMUStatePriorToCurrentPoint={}) -> {:?}",
-                currentCommunicationPoint,
-                communicationStepSize,
-                noSetFMUStatePriorToCurrentPoint,
-                status
-            );
-            self.log_call(status, message.as_str());
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn cancelStep(&self) -> fmi2Status {
         let status = unsafe { (self.interfaceType.fmi2CancelStep)(self.component) };
-        if self.logCalls {
-            let message = format!("fmi2CancelStep() -> {:?}", status);
-            self.log_call(status, &message);
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn getRealStatus(&self, s: &fmi2StatusKind, value: &mut fmi2Real) -> fmi2Status {
         let status = unsafe { (self.interfaceType.fmi2GetRealStatus)(self.component, *s, value) };
-        if self.logCalls {
-            let message = format!("fmi2GetRealStatus(s={s:?}, value={value}) -> {:?}", status);
-            self.log_call(status, &message);
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn getIntegerStatus(&self, s: &fmi2StatusKind, value: &mut fmi2Integer) -> fmi2Status {
         let status =
             unsafe { (self.interfaceType.fmi2GetIntegerStatus)(self.component, *s, value) };
-        if self.logCalls {
-            let message = format!(
-                "fmi2GetIntegerStatus(s={s:?}, value={value}) -> {:?}",
-                status
-            );
-            self.log_call(status, &message);
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn getBooleanStatus(&self, s: &fmi2StatusKind, value: &mut fmi2Boolean) -> fmi2Status {
         let status =
             unsafe { (self.interfaceType.fmi2GetBooleanStatus)(self.component, *s, value) };
-        if self.logCalls {
-            let message = format!(
-                "fmi2GetBooleanStatus(s={s:?}, value={value}) -> {:?}",
-                status
-            );
-            self.log_call(status, &message);
-        }
         status
     }
 
+    #[log_call(fmi2)]
     pub fn getStringStatus(&self, s: &fmi2StatusKind, value: &mut String) -> fmi2Status {
         let mut buffer: fmi2String = ptr::null();
         let status =
             unsafe { (self.interfaceType.fmi2GetStringStatus)(self.component, *s, &mut buffer) };
         if status == fmi2Status::Ok && !buffer.is_null() {
             *value = unsafe { CStr::from_ptr(buffer).to_string_lossy().into_owned() };
-        }
-        if self.logCalls {
-            let message = format!(
-                "fmi2GetStringStatus(s={s:?}, value={value}) -> {:?}",
-                status
-            );
-            self.log_call(status, &message);
         }
         status
     }
