@@ -16,7 +16,7 @@ use crate::CStrExt;
 use crate::fmi3::log::Logger;
 use crate::log_call;
 use crate::sim::SimulationError::{self};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::ptr::{self, null_mut};
 use std::sync::Arc;
 use types::*;
@@ -521,7 +521,8 @@ impl FMU3 {
     }
 
     pub fn instantiateModelExchange(
-        unzipdir: &Path,
+        implementation: Box<dyn Implementation>,
+        unzipdir: impl AsRef<Path>,
         modelIdentifier: &str,
         instanceName: &str,
         instantiationToken: &str,
@@ -530,7 +531,42 @@ impl FMU3 {
         logger: Arc<dyn Logger>,
         logCalls: bool,
     ) -> Result<Arc<FMU3>, SimulationError> {
-        todo!()
+        let resource_path = unzipdir.as_ref().join("resources").join("");
+
+        let resourcePath = if resource_path.is_dir() {
+            Some(resource_path.as_path())
+        } else {
+            None
+        };
+
+        let instance = implementation.instantiateModelExchange(
+            instanceName,
+            instantiationToken,
+            resourcePath,
+            visible,
+            loggingOn,
+        )?;
+
+        if logCalls {
+            let message = format!(
+                "fmi3InstantiateModelExchange(instanceName=\"{}\", instantiationToken=\"{}\", resourcePath={:?}, visible={}, loggingOn={})",
+                instanceName,
+                instantiationToken,
+                resourcePath,
+                visible,
+                loggingOn,
+            );
+            logger.log_call(fmi3Status::Ok, &message);
+        }
+
+        let fmu = FMU3 {
+            logger,
+            intermediateUpdateHandler: None,
+            logCalls,
+            backend: instance,
+        };
+
+        Ok(Arc::new(fmu))
         // #[allow(clippy::arc_with_non_send_sync)]
         // let fmu = Arc::new(FMU3::new(
         //     unzipdir,

@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
 use crate::dae::DaeManifest;
+use crate::fmi3::Implementation;
 use crate::fmi3::log::DefaultLogger;
+use crate::fmi3::native::{NativeLibrary, PLATFORM_TUPLE};
 use crate::model_description::ModelDescriptionError;
+use crate::platform_binary_path;
 use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
 use crate::sim::solver::{Dae, Ode, SolverFactory};
 use crate::sim::{
@@ -43,7 +46,12 @@ pub fn simulate<S: SolverFactory>(
         DefaultLogger::default()
     });
 
+    let file = platform_binary_path(&settings.unzipdir, PLATFORM_TUPLE, &model_exchange.modelIdentifier);
+
+    let implementation: Box<dyn Implementation> = Box::new(NativeLibrary::load(file)?);
+
     let fmu = FMU3::instantiateModelExchange(
+        implementation,
         &settings.unzipdir,
         &model_exchange.modelIdentifier,
         &settings.model_description.modelName,

@@ -81,7 +81,12 @@ impl FMU3Builder {
                 DefaultLogger::default()
             });
 
+            let file = platform_binary_path(&self.unzipdir, PLATFORM_TUPLE, &me.modelIdentifier);
+
+            let implementation: Box<dyn Implementation> = Box::new(NativeLibrary::load(file)?);
+
             fmi3::FMU3::instantiateModelExchange(
+                implementation,
                 self.unzipdir.path(),
                 &me.modelIdentifier,
                 instanceName,

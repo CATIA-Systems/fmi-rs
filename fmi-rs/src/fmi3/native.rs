@@ -392,7 +392,33 @@ impl Implementation for Arc<NativeLibrary> {
         visible: bool,
         loggingOn: bool,
     ) -> Result<Box<dyn Instance>, SimulationError> {
-        todo!()
+        let instanceEnvironment = null_mut();
+        let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
+
+        let resource_path = resourcePath
+            .map(|path| CString::new(path.to_string_lossy().as_ref()).unwrap())
+            .unwrap_or_else(|| CString::new("").unwrap());
+
+        let instance = unsafe {
+            (self.fmi3InstantiateModelExchange)(
+                CString::new(instanceName)?.as_ptr(),
+                CString::new(instantiationToken)?.as_ptr(),
+                resource_path.as_ptr(),
+                visible,
+                loggingOn,
+                instanceEnvironment,
+                log_message,
+            )
+        };
+
+        if instance.is_null() {
+            return Err(SimulationError::FMICall);
+        }
+
+        Ok(Box::new(NativeBackend {
+            library: Arc::clone(self),
+            instance,
+        }))
     }
 }
 
