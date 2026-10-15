@@ -522,8 +522,7 @@ impl FMU3 {
 
     pub fn instantiateModelExchange(
         implementation: Box<dyn Implementation>,
-        unzipdir: impl AsRef<Path>,
-        modelIdentifier: &str,
+        resourcePath: Option<&Path>,
         instanceName: &str,
         instantiationToken: &str,
         visible: bool,
@@ -531,14 +530,6 @@ impl FMU3 {
         logger: Arc<dyn Logger>,
         logCalls: bool,
     ) -> Result<Arc<FMU3>, SimulationError> {
-        let resource_path = unzipdir.as_ref().join("resources").join("");
-
-        let resourcePath = if resource_path.is_dir() {
-            Some(resource_path.as_path())
-        } else {
-            None
-        };
-
         let instance = implementation.instantiateModelExchange(
             instanceName,
             instantiationToken,
@@ -567,84 +558,11 @@ impl FMU3 {
         };
 
         Ok(Arc::new(fmu))
-        // #[allow(clippy::arc_with_non_send_sync)]
-        // let fmu = Arc::new(FMU3::new(
-        //     unzipdir,
-        //     modelIdentifier,
-        //     logger,
-        //     logCalls,
-        //     None,
-        // )?);
-
-        // let resource_path = unzipdir.join("resources").join("");
-
-        // let resourcePath = if resource_path.is_dir() {
-        //     Some(resource_path.as_path())
-        // } else {
-        //     None
-        // };
-
-        // let instance_name_cstr = CString::new(instanceName).map_err(|error| {
-        //     SimulationError::Parameter(format!("Invalid instance name: {error}"))
-        // })?;
-        // let instantiation_token_cstr = CString::new(instantiationToken).map_err(|error| {
-        //     SimulationError::Parameter(format!("Invalid instantiation token: {error}"))
-        // })?;
-        // let resource_path_cstr =
-        //     resourcePath.and_then(|path| CString::new(path.to_string_lossy().as_ref()).ok());
-        // let path_ptr = resource_path_cstr
-        //     .as_ref()
-        //     .map(|cstr| cstr.as_ptr())
-        //     .unwrap_or(ptr::null());
-        // let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
-        // let instanceEnvironment = Arc::as_ptr(&fmu).cast::<c_void>() as *mut c_void;
-
-        // let instance = unsafe {
-        //     (fmu.fmi3InstantiateModelExchange)(
-        //         instance_name_cstr.as_ptr(),
-        //         instantiation_token_cstr.as_ptr(),
-        //         path_ptr,
-        //         visible,
-        //         loggingOn,
-        //         instanceEnvironment,
-        //         log_message,
-        //     )
-        // };
-
-        // if fmu.logCalls {
-        //     let status = if instance.is_null() {
-        //         fmi3Status::Error
-        //     } else {
-        //         fmi3Status::Ok
-        //     };
-
-        //     let message = format!(
-        //         "fmi3InstantiateModelExchange(instanceName=\"{}\", instantiationToken=\"{}\", resourcePath={:?}, visible={}, loggingOn={}, instanceEnvironment={:p}, logMessage={:p}) -> {:?}",
-        //         instanceName,
-        //         instantiationToken,
-        //         resourcePath,
-        //         visible,
-        //         loggingOn,
-        //         instanceEnvironment,
-        //         log_message,
-        //         instance
-        //     );
-        //     fmu.log_call(status, &message);
-        // }
-
-        // if instance.is_null() {
-        //     Err(SimulationError::FMICall)
-        // } else {
-        //     let fmu_ptr = instanceEnvironment as *mut FMU3;
-        //     let mut_fmu: &mut FMU3 = unsafe { &mut *fmu_ptr };
-        //     mut_fmu.instance = instance;
-        //     Ok(fmu)
-        // }
     }
 
     pub fn instantiateCoSimulation(
         implementation: Box<dyn Implementation>,
-        unzipdir: impl AsRef<Path>,
+        resourcePath: Option<&Path>,
         instanceName: &str,
         instantiationToken: &str,
         visible: bool,
@@ -655,14 +573,6 @@ impl FMU3 {
         logCalls: bool,
         intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
     ) -> Result<Arc<FMU3>, SimulationError> {
-        let resource_path = unzipdir.as_ref().join("resources").join("");
-
-        let resourcePath = if resource_path.is_dir() {
-            Some(resource_path.as_path())
-        } else {
-            None
-        };
-
         let (requiredIntermediateVariables, _intermediate_update) =
             if let Some(handler) = intermediateUpdateHandler.as_ref() {
                 (

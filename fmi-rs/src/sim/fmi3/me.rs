@@ -50,13 +50,20 @@ pub fn simulate<S: SolverFactory>(
 
     let implementation: Box<dyn Implementation> = Box::new(NativeLibrary::load(file)?);
 
+    let resource_dir = settings.unzipdir.join("resources");
+
+    let resourcePath = if resource_dir.is_dir() {
+        Some(resource_dir.as_path())
+    } else {
+        None
+    };
+
     let fmu = FMU3::instantiateModelExchange(
         implementation,
-        &settings.unzipdir,
-        &model_exchange.modelIdentifier,
+        resourcePath,
         &settings.model_description.modelName,
         &settings.model_description.instantiationToken,
-        false,
+        settings.visible,
         settings.logging_on,
         logger,
         settings.log_fmi_calls,

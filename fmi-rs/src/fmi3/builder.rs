@@ -85,10 +85,17 @@ impl FMU3Builder {
 
             let implementation: Box<dyn Implementation> = Box::new(NativeLibrary::load(file)?);
 
+            let resource_dir = self.unzipdir.path().join("resources");
+
+            let resourcePath = if resource_dir.is_dir() {
+                Some(resource_dir.as_path())
+            } else {
+                None
+            };
+            
             fmi3::FMU3::instantiateModelExchange(
                 implementation,
-                self.unzipdir.path(),
-                &me.modelIdentifier,
+                resourcePath,
                 instanceName,
                 &self.model_description.instantiationToken,
                 self.visible,
@@ -113,9 +120,17 @@ impl FMU3Builder {
 
             let implementation: Box<dyn Implementation> = Box::new(NativeLibrary::load(file)?);
 
+            let resource_dir = self.unzipdir.path().join("resources");
+
+            let resourcePath = if resource_dir.is_dir() {
+                Some(resource_dir.as_path())
+            } else {
+                None
+            };
+
             FMU3::instantiateCoSimulation(
                 implementation,
-                self.unzipdir.path(),
+                resourcePath,
                 instanceName,
                 &self.model_description.instantiationToken,
                 self.visible,

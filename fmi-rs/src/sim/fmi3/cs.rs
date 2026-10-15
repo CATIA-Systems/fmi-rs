@@ -122,12 +122,20 @@ pub fn simulate(
         }
     };
 
+    let resource_dir = settings.unzipdir.join("resources");
+
+    let resourcePath = if resource_dir.is_dir() {
+        Some(resource_dir.as_path())
+    } else {
+        None
+    };
+
     let fmu = FMU3::instantiateCoSimulation(
         implementation,
-        &settings.unzipdir,
+        resourcePath,
         &settings.model_description.modelName,
         &settings.model_description.instantiationToken,
-        false,
+        settings.visible,
         settings.logging_on,
         settings.event_mode_used,
         settings.early_return_allowed,

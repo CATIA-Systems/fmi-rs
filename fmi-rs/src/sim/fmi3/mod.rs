@@ -25,6 +25,7 @@ pub struct SimulationSettings {
     pub enable_dae: bool,
     pub start_time: f64,
     pub stop_time: f64,
+    pub visible: bool,
     pub logging_on: bool,
     pub set_stop_time: bool,
     pub output_interval: f64,
