@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 use std::path::Path;
-use std::ptr::null_mut;
 
 use crate::CStrExt;
 use crate::fmi3::types::*;
+use crate::fmi3::wasm::{fmu_state_bytes, fmu_state_from_bytes, free_fmu_state};
 use crate::fmi3::{Implementation, Instance};
 
 use wasmtime::component::{Component, Linker, ResourceAny};
@@ -150,7 +150,7 @@ impl Implementation for WasmLibrary {
             cs,
         }))
     }
-    
+
     fn instantiateCoSimulation(
         &self,
         instanceName: &str,
@@ -173,7 +173,7 @@ impl From<Result<Status, wasmtime::Error>> for fmi3Status {
             Err(error) => {
                 eprintln!("Wasm call failed: {error:#}");
                 fmi3Status::Error
-            },
+            }
         }
     }
 }
@@ -221,50 +221,8 @@ fn interval_qualifier_from_wit(qualifier: IntervalQualifier) -> fmi3IntervalQual
     }
 }
 
-fn fmu_state_from_bytes(data: Vec<u8>) -> fmi3FMUState {
-    Box::into_raw(Box::new(data)) as fmi3FMUState
-}
-
-fn fmu_state_bytes(state: fmi3FMUState) -> Result<Vec<u8>, fmi3Status> {
-    if state.is_null() {
-        return Err(fmi3Status::Error);
-    }
-    let data = unsafe { (*(state as *mut Vec<u8>)).clone() };
-    Ok(data)
-}
-
-fn free_fmu_state(state: &mut fmi3FMUState) {
-    if !state.is_null() {
-        unsafe {
-            drop(Box::from_raw(*state as *mut Vec<u8>));
-        }
-        *state = null_mut();
-    }
-}
-
-fn apply_discrete_states_info(
-    info: DiscreteStatesInfo,
-    discreteStatesNeedUpdate: &mut fmi3Boolean,
-    terminateSimulation: &mut fmi3Boolean,
-    nominalsOfContinuousStatesChanged: &mut fmi3Boolean,
-    valuesOfContinuousStatesChanged: &mut fmi3Boolean,
-    nextEventTime: &mut Option<fmi3Float64>,
-) {
-    *discreteStatesNeedUpdate = info.new_discrete_states_needed;
-    *terminateSimulation = info.terminate_simulation;
-    *nominalsOfContinuousStatesChanged = info.nominals_of_continuous_states_changed;
-    *valuesOfContinuousStatesChanged = info.values_of_continuous_states_changed;
-    *nextEventTime = if info.next_event_time_defined {
-        Some(info.next_event_time)
-    } else {
-        None
-    };
-}
-
 fn not_implemented(function_name: &str) -> fmi3Status {
-    eprintln!(
-        "Wasm Model Exchange FMU does not implement {function_name}"
-    );
+    eprintln!("Wasm Model Exchange FMU does not implement {function_name}");
     fmi3Status::Error
 }
 
@@ -333,8 +291,8 @@ impl Instance for WasmInstance {
         let mut store = self.store.borrow_mut();
         copy_wasm_values(
             self.world
-            .fmi_fmi3_model_exchange()
-            .model_exchange_instance()
+                .fmi_fmi3_model_exchange()
+                .model_exchange_instance()
                 .call_get_float64(&mut *store, self.cs, valueReferences),
             values,
         )
@@ -769,8 +727,7 @@ impl Instance for WasmInstance {
                     return fmi3Status::Error;
                 }
                 for (i, dependency) in dependencies.iter().enumerate() {
-                    elementIndicesOfDependent[i] =
-                        dependency.element_index_of_dependent as usize;
+                    elementIndicesOfDependent[i] = dependency.element_index_of_dependent as usize;
                     independentVariables[i] = dependency.independent_value_reference;
                     elementIndicesOfIndependents[i] =
                         dependency.element_index_of_independent as usize;
@@ -864,13 +821,7 @@ impl Instance for WasmInstance {
             self.world
                 .fmi_fmi3_model_exchange()
                 .model_exchange_instance()
-                .call_get_directional_derivative(
-                    &mut *store,
-                    self.cs,
-                    unknowns,
-                    knowns,
-                    seed,
-                ),
+                .call_get_directional_derivative(&mut *store, self.cs, unknowns, knowns, seed),
             sensitivity,
         )
     }
@@ -1106,14 +1057,15 @@ impl Instance for WasmInstance {
                 .call_update_discrete_states(&mut *store, self.cs),
         ) {
             Ok(info) => {
-                apply_discrete_states_info(
-                    info,
-                    discreteStatesNeedUpdate,
-                    terminateSimulation,
-                    nominalsOfContinuousStatesChanged,
-                    valuesOfContinuousStatesChanged,
-                    nextEventTime,
-                );
+                *discreteStatesNeedUpdate = info.new_discrete_states_needed;
+                *terminateSimulation = info.terminate_simulation;
+                *nominalsOfContinuousStatesChanged = info.nominals_of_continuous_states_changed;
+                *valuesOfContinuousStatesChanged = info.values_of_continuous_states_changed;
+                *nextEventTime = if info.next_event_time_defined {
+                    Some(info.next_event_time)
+                } else {
+                    None
+                };
                 fmi3Status::Ok
             }
             Err(status) => status,

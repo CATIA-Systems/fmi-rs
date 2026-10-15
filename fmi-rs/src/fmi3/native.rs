@@ -383,7 +383,7 @@ impl Implementation for Arc<NativeLibrary> {
             instance,
         }))
     }
-    
+
     fn instantiateModelExchange(
         &self,
         instanceName: &str,
@@ -394,8 +394,6 @@ impl Implementation for Arc<NativeLibrary> {
     ) -> Result<Box<dyn Instance>, SimulationError> {
         todo!()
     }
-    
-
 }
 
 pub struct NativeBackend {
