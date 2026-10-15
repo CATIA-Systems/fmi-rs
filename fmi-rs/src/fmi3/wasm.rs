@@ -274,7 +274,10 @@ fn apply_discrete_states_info(
     };
 }
 
-fn co_simulation_not_available() -> fmi3Status {
+fn co_simulation_not_available(function_name: &str) -> fmi3Status {
+    eprintln!(
+        "Wasm co-simulation FMU does not implement {function_name} (not exported in the co-simulation WIT world)"
+    );
     fmi3Status::Error
 }
 
@@ -1156,7 +1159,7 @@ impl Instance for WasmBackend {
     }
 
     fn enterContinuousTimeMode(&self) -> fmi3Status {
-        co_simulation_not_available()
+        co_simulation_not_available("fmi3EnterContinuousTimeMode")
     }
 
     fn completedIntegratorStep(
@@ -1165,39 +1168,39 @@ impl Instance for WasmBackend {
         _enterEventMode: &mut fmi3Boolean,
         _terminateSimulation: &mut fmi3Boolean,
     ) -> fmi3Status {
-        co_simulation_not_available()
+        co_simulation_not_available("fmi3CompletedIntegratorStep")
     }
 
     fn setTime(&self, _time: fmi3Float64) -> fmi3Status {
-        co_simulation_not_available()
+        co_simulation_not_available("fmi3SetTime")
     }
 
     fn setContinuousStates(&self, _continuousStates: &[fmi3Float64]) -> fmi3Status {
-        co_simulation_not_available()
+        co_simulation_not_available("fmi3SetContinuousStates")
     }
 
     fn getContinuousStateDerivatives(&self, _derivatives: &mut [fmi3Float64]) -> fmi3Status {
-        co_simulation_not_available()
+        co_simulation_not_available("fmi3GetContinuousStateDerivatives")
     }
 
     fn getEventIndicators(&self, _eventIndicators: &mut [fmi3Float64]) -> fmi3Status {
-        co_simulation_not_available()
+        co_simulation_not_available("fmi3GetEventIndicators")
     }
 
     fn getContinuousStates(&self, _continuousStates: &mut [fmi3Float64]) -> fmi3Status {
-        co_simulation_not_available()
+        co_simulation_not_available("fmi3GetContinuousStates")
     }
 
     fn getNominalsOfContinuousStates(&self, _nominals: &mut [fmi3Float64]) -> fmi3Status {
-        co_simulation_not_available()
+        co_simulation_not_available("fmi3GetNominalsOfContinuousStates")
     }
 
     fn getNumberOfEventIndicators(&self, _nEventIndicators: &mut usize) -> fmi3Status {
-        co_simulation_not_available()
+        co_simulation_not_available("fmi3GetNumberOfEventIndicators")
     }
 
     fn getNumberOfContinuousStates(&self, _nContinuousStates: &mut usize) -> fmi3Status {
-        co_simulation_not_available()
+        co_simulation_not_available("fmi3GetNumberOfContinuousStates")
     }
 
     fn enterStepMode(&self) -> fmi3Status {
@@ -1239,6 +1242,6 @@ impl Instance for WasmBackend {
         _activationTime: fmi3Float64,
         _priority: fmi3Float64,
     ) -> fmi3Status {
-        co_simulation_not_available()
+        co_simulation_not_available("fmi3ActivateModelPartition")
     }
 }
