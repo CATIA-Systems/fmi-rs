@@ -9,6 +9,7 @@ pub mod builder;
 pub mod log;
 pub mod native;
 pub mod types;
+#[cfg(feature = "wasm")]
 pub mod wasm;
 
 use crate::CStrExt;

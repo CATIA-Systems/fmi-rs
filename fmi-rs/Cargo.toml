@@ -16,6 +16,7 @@ default = ["zip"]
 schema = []
 sundials = []
 test-fixtures = ["dep:reqwest", "dep:anyhow"]
+wasm = ["dep:wasmtime", "dep:wasmtime-wasi"]
 zip = ["dep:zip"]
 
 [dependencies]
@@ -36,8 +37,8 @@ strum = { version = "0.28", features = ["derive"] }
 tempfile = "3.27"
 thiserror = "2.0"
 url = "2"
-wasmtime = { version = "45", features = ["component-model"] }
-wasmtime-wasi = "45"
+wasmtime = { version = "45", features = ["component-model"], optional = true }
+wasmtime-wasi = { version = "45", optional = true }
 zip = { version = "8.6", optional = true }
 
 [build-dependencies]

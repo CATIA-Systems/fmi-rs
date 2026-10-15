@@ -47,16 +47,14 @@ macro_rules! fmi2_get {
             "The number of values must be equal to the number of value references."
         );
 
-        let status = unsafe {
+        unsafe {
             ($self.$func)(
                 $self.component,
                 $value_refs.as_ptr(),
                 $value_refs.len(),
                 $values.as_mut_ptr(),
             )
-        };
-
-        status
+        }
     }};
 }
 
@@ -68,16 +66,14 @@ macro_rules! fmi2_set {
             "The number of values must be equal to the number of value references."
         );
 
-        let status = unsafe {
+        unsafe {
             ($self.$func)(
                 $self.component,
                 $value_refs.as_ptr(),
                 $value_refs.len(),
                 $values.as_ptr(),
             )
-        };
-
-        status
+        }
     }};
 }
 
@@ -379,8 +375,7 @@ impl<T> FMU2<T> {
 
     #[log_call(fmi2)]
     pub fn terminate(&self) -> fmi2Status {
-        let status = unsafe { (self.fmi2Terminate)(self.component) };
-        status
+        unsafe { (self.fmi2Terminate)(self.component) }
     }
 
     #[log_call(fmi2)]
@@ -402,7 +397,7 @@ impl<T> FMU2<T> {
             (fmi2False, 0.0)
         };
 
-        let status = unsafe {
+        unsafe {
             (self.fmi2SetupExperiment)(
                 self.component,
                 toleranceDefined,
@@ -411,27 +406,22 @@ impl<T> FMU2<T> {
                 stopTimeDefined,
                 stopTime,
             )
-        };
-
-        status
+        }
     }
 
     #[log_call(fmi2)]
     pub fn enterInitializationMode(&self) -> fmi2Status {
-        let status = unsafe { (self.fmi2EnterInitializationMode)(self.component) };
-        status
+        unsafe { (self.fmi2EnterInitializationMode)(self.component) }
     }
 
     #[log_call(fmi2)]
     pub fn exitInitializationMode(&self) -> fmi2Status {
-        let status = unsafe { (self.fmi2ExitInitializationMode)(self.component) };
-        status
+        unsafe { (self.fmi2ExitInitializationMode)(self.component) }
     }
 
     #[log_call(fmi2)]
     pub fn reset(&self) -> fmi2Status {
-        let status = unsafe { (self.fmi2Reset)(self.component) };
-        status
+        unsafe { (self.fmi2Reset)(self.component) }
     }
 
     #[log_call(fmi2)]
@@ -525,44 +515,38 @@ impl<T> FMU2<T> {
 
         let value_ptrs: Vec<fmi2String> = values.iter().map(|v| v.as_ptr() as fmi2String).collect();
 
-        let status = unsafe {
+        unsafe {
             (self.fmi2SetString)(
                 self.component,
                 valueReferences.as_ptr(),
                 valueReferences.len(),
                 value_ptrs.as_ptr(),
             )
-        };
-
-        status
+        }
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     #[log_call(fmi2)]
     pub fn getFMUstate(&self, FMUstate: *mut fmi2FMUstate) -> fmi2Status {
-        let status = unsafe { (self.fmi2GetFMUstate)(self.component, FMUstate) };
-        status
+        unsafe { (self.fmi2GetFMUstate)(self.component, FMUstate) }
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     #[log_call(fmi2)]
     pub fn setFMUstate(&self, FMUstate: fmi2FMUstate) -> fmi2Status {
-        let status = unsafe { (self.fmi2SetFMUstate)(self.component, FMUstate) };
-        status
+        unsafe { (self.fmi2SetFMUstate)(self.component, FMUstate) }
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     #[log_call(fmi2)]
     pub fn freeFMUstate(&self, FMUstate: *mut fmi2FMUstate) -> fmi2Status {
-        let status = unsafe { (self.fmi2FreeFMUstate)(self.component, FMUstate) };
-        status
+        unsafe { (self.fmi2FreeFMUstate)(self.component, FMUstate) }
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     #[log_call(fmi2)]
     pub fn serializedFMUstateSize(&self, FMUstate: fmi2FMUstate, size: &mut usize) -> fmi2Status {
-        let status = unsafe { (self.fmi2SerializedFMUstateSize)(self.component, FMUstate, size) };
-        status
+        unsafe { (self.fmi2SerializedFMUstateSize)(self.component, FMUstate, size) }
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -575,11 +559,7 @@ impl<T> FMU2<T> {
         let size = serializedState.len();
         let serializedState = serializedState.as_mut_ptr();
 
-        let status = unsafe {
-            (self.fmi2SerializeFMUstate)(self.component, FMUstate, serializedState, size)
-        };
-
-        status
+        unsafe { (self.fmi2SerializeFMUstate)(self.component, FMUstate, serializedState, size) }
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -589,16 +569,14 @@ impl<T> FMU2<T> {
         serializedState: &[fmi2Byte],
         FMUstate: *mut fmi2FMUstate,
     ) -> fmi2Status {
-        let status = unsafe {
+        unsafe {
             (self.fmi2DeSerializeFMUstate)(
                 self.component,
                 serializedState.as_ptr(),
                 serializedState.len(),
                 FMUstate,
             )
-        };
-
-        status
+        }
     }
 
     // FMI 2.0 Getting partial derivatives
@@ -613,7 +591,7 @@ impl<T> FMU2<T> {
         debug_assert_eq!(vUnknown_ref.len(), dvUnknown.len());
         debug_assert_eq!(vKnown_ref.len(), dvKnown.len());
 
-        let status = unsafe {
+        unsafe {
             (self.fmi2GetDirectionalDerivative)(
                 self.component,
                 vUnknown_ref.as_ptr(),
@@ -623,9 +601,7 @@ impl<T> FMU2<T> {
                 dvKnown.as_ptr(),
                 dvUnknown.as_mut_ptr(),
             )
-        };
-
-        status
+        }
     }
 }
 
