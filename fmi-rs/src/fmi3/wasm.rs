@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 use std::path::Path;
+use std::ptr::null_mut;
 
 use super::types::*;
+use crate::CStrExt;
 use crate::fmi3::{Implementation, Instance};
 
 use wasmtime::component::{Component, Linker, ResourceAny};
@@ -13,7 +15,9 @@ wasmtime::component::bindgen!({
     path:  "wit",
 });
 
-use fmi::fmi3::types::Status;
+use fmi::fmi3::types::{
+    DependencyKind, DiscreteStatesInfo, IntervalFraction, IntervalQualifier, Status,
+};
 
 use crate::sim::SimulationError;
 
@@ -141,6 +145,10 @@ impl Implementation for WasmLibrary {
 
         let world = CoSimulationFmu::instantiate(&mut store, &self.component, &self.linker)?;
 
+        let resource_path = resourcePath
+            .map(|p| p.to_str().unwrap_or_default().to_string())
+            .unwrap_or_default();
+
         let cs: ResourceAny = world
             .fmi_fmi3_co_simulation()
             .co_simulation_instance()
@@ -148,15 +156,14 @@ impl Implementation for WasmLibrary {
                 &mut store,
                 instanceName,
                 instantiationToken,
-                "",
+                &resource_path,
                 visible,
                 loggingOn,
                 eventModeUsed,
                 earlyReturnAllowed,
                 requiredIntermediateVariables,
-            )
-            .unwrap()
-            .unwrap();
+            )?
+            .ok_or(SimulationError::FMICall)?;
 
         Ok(Box::new(WasmBackend {
             world,
@@ -176,18 +183,124 @@ impl From<Result<Status, wasmtime::Error>> for fmi3Status {
     fn from(result: Result<Status, wasmtime::Error>) -> Self {
         match result {
             Ok(status) => status.into(),
-            Err(_) => fmi3Status::Error,
+            Err(error) => {
+                eprintln!("Wasm call failed: {error:#}");
+                fmi3Status::Error
+            },
         }
     }
 }
 
+fn wasm_value<T>(result: Result<Result<T, Status>, wasmtime::Error>) -> Result<T, fmi3Status> {
+    match result {
+        Ok(Ok(value)) => Ok(value),
+        Ok(Err(status)) => Err(status.into()),
+        Err(error) => {
+            eprintln!("Wasm call failed: {error:#}");
+            Err(fmi3Status::Error)
+        }
+    }
+}
+
+fn copy_wasm_values<T: Clone>(
+    result: Result<Result<Vec<T>, Status>, wasmtime::Error>,
+    values: &mut [T],
+) -> fmi3Status {
+    match wasm_value(result) {
+        Ok(returned_values) if returned_values.len() == values.len() => {
+            values.clone_from_slice(&returned_values);
+            fmi3Status::Ok
+        }
+        Ok(_) => fmi3Status::Error,
+        Err(status) => status,
+    }
+}
+
+fn dependency_kind_from_wit(kind: DependencyKind) -> fmi3DependencyKind {
+    match kind {
+        DependencyKind::Dependent => fmi3DependencyKind::Dependent,
+        DependencyKind::Constant => fmi3DependencyKind::Constant,
+        DependencyKind::Fixed => fmi3DependencyKind::Fixed,
+        DependencyKind::Tunable => fmi3DependencyKind::Tunable,
+        DependencyKind::Discrete => fmi3DependencyKind::Discrete,
+    }
+}
+
+fn interval_qualifier_from_wit(qualifier: IntervalQualifier) -> fmi3IntervalQualifier {
+    match qualifier {
+        IntervalQualifier::IntervalNotYetKnown => fmi3IntervalQualifier::IntervalNotYetKnown,
+        IntervalQualifier::IntervalUnchanged => fmi3IntervalQualifier::IntervalUnchanged,
+        IntervalQualifier::IntervalChanged => fmi3IntervalQualifier::IntervalChanged,
+    }
+}
+
+fn fmu_state_from_bytes(data: Vec<u8>) -> fmi3FMUState {
+    Box::into_raw(Box::new(data)) as fmi3FMUState
+}
+
+fn fmu_state_bytes(state: fmi3FMUState) -> Result<Vec<u8>, fmi3Status> {
+    if state.is_null() {
+        return Err(fmi3Status::Error);
+    }
+    let data = unsafe { (*(state as *mut Vec<u8>)).clone() };
+    Ok(data)
+}
+
+fn free_fmu_state(state: &mut fmi3FMUState) {
+    if !state.is_null() {
+        unsafe {
+            drop(Box::from_raw(*state as *mut Vec<u8>));
+        }
+        *state = null_mut();
+    }
+}
+
+fn apply_discrete_states_info(
+    info: DiscreteStatesInfo,
+    discreteStatesNeedUpdate: &mut fmi3Boolean,
+    terminateSimulation: &mut fmi3Boolean,
+    nominalsOfContinuousStatesChanged: &mut fmi3Boolean,
+    valuesOfContinuousStatesChanged: &mut fmi3Boolean,
+    nextEventTime: &mut Option<fmi3Float64>,
+) {
+    *discreteStatesNeedUpdate = info.new_discrete_states_needed;
+    *terminateSimulation = info.terminate_simulation;
+    *nominalsOfContinuousStatesChanged = info.nominals_of_continuous_states_changed;
+    *valuesOfContinuousStatesChanged = info.values_of_continuous_states_changed;
+    *nextEventTime = if info.next_event_time_defined {
+        Some(info.next_event_time)
+    } else {
+        None
+    };
+}
+
+fn co_simulation_not_available() -> fmi3Status {
+    fmi3Status::Error
+}
+
 impl Instance for WasmBackend {
     fn getVersion(&self) -> String {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        match self.world.fmi_fmi3_common().call_get_version(&mut *store) {
+            Ok(version) => version,
+            Err(error) => {
+                eprintln!("Wasm getVersion call failed: {error:#}");
+                String::new()
+            }
+        }
     }
 
     fn setDebugLogging(&self, loggingOn: fmi3Boolean, categories: &[fmi3String]) -> fmi3Status {
-        todo!()
+        let categories: Vec<String> = categories
+            .iter()
+            .map(|category| category.to_str_or_null().into_owned())
+            .collect();
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_debug_logging(&mut *store, self.cs, loggingOn, &categories)
+            .into()
     }
 
     fn enterInitializationMode(
@@ -227,23 +340,14 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Float64],
     ) -> fmi3Status {
-        let world = &self.world;
         let mut store = self.store.borrow_mut();
-        let cs = self.cs;
-
-        let result = world
+        copy_wasm_values(
+            self.world
             .fmi_fmi3_co_simulation()
             .co_simulation_instance()
-            .call_get_float64(&mut *store, cs, valueReferences)
-            .unwrap();
-
-        match result {
-            Ok(get_values) => {
-                values.copy_from_slice(&get_values);
-                fmi3Status::Ok
-            }
-            Err(status) => status.into(),
-        }
+                .call_get_float64(&mut *store, self.cs, valueReferences),
+            values,
+        )
     }
 
     fn doStep(
@@ -256,31 +360,50 @@ impl Instance for WasmBackend {
         earlyReturn: &mut fmi3Boolean,
         lastSuccessfulTime: &mut fmi3Float64,
     ) -> fmi3Status {
-        let world = &self.world;
         let mut store = self.store.borrow_mut();
-        let cs = self.cs.clone();
 
-        let do_step_result = world
+        match (&self.world)
             .fmi_fmi3_co_simulation()
             .co_simulation_instance()
             .call_do_step(
                 &mut *store,
-                cs,
+                self.cs,
                 currentCommunicationPoint,
                 communicationStepSize,
                 noSetFMUStatePriorToCurrentPoint,
-            )
-            .unwrap();
-
-        fmi3Status::Ok
+        ) {
+            Ok(result) => {
+                match result {
+                    Ok(result) => {
+                        *eventHandlingNeeded = result.event_handling_needed;
+                        *terminateSimulation = result.terminate_simulation;
+                        *earlyReturn = result.early_return;
+                        *lastSuccessfulTime = result.last_successful_time;
+                        fmi3Status::Ok
+                    }
+                    Err(status) => return status.into(),
+                }
+            },
+            Err(_) => fmi3Status::Error,
+        }
     }
 
     fn enterEventMode(&self) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_enter_event_mode(&mut *store, self.cs)
+            .into()
     }
 
     fn reset(&self) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_reset(&mut *store, self.cs)
+            .into()
     }
 
     fn getFloat32(
@@ -288,7 +411,14 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Float32],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_float32(&mut *store, self.cs, valueReferences),
+            values,
+        )
     }
 
     fn getInt8(
@@ -296,7 +426,14 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int8],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_int8(&mut *store, self.cs, valueReferences),
+            values,
+        )
     }
 
     fn getUInt8(
@@ -304,7 +441,14 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt8],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_uint8(&mut *store, self.cs, valueReferences),
+            values,
+        )
     }
 
     fn getInt16(
@@ -312,7 +456,14 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int16],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_int16(&mut *store, self.cs, valueReferences),
+            values,
+        )
     }
 
     fn getUInt16(
@@ -320,7 +471,14 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt16],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_uint16(&mut *store, self.cs, valueReferences),
+            values,
+        )
     }
 
     fn getInt32(
@@ -328,7 +486,14 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int32],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_int32(&mut *store, self.cs, valueReferences),
+            values,
+        )
     }
 
     fn getUInt32(
@@ -336,7 +501,14 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt32],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_uint32(&mut *store, self.cs, valueReferences),
+            values,
+        )
     }
 
     fn getInt64(
@@ -344,7 +516,14 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int64],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_int64(&mut *store, self.cs, valueReferences),
+            values,
+        )
     }
 
     fn getUInt64(
@@ -352,7 +531,14 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt64],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_uint64(&mut *store, self.cs, valueReferences),
+            values,
+        )
     }
 
     fn getBoolean(
@@ -360,7 +546,14 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Boolean],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_boolean(&mut *store, self.cs, valueReferences),
+            values,
+        )
     }
 
     fn getString(
@@ -368,7 +561,14 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &mut [String],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_string(&mut *store, self.cs, valueReferences),
+            values,
+        )
     }
 
     fn getBinary(
@@ -376,7 +576,14 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &mut [Vec<fmi3Byte>],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_binary(&mut *store, self.cs, valueReferences),
+            values,
+        )
     }
 
     fn getClock(
@@ -384,7 +591,14 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Clock],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_clock(&mut *store, self.cs, valueReferences),
+            values,
+        )
     }
 
     fn setFloat32(
@@ -392,7 +606,12 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Float32],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_float32(&mut *store, self.cs, valueReferences, values)
+            .into()
     }
 
     fn setFloat64(
@@ -404,25 +623,38 @@ impl Instance for WasmBackend {
         let mut store = self.store.borrow_mut();
         let cs = self.cs;
 
-        let set_result = world
+        world
             .fmi_fmi3_co_simulation()
             .co_simulation_instance()
             .call_set_float64(&mut *store, cs, valueReferences, values)
-            .unwrap();
-
-        set_result.into()
+            .into()
     }
 
     fn setInt8(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int8]) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_int8(&mut *store, self.cs, valueReferences, values)
+            .into()
     }
 
     fn setUInt8(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3UInt8]) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_uint8(&mut *store, self.cs, valueReferences, values)
+            .into()
     }
 
     fn setInt16(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int16]) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_int16(&mut *store, self.cs, valueReferences, values)
+            .into()
     }
 
     fn setUInt16(
@@ -430,11 +662,21 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3UInt16],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_uint16(&mut *store, self.cs, valueReferences, values)
+            .into()
     }
 
     fn setInt32(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int32]) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_int32(&mut *store, self.cs, valueReferences, values)
+            .into()
     }
 
     fn setUInt32(
@@ -442,11 +684,21 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3UInt32],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_uint32(&mut *store, self.cs, valueReferences, values)
+            .into()
     }
 
     fn setInt64(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Int64]) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_int64(&mut *store, self.cs, valueReferences, values)
+            .into()
     }
 
     fn setUInt64(
@@ -454,7 +706,12 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3UInt64],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_uint64(&mut *store, self.cs, valueReferences, values)
+            .into()
     }
 
     fn setBoolean(
@@ -462,11 +719,22 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Boolean],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_boolean(&mut *store, self.cs, valueReferences, values)
+            .into()
     }
 
     fn setString(&self, valueReferences: &[fmi3ValueReference], values: &[&str]) -> fmi3Status {
-        todo!()
+        let values: Vec<String> = values.iter().map(|value| (*value).to_owned()).collect();
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_string(&mut *store, self.cs, valueReferences, &values)
+            .into()
     }
 
     fn setBinary(
@@ -474,11 +742,22 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         values: &[&[fmi3Byte]],
     ) -> fmi3Status {
-        todo!()
+        let values: Vec<Vec<u8>> = values.iter().map(|value| value.to_vec()).collect();
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_binary(&mut *store, self.cs, valueReferences, &values)
+            .into()
     }
 
     fn setClock(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Clock]) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_clock(&mut *store, self.cs, valueReferences, values)
+            .into()
     }
 
     fn getNumberOfVariableDependencies(
@@ -486,7 +765,19 @@ impl Instance for WasmBackend {
         valueReference: fmi3ValueReference,
         nDependencies: &mut usize,
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        match wasm_value(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_number_of_variable_dependencies(&mut *store, self.cs, valueReference),
+        ) {
+            Ok(count) => {
+                *nDependencies = count as usize;
+                fmi3Status::Ok
+            }
+            Err(status) => status,
+        }
     }
 
     fn getVariableDependencies(
@@ -497,23 +788,77 @@ impl Instance for WasmBackend {
         elementIndicesOfIndependents: &mut [usize],
         dependencyKinds: &mut [fmi3DependencyKind],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        match wasm_value(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_variable_dependencies(&mut *store, self.cs, valueReference),
+        ) {
+            Ok(dependencies) => {
+                if dependencies.len() != elementIndicesOfDependent.len()
+                    || dependencies.len() != independentVariables.len()
+                    || dependencies.len() != elementIndicesOfIndependents.len()
+                    || dependencies.len() != dependencyKinds.len()
+                {
+                    return fmi3Status::Error;
+                }
+                for (i, dependency) in dependencies.iter().enumerate() {
+                    elementIndicesOfDependent[i] =
+                        dependency.element_index_of_dependent as usize;
+                    independentVariables[i] = dependency.independent_value_reference;
+                    elementIndicesOfIndependents[i] =
+                        dependency.element_index_of_independent as usize;
+                    dependencyKinds[i] = dependency_kind_from_wit(dependency.kind);
+                }
+                fmi3Status::Ok
+            }
+            Err(status) => status,
+        }
     }
 
     fn getFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        match wasm_value(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_fmu_state(&mut *store, self.cs),
+        ) {
+            Ok(data) => {
+                *FMUState = fmu_state_from_bytes(data);
+                fmi3Status::Ok
+            }
+            Err(status) => status,
+        }
     }
 
     fn setFMUState(&self, FMUState: fmi3FMUState) -> fmi3Status {
-        todo!()
+        let data = match fmu_state_bytes(FMUState) {
+            Ok(data) => data,
+            Err(status) => return status,
+        };
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_fmu_state(&mut *store, self.cs, &data)
+            .into()
     }
 
     fn freeFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status {
-        todo!()
+        free_fmu_state(FMUState);
+        fmi3Status::Ok
     }
 
     fn serializedFMUStateSize(&self, FMUState: fmi3FMUState, size: &mut usize) -> fmi3Status {
-        todo!()
+        match fmu_state_bytes(FMUState) {
+            Ok(data) => {
+                *size = data.len();
+                fmi3Status::Ok
+            }
+            Err(status) => status,
+        }
     }
 
     fn serializeFMUState(
@@ -521,7 +866,16 @@ impl Instance for WasmBackend {
         fmuState: fmi3FMUState,
         serializedState: &mut [fmi3Byte],
     ) -> fmi3Status {
-        todo!()
+        match fmu_state_bytes(fmuState) {
+            Ok(data) => {
+                if data.len() != serializedState.len() {
+                    return fmi3Status::Error;
+                }
+                serializedState.clone_from_slice(&data);
+                fmi3Status::Ok
+            }
+            Err(status) => status,
+        }
     }
 
     fn deserializeFMUState(
@@ -529,7 +883,8 @@ impl Instance for WasmBackend {
         serializedState: &[fmi3Byte],
         FMUState: &mut fmi3FMUState,
     ) -> fmi3Status {
-        todo!()
+        *FMUState = fmu_state_from_bytes(serializedState.to_vec());
+        fmi3Status::Ok
     }
 
     fn getDirectionalDerivative(
@@ -539,7 +894,20 @@ impl Instance for WasmBackend {
         seed: &[fmi3Float64],
         sensitivity: &mut [fmi3Float64],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_directional_derivative(
+                    &mut *store,
+                    self.cs,
+                    unknowns,
+                    knowns,
+                    seed,
+                ),
+            sensitivity,
+        )
     }
 
     fn getAdjointDerivative(
@@ -549,15 +917,32 @@ impl Instance for WasmBackend {
         seed: &[fmi3Float64],
         sensitivity: &mut [fmi3Float64],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_adjoint_derivative(&mut *store, self.cs, unknowns, knowns, seed),
+            sensitivity,
+        )
     }
 
     fn enterConfigurationMode(&self) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_enter_configuration_mode(&mut *store, self.cs)
+            .into()
     }
 
     fn exitConfigurationMode(&self) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_exit_configuration_mode(&mut *store, self.cs)
+            .into()
     }
 
     fn getIntervalDecimal(
@@ -566,7 +951,25 @@ impl Instance for WasmBackend {
         intervals: &mut [fmi3Float64],
         qualifiers: &mut [fmi3IntervalQualifier],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        match wasm_value(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_interval_decimal(&mut *store, self.cs, valueReferences),
+        ) {
+            Ok(results) => {
+                if results.len() != intervals.len() || results.len() != qualifiers.len() {
+                    return fmi3Status::Error;
+                }
+                for (i, (interval, qualifier)) in results.iter().enumerate() {
+                    intervals[i] = *interval;
+                    qualifiers[i] = interval_qualifier_from_wit(*qualifier);
+                }
+                fmi3Status::Ok
+            }
+            Err(status) => status,
+        }
     }
 
     fn getIntervalFraction(
@@ -576,7 +979,29 @@ impl Instance for WasmBackend {
         resolutions: &mut [fmi3UInt64],
         qualifiers: &mut [fmi3IntervalQualifier],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        match wasm_value(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_interval_fraction(&mut *store, self.cs, valueReferences),
+        ) {
+            Ok(results) => {
+                if results.len() != counters.len()
+                    || results.len() != resolutions.len()
+                    || results.len() != qualifiers.len()
+                {
+                    return fmi3Status::Error;
+                }
+                for (i, (fraction, qualifier)) in results.iter().enumerate() {
+                    counters[i] = fraction.counter;
+                    resolutions[i] = fraction.resolution;
+                    qualifiers[i] = interval_qualifier_from_wit(*qualifier);
+                }
+                fmi3Status::Ok
+            }
+            Err(status) => status,
+        }
     }
 
     fn getShiftDecimal(
@@ -584,7 +1009,14 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         shifts: &mut [fmi3Float64],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_shift_decimal(&mut *store, self.cs, valueReferences),
+            shifts,
+        )
     }
 
     fn getShiftFraction(
@@ -593,7 +1025,25 @@ impl Instance for WasmBackend {
         counters: &mut [fmi3UInt64],
         resolutions: &mut [fmi3UInt64],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        match wasm_value(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_shift_fraction(&mut *store, self.cs, valueReferences),
+        ) {
+            Ok(fractions) => {
+                if fractions.len() != counters.len() || fractions.len() != resolutions.len() {
+                    return fmi3Status::Error;
+                }
+                for (i, fraction) in fractions.iter().enumerate() {
+                    counters[i] = fraction.counter;
+                    resolutions[i] = fraction.resolution;
+                }
+                fmi3Status::Ok
+            }
+            Err(status) => status,
+        }
     }
 
     fn setIntervalDecimal(
@@ -601,7 +1051,12 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         intervals: &[fmi3Float64],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_interval_decimal(&mut *store, self.cs, valueReferences, intervals)
+            .into()
     }
 
     fn setIntervalFraction(
@@ -610,7 +1065,20 @@ impl Instance for WasmBackend {
         counters: &[fmi3UInt64],
         resolutions: &[fmi3UInt64],
     ) -> fmi3Status {
-        todo!()
+        let intervals: Vec<IntervalFraction> = counters
+            .iter()
+            .zip(resolutions)
+            .map(|(counter, resolution)| IntervalFraction {
+                counter: *counter,
+                resolution: *resolution,
+            })
+            .collect();
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_interval_fraction(&mut *store, self.cs, valueReferences, &intervals)
+            .into()
     }
 
     fn setShiftDecimal(
@@ -618,7 +1086,12 @@ impl Instance for WasmBackend {
         valueReferences: &[fmi3ValueReference],
         shifts: &[fmi3Float64],
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_shift_decimal(&mut *store, self.cs, valueReferences, shifts)
+            .into()
     }
 
     fn setShiftFraction(
@@ -627,11 +1100,29 @@ impl Instance for WasmBackend {
         counters: &[fmi3UInt64],
         resolutions: &[fmi3UInt64],
     ) -> fmi3Status {
-        todo!()
+        let shifts: Vec<IntervalFraction> = counters
+            .iter()
+            .zip(resolutions)
+            .map(|(counter, resolution)| IntervalFraction {
+                counter: *counter,
+                resolution: *resolution,
+            })
+            .collect();
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_set_shift_fraction(&mut *store, self.cs, valueReferences, &shifts)
+            .into()
     }
 
     fn evaluateDiscreteStates(&self) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_evaluate_discrete_states(&mut *store, self.cs)
+            .into()
     }
 
     fn updateDiscreteStates(
@@ -642,56 +1133,80 @@ impl Instance for WasmBackend {
         valuesOfContinuousStatesChanged: &mut fmi3Boolean,
         nextEventTime: &mut Option<fmi3Float64>,
     ) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        match wasm_value(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_update_discrete_states(&mut *store, self.cs),
+        ) {
+            Ok(info) => {
+                apply_discrete_states_info(
+                    info,
+                    discreteStatesNeedUpdate,
+                    terminateSimulation,
+                    nominalsOfContinuousStatesChanged,
+                    valuesOfContinuousStatesChanged,
+                    nextEventTime,
+                );
+                fmi3Status::Ok
+            }
+            Err(status) => status,
+        }
     }
 
     fn enterContinuousTimeMode(&self) -> fmi3Status {
-        todo!()
+        co_simulation_not_available()
     }
 
     fn completedIntegratorStep(
         &self,
-        noSetFMUStatePriorToCurrentPoint: fmi3Boolean,
-        enterEventMode: &mut fmi3Boolean,
-        terminateSimulation: &mut fmi3Boolean,
+        _noSetFMUStatePriorToCurrentPoint: fmi3Boolean,
+        _enterEventMode: &mut fmi3Boolean,
+        _terminateSimulation: &mut fmi3Boolean,
     ) -> fmi3Status {
-        todo!()
+        co_simulation_not_available()
     }
 
-    fn setTime(&self, time: fmi3Float64) -> fmi3Status {
-        todo!()
+    fn setTime(&self, _time: fmi3Float64) -> fmi3Status {
+        co_simulation_not_available()
     }
 
-    fn setContinuousStates(&self, continuousStates: &[fmi3Float64]) -> fmi3Status {
-        todo!()
+    fn setContinuousStates(&self, _continuousStates: &[fmi3Float64]) -> fmi3Status {
+        co_simulation_not_available()
     }
 
-    fn getContinuousStateDerivatives(&self, derivatives: &mut [fmi3Float64]) -> fmi3Status {
-        todo!()
+    fn getContinuousStateDerivatives(&self, _derivatives: &mut [fmi3Float64]) -> fmi3Status {
+        co_simulation_not_available()
     }
 
-    fn getEventIndicators(&self, eventIndicators: &mut [fmi3Float64]) -> fmi3Status {
-        todo!()
+    fn getEventIndicators(&self, _eventIndicators: &mut [fmi3Float64]) -> fmi3Status {
+        co_simulation_not_available()
     }
 
-    fn getContinuousStates(&self, continuousStates: &mut [fmi3Float64]) -> fmi3Status {
-        todo!()
+    fn getContinuousStates(&self, _continuousStates: &mut [fmi3Float64]) -> fmi3Status {
+        co_simulation_not_available()
     }
 
-    fn getNominalsOfContinuousStates(&self, nominals: &mut [fmi3Float64]) -> fmi3Status {
-        todo!()
+    fn getNominalsOfContinuousStates(&self, _nominals: &mut [fmi3Float64]) -> fmi3Status {
+        co_simulation_not_available()
     }
 
-    fn getNumberOfEventIndicators(&self, nEventIndicators: &mut usize) -> fmi3Status {
-        todo!()
+    fn getNumberOfEventIndicators(&self, _nEventIndicators: &mut usize) -> fmi3Status {
+        co_simulation_not_available()
     }
 
-    fn getNumberOfContinuousStates(&self, nContinuousStates: &mut usize) -> fmi3Status {
-        todo!()
+    fn getNumberOfContinuousStates(&self, _nContinuousStates: &mut usize) -> fmi3Status {
+        co_simulation_not_available()
     }
 
     fn enterStepMode(&self) -> fmi3Status {
-        todo!()
+        let mut store = self.store.borrow_mut();
+        self.world
+            .fmi_fmi3_co_simulation()
+            .co_simulation_instance()
+            .call_enter_step_mode(&mut *store, self.cs)
+            .into()
     }
 
     fn getOutputDerivatives(
@@ -700,15 +1215,30 @@ impl Instance for WasmBackend {
         orders: &[fmi3Int32],
         values: &mut [fmi3Float64],
     ) -> fmi3Status {
-        todo!()
+        if valueReferences.len() != orders.len() {
+            return fmi3Status::Error;
+        }
+        let requests: Vec<(fmi3ValueReference, u32)> = valueReferences
+            .iter()
+            .zip(orders)
+            .map(|(vr, order)| (*vr, *order as u32))
+            .collect();
+        let mut store = self.store.borrow_mut();
+        copy_wasm_values(
+            self.world
+                .fmi_fmi3_co_simulation()
+                .co_simulation_instance()
+                .call_get_output_derivatives(&mut *store, self.cs, &requests),
+            values,
+        )
     }
 
     fn activateModelPartition(
         &self,
-        clockReference: fmi3ValueReference,
-        activationTime: fmi3Float64,
-        priority: fmi3Float64,
+        _clockReference: fmi3ValueReference,
+        _activationTime: fmi3Float64,
+        _priority: fmi3Float64,
     ) -> fmi3Status {
-        todo!()
+        co_simulation_not_available()
     }
 }
