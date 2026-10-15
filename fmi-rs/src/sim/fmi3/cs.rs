@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::fmi3::log::DefaultLogger;
 use crate::fmi3::native::{NativeLibrary, PLATFORM_TUPLE};
 use crate::fmi3::types::{fmi3Boolean, fmi3Float64, fmi3ValueReference};
+#[cfg(feature = "wasm")]
 use crate::fmi3::wasm::cs::WasmLibrary;
 use crate::fmi3::{Implementation, IntermediateUpdateHandler, LibraryKind};
 use crate::platform_binary_path;
@@ -114,6 +115,7 @@ pub fn simulate(
             let file = platform_binary_path(&settings.unzipdir, PLATFORM_TUPLE, model_identifier);
             Box::new(NativeLibrary::load(file)?)
         }
+        #[cfg(feature = "wasm")]
         LibraryKind::Wasm32 => {
             let wasm_file = settings
                 .unzipdir

@@ -16,14 +16,15 @@ use crate::CStrExt;
 use crate::fmi3::log::Logger;
 use crate::log_call;
 use crate::sim::SimulationError::{self};
-use std::path::{Path, PathBuf};
-use std::ptr::{self, null_mut};
+use std::path::Path;
+use std::ptr::{self};
 use std::sync::Arc;
 use types::*;
 
 #[derive(Debug)]
 pub enum LibraryKind {
     Native,
+    #[cfg(feature = "wasm")]
     Wasm32,
 }
 
@@ -541,11 +542,7 @@ impl FMU3 {
         if logCalls {
             let message = format!(
                 "fmi3InstantiateModelExchange(instanceName=\"{}\", instantiationToken=\"{}\", resourcePath={:?}, visible={}, loggingOn={})",
-                instanceName,
-                instantiationToken,
-                resourcePath,
-                visible,
-                loggingOn,
+                instanceName, instantiationToken, resourcePath, visible, loggingOn,
             );
             logger.log_call(fmi3Status::Ok, &message);
         }
@@ -557,6 +554,7 @@ impl FMU3 {
             backend: instance,
         };
 
+        #[allow(clippy::arc_with_non_send_sync)]
         Ok(Arc::new(fmu))
     }
 
@@ -619,6 +617,7 @@ impl FMU3 {
             backend: instance,
         };
 
+        #[allow(clippy::arc_with_non_send_sync)]
         Ok(Arc::new(fmu))
     }
 

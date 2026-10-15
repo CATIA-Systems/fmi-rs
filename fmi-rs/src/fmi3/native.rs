@@ -353,15 +353,19 @@ impl Implementation for Arc<NativeLibrary> {
         let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
         let intermediate_update = ptr::null_mut() as *const fmi3IntermediateUpdateCallback;
 
-        let resource_path = resourcePath
-            .map(|path| CString::new(path.to_string_lossy().as_ref()).unwrap())
-            .unwrap_or_else(|| CString::new("").unwrap());
+        let resource_path_cstr =
+            resourcePath.and_then(|path| CString::new(path.to_string_lossy().as_ref()).ok());
+
+        let path_ptr = resource_path_cstr
+            .as_ref()
+            .map(|cstr| cstr.as_ptr())
+            .unwrap_or(ptr::null());
 
         let instance = unsafe {
             (self.fmi3InstantiateCoSimulation)(
                 CString::new(instanceName)?.as_ptr(),
                 CString::new(instantiationToken)?.as_ptr(),
-                resource_path.as_ptr(),
+                path_ptr,
                 visible,
                 loggingOn,
                 eventModeUsed,
@@ -395,15 +399,19 @@ impl Implementation for Arc<NativeLibrary> {
         let instanceEnvironment = null_mut();
         let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
 
-        let resource_path = resourcePath
-            .map(|path| CString::new(path.to_string_lossy().as_ref()).unwrap())
-            .unwrap_or_else(|| CString::new("").unwrap());
+        let resource_path_cstr =
+            resourcePath.and_then(|path| CString::new(path.to_string_lossy().as_ref()).ok());
+
+        let path_ptr = resource_path_cstr
+            .as_ref()
+            .map(|cstr| cstr.as_ptr())
+            .unwrap_or(ptr::null());
 
         let instance = unsafe {
             (self.fmi3InstantiateModelExchange)(
                 CString::new(instanceName)?.as_ptr(),
                 CString::new(instantiationToken)?.as_ptr(),
-                resource_path.as_ptr(),
+                path_ptr,
                 visible,
                 loggingOn,
                 instanceEnvironment,
@@ -930,7 +938,7 @@ impl Instance for NativeBackend {
 
         let values2: Vec<fmi3String> = values.iter().map(|v| v.as_ptr() as fmi3String).collect();
 
-        let status = unsafe {
+        unsafe {
             (self.library.fmi3SetString)(
                 self.instance,
                 valueReferences.as_ptr(),
@@ -938,9 +946,7 @@ impl Instance for NativeBackend {
                 values2.as_ptr(),
                 values2.len(),
             )
-        };
-
-        status
+        }
     }
 
     fn setBinary(
@@ -951,7 +957,7 @@ impl Instance for NativeBackend {
         let sizes: Vec<usize> = values.iter().map(|v| v.len()).collect();
         let value_ptrs: Vec<fmi3Binary> = values.iter().map(|v| v.as_ptr()).collect();
 
-        let status = unsafe {
+        unsafe {
             (self.library.fmi3SetBinary)(
                 self.instance,
                 valueReferences.as_ptr(),
@@ -960,9 +966,7 @@ impl Instance for NativeBackend {
                 value_ptrs.as_ptr(),
                 value_ptrs.len(),
             )
-        };
-
-        status
+        }
     }
 
     fn setClock(&self, valueReferences: &[fmi3ValueReference], values: &[fmi3Clock]) -> fmi3Status {

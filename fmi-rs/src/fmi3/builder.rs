@@ -92,7 +92,7 @@ impl FMU3Builder {
             } else {
                 None
             };
-            
+
             fmi3::FMU3::instantiateModelExchange(
                 implementation,
                 resourcePath,

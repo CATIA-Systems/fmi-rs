@@ -664,8 +664,7 @@ impl FMU2<ME> {
 
     #[log_call(fmi2)]
     pub fn enterEventMode(&self) -> fmi2Status {
-        let status = unsafe { (self.interfaceType.fmi2EnterEventMode)(self.component) };
-        status
+        unsafe { (self.interfaceType.fmi2EnterEventMode)(self.component) }
     }
 
     #[log_call(fmi2)]
@@ -698,8 +697,7 @@ impl FMU2<ME> {
 
     #[log_call(fmi2)]
     pub fn enterContinuousTimeMode(&self) -> fmi2Status {
-        let status = unsafe { (self.interfaceType.fmi2EnterContinuousTimeMode)(self.component) };
-        status
+        unsafe { (self.interfaceType.fmi2EnterContinuousTimeMode)(self.component) }
     }
 
     #[log_call(fmi2)]
@@ -709,73 +707,64 @@ impl FMU2<ME> {
         enterEventMode: &mut fmi2Boolean,
         terminateSimulation: &mut fmi2Boolean,
     ) -> fmi2Status {
-        let status = unsafe {
+        unsafe {
             (self.interfaceType.fmi2CompletedIntegratorStep)(
                 self.component,
                 noSetFMUStatePriorToCurrentPoint,
                 enterEventMode,
                 terminateSimulation,
             )
-        };
-        status
+        }
     }
 
     #[log_call(fmi2)]
     pub fn setTime(&self, time: fmi2Real) -> fmi2Status {
-        let status = unsafe { (self.interfaceType.fmi2SetTime)(self.component, time) };
-        status
+        unsafe { (self.interfaceType.fmi2SetTime)(self.component, time) }
     }
 
     #[log_call(fmi2)]
     pub fn setContinuousStates(&self, x: &[fmi2Real]) -> fmi2Status {
-        let status = unsafe {
-            (self.interfaceType.fmi2SetContinuousStates)(self.component, x.as_ptr(), x.len())
-        };
-        status
+        unsafe { (self.interfaceType.fmi2SetContinuousStates)(self.component, x.as_ptr(), x.len()) }
     }
 
     #[log_call(fmi2)]
     pub fn getDerivatives(&self, derivatives: &mut [fmi2Real]) -> fmi2Status {
-        let status = unsafe {
+        unsafe {
             (self.interfaceType.fmi2GetDerivatives)(
                 self.component,
                 derivatives.as_mut_ptr(),
                 derivatives.len(),
             )
-        };
-        status
+        }
     }
 
     #[log_call(fmi2)]
     pub fn getEventIndicators(&self, eventIndicators: &mut [fmi2Real]) -> fmi2Status {
-        let status = unsafe {
+        unsafe {
             (self.interfaceType.fmi2GetEventIndicators)(
                 self.component,
                 eventIndicators.as_mut_ptr(),
                 eventIndicators.len(),
             )
-        };
-        status
+        }
     }
 
     #[log_call(fmi2)]
     pub fn getContinuousStates(&self, x: &mut [fmi2Real]) -> fmi2Status {
-        let status = unsafe {
+        unsafe {
             (self.interfaceType.fmi2GetContinuousStates)(self.component, x.as_mut_ptr(), x.len())
-        };
-        status
+        }
     }
 
     #[log_call(fmi2)]
     pub fn getNominalsOfContinuousStates(&self, nominals: &mut [fmi2Real]) -> fmi2Status {
-        let status = unsafe {
+        unsafe {
             (self.interfaceType.fmi2GetNominalsOfContinuousStates)(
                 self.component,
                 nominals.as_mut_ptr(),
                 nominals.len(),
             )
-        };
-        status
+        }
     }
 }
 
@@ -840,41 +829,34 @@ impl FMU2<CS> {
         communicationStepSize: fmi2Real,
         noSetFMUStatePriorToCurrentPoint: fmi2Boolean,
     ) -> fmi2Status {
-        let status = unsafe {
+        unsafe {
             (self.interfaceType.fmi2DoStep)(
                 self.component,
                 currentCommunicationPoint,
                 communicationStepSize,
                 noSetFMUStatePriorToCurrentPoint,
             )
-        };
-        status
+        }
     }
 
     #[log_call(fmi2)]
     pub fn cancelStep(&self) -> fmi2Status {
-        let status = unsafe { (self.interfaceType.fmi2CancelStep)(self.component) };
-        status
+        unsafe { (self.interfaceType.fmi2CancelStep)(self.component) }
     }
 
     #[log_call(fmi2)]
     pub fn getRealStatus(&self, s: &fmi2StatusKind, value: &mut fmi2Real) -> fmi2Status {
-        let status = unsafe { (self.interfaceType.fmi2GetRealStatus)(self.component, *s, value) };
-        status
+        unsafe { (self.interfaceType.fmi2GetRealStatus)(self.component, *s, value) }
     }
 
     #[log_call(fmi2)]
     pub fn getIntegerStatus(&self, s: &fmi2StatusKind, value: &mut fmi2Integer) -> fmi2Status {
-        let status =
-            unsafe { (self.interfaceType.fmi2GetIntegerStatus)(self.component, *s, value) };
-        status
+        unsafe { (self.interfaceType.fmi2GetIntegerStatus)(self.component, *s, value) }
     }
 
     #[log_call(fmi2)]
     pub fn getBooleanStatus(&self, s: &fmi2StatusKind, value: &mut fmi2Boolean) -> fmi2Status {
-        let status =
-            unsafe { (self.interfaceType.fmi2GetBooleanStatus)(self.component, *s, value) };
-        status
+        unsafe { (self.interfaceType.fmi2GetBooleanStatus)(self.component, *s, value) }
     }
 
     #[log_call(fmi2)]

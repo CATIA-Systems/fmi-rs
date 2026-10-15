@@ -46,7 +46,11 @@ pub fn simulate<S: SolverFactory>(
         DefaultLogger::default()
     });
 
-    let file = platform_binary_path(&settings.unzipdir, PLATFORM_TUPLE, &model_exchange.modelIdentifier);
+    let file = platform_binary_path(
+        &settings.unzipdir,
+        PLATFORM_TUPLE,
+        &model_exchange.modelIdentifier,
+    );
 
     let implementation: Box<dyn Implementation> = Box::new(NativeLibrary::load(file)?);
 
