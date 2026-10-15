@@ -16,7 +16,6 @@ use crate::CStrExt;
 use crate::fmi3::log::Logger;
 use crate::log_call;
 use crate::sim::SimulationError::{self};
-use std::os::raw::c_void;
 use std::path::Path;
 use std::ptr::{self, null_mut};
 use std::sync::Arc;
@@ -42,6 +41,15 @@ pub struct Message {
 }
 
 pub trait Implementation {
+    fn instantiateModelExchange(
+        &self,
+        instanceName: &str,
+        instantiationToken: &str,
+        resourcePath: Option<&Path>,
+        visible: bool,
+        loggingOn: bool,
+    ) -> Result<Box<dyn Instance>, SimulationError>;
+
     fn instantiateCoSimulation(
         &self,
         instanceName: &str,

@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::path::Path;
 use std::ptr::null_mut;
 
-use super::types::*;
 use crate::CStrExt;
+use crate::fmi3::types::*;
 use crate::fmi3::{Implementation, Instance};
 
 use wasmtime::component::{Component, Linker, ResourceAny};
@@ -130,6 +130,17 @@ impl WasmLibrary {
 }
 
 impl Implementation for WasmLibrary {
+    fn instantiateModelExchange(
+        &self,
+        instanceName: &str,
+        instantiationToken: &str,
+        resourcePath: Option<&Path>,
+        visible: bool,
+        loggingOn: bool,
+    ) -> Result<Box<dyn Instance>, SimulationError> {
+        Err(SimulationError::InterfaceType)
+    }
+
     fn instantiateCoSimulation(
         &self,
         instanceName: &str,
@@ -171,13 +182,9 @@ impl Implementation for WasmLibrary {
             cs,
         }))
     }
-}
+    
 
-// impl From<wasmtime::Error> for SimulationError {
-//     fn from(err: wasmtime::Error) -> Self {
-//         SimulationError::Wasm { source: err }
-//     }
-// }
+}
 
 impl From<Result<Status, wasmtime::Error>> for fmi3Status {
     fn from(result: Result<Status, wasmtime::Error>) -> Self {
@@ -274,9 +281,9 @@ fn apply_discrete_states_info(
     };
 }
 
-fn co_simulation_not_available(function_name: &str) -> fmi3Status {
+fn not_implemented(function_name: &str) -> fmi3Status {
     eprintln!(
-        "Wasm co-simulation FMU does not implement {function_name} (not exported in the co-simulation WIT world)"
+        "Wasm Co-Simulation FMU does not implement {function_name}"
     );
     fmi3Status::Error
 }
@@ -1159,7 +1166,7 @@ impl Instance for WasmBackend {
     }
 
     fn enterContinuousTimeMode(&self) -> fmi3Status {
-        co_simulation_not_available("fmi3EnterContinuousTimeMode")
+        not_implemented("fmi3EnterContinuousTimeMode")
     }
 
     fn completedIntegratorStep(
@@ -1168,39 +1175,39 @@ impl Instance for WasmBackend {
         _enterEventMode: &mut fmi3Boolean,
         _terminateSimulation: &mut fmi3Boolean,
     ) -> fmi3Status {
-        co_simulation_not_available("fmi3CompletedIntegratorStep")
+        not_implemented("fmi3CompletedIntegratorStep")
     }
 
     fn setTime(&self, _time: fmi3Float64) -> fmi3Status {
-        co_simulation_not_available("fmi3SetTime")
+        not_implemented("fmi3SetTime")
     }
 
     fn setContinuousStates(&self, _continuousStates: &[fmi3Float64]) -> fmi3Status {
-        co_simulation_not_available("fmi3SetContinuousStates")
+        not_implemented("fmi3SetContinuousStates")
     }
 
     fn getContinuousStateDerivatives(&self, _derivatives: &mut [fmi3Float64]) -> fmi3Status {
-        co_simulation_not_available("fmi3GetContinuousStateDerivatives")
+        not_implemented("fmi3GetContinuousStateDerivatives")
     }
 
     fn getEventIndicators(&self, _eventIndicators: &mut [fmi3Float64]) -> fmi3Status {
-        co_simulation_not_available("fmi3GetEventIndicators")
+        not_implemented("fmi3GetEventIndicators")
     }
 
     fn getContinuousStates(&self, _continuousStates: &mut [fmi3Float64]) -> fmi3Status {
-        co_simulation_not_available("fmi3GetContinuousStates")
+        not_implemented("fmi3GetContinuousStates")
     }
 
     fn getNominalsOfContinuousStates(&self, _nominals: &mut [fmi3Float64]) -> fmi3Status {
-        co_simulation_not_available("fmi3GetNominalsOfContinuousStates")
+        not_implemented("fmi3GetNominalsOfContinuousStates")
     }
 
     fn getNumberOfEventIndicators(&self, _nEventIndicators: &mut usize) -> fmi3Status {
-        co_simulation_not_available("fmi3GetNumberOfEventIndicators")
+        not_implemented("fmi3GetNumberOfEventIndicators")
     }
 
     fn getNumberOfContinuousStates(&self, _nContinuousStates: &mut usize) -> fmi3Status {
-        co_simulation_not_available("fmi3GetNumberOfContinuousStates")
+        not_implemented("fmi3GetNumberOfContinuousStates")
     }
 
     fn enterStepMode(&self) -> fmi3Status {
@@ -1242,6 +1249,6 @@ impl Instance for WasmBackend {
         _activationTime: fmi3Float64,
         _priority: fmi3Float64,
     ) -> fmi3Status {
-        co_simulation_not_available("fmi3ActivateModelPartition")
+        not_implemented("fmi3ActivateModelPartition")
     }
 }
