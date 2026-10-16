@@ -1,8 +1,12 @@
 [package]
 name = "fmi-rs-macros"
+workspace = ".."
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
+description = "Proc-macros used by the fmi-rs crate"
 
 [lib]
 proc-macro = true

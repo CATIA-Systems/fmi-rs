@@ -26,7 +26,7 @@ askama = "0.16"
 colored = "3.1"
 csv = "1.4"
 itertools = "0.15"
-fmi-rs-macros = { path = "../fmi-rs-macros" }
+fmi-rs-macros = { workspace = true }
 libc = "0.2"
 libloading = "0.9"
 quick-xml = { version = "0.42", features = ["serialize"] }

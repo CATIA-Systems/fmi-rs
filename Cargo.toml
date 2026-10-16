@@ -8,3 +8,7 @@ edition = "2024"
 rust-version = "1.88"
 license = "BSD-2-Clause"
 repository = "https://github.com/CATIA-Systems/fmi-rs"
+
+[workspace.dependencies]
+# Path for local workspace builds; version is what `cargo publish` writes for crates.io consumers.
+fmi-rs-macros = { version = "0.2.0", path = "fmi-rs-macros" }

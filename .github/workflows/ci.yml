@@ -26,3 +26,6 @@ jobs:
 
       - name: Run Clippy
         run: cargo clippy --lib -- -D warnings
+
+      - name: Verify fmi-rs-macros publish manifest
+        run: cargo publish -p fmi-rs-macros --dry-run
