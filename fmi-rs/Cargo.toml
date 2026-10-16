@@ -7,7 +7,7 @@ rust-version.workspace = true
 description = "Functional Mock-up Interface (FMI) for Rust"
 license.workspace = true
 repository.workspace = true
-readme = "README.md"
+readme = "../README.md"
 keywords = ["fmi", "simulation", "fmu"]
 categories = ["science", "simulation", "api-bindings"]
 
