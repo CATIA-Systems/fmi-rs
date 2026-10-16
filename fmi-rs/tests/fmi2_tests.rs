@@ -10,7 +10,7 @@
     clippy::unwrap_used
 )]
 
-use core::f64;
+use core::f64::consts;
 use fmi_rs::fmi2::builder::FMU2Builder;
 use fmi_rs::fmi2::*;
 use fmi_rs::model_description::fmi2::{Causality, ModelDescription};
@@ -319,7 +319,7 @@ fn test_edge_cases(fmu: Arc<FMU2<CS>>) {
 fn test_parameters(fmu: Arc<FMU2<CS>>) {
     // Test fixed parameter (should be settable during initialization)
     let fixed_param_vr = [5];
-    let fixed_param_values = [f64::consts::PI];
+    let fixed_param_values = [consts::PI];
     let mut output_values = [0.0];
 
     // Set parameter value
@@ -329,7 +329,7 @@ fn test_parameters(fmu: Arc<FMU2<CS>>) {
 
     // Test tunable parameter
     let tunable_param_vr = [6];
-    let tunable_param_values = [f64::consts::E];
+    let tunable_param_values = [consts::E];
     let mut tunable_output_values = [0.0];
 
     assert_ok!(fmu.setReal(&tunable_param_vr, &tunable_param_values));
