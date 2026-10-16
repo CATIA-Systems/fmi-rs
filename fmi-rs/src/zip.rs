@@ -70,7 +70,7 @@ pub fn extract_zip_archive<P: AsRef<Path>, T: AsRef<Path>>(
             None => continue,
         };
 
-        if (*file.name()).ends_with('/') {
+        if file.name()?.ends_with('/') {
             // Directory
             std::fs::create_dir_all(&outpath)?;
         } else {
