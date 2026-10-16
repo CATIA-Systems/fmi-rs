@@ -274,6 +274,7 @@ impl ModelDescription {
                     variable.initial,
                     Some(Initial::Approx) | Some(Initial::Calculated)
                 )
+                && !matches!(variable.variableType, VariableType::Clock { .. })
                 && variable.clocks.is_empty())
                 || variable.causality == Causality::CalculatedParameter
             {
@@ -311,10 +312,27 @@ impl ModelDescription {
             .map(|u| u.valueReference)
             .collect::<HashSet<u32>>();
 
-        if expected_initial_unknown_vrs != actual_initial_unknown_vrs {
+        let clocked_vrs: HashSet<u32> = self
+            .modelVariables
+            .iter()
+            .filter(|v| !v.clocks.is_empty())
+            .map(|v| v.valueReference)
+            .collect();
+
+        let allowed_initial_unknown_vrs = expected_initial_unknown_vrs
+            .union(&clocked_vrs)
+            .copied()
+            .collect::<HashSet<u32>>();
+
+        if !expected_initial_unknown_vrs.is_subset(&actual_initial_unknown_vrs)
+            || !actual_initial_unknown_vrs.is_subset(&allowed_initial_unknown_vrs)
+        {
             problems.push(ValidationError {
                 range: vec![],
-                message: format!("The initial unknowns do not match the expected set of variables. Expected: {:?}, Actual: {:?}", expected_initial_unknown_vrs, actual_initial_unknown_vrs),
+                message: format!(
+                    "The initial unknowns do not match the expected set of variables. Expected: {:?}, Actual: {:?}",
+                    expected_initial_unknown_vrs, actual_initial_unknown_vrs
+                ),
             });
         }
 
