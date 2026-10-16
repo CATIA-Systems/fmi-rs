@@ -11,6 +11,13 @@ Functional Mock-up Interface for Rust.
 - Provides optional SUNDIALS solvers for Model Exchange simulations.
 - Generates CMake projects for source-code FMUs.
 
+## Layered standards
+
+FMI 3.0 [layered standards](https://fmi-standard.org/docs/3.0/#fmi-layered-standards) supported by fmi-rs:
+
+- [fmi-ls-dae](https://github.com/modelica/fmi-ls-dae) -- Differential Algebraic Equations
+- [fmi-ls-wasm](https://github.com/modelica/fmi-ls-dae) -- WebAssembly (experimental)
+
 ## License
 
 fmi-rs is released under the [BSD-2-Clause license](LICENSE).
