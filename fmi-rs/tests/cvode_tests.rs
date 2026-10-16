@@ -7,7 +7,7 @@
     clippy::indexing_slicing,
     clippy::panic,
     clippy::redundant_field_names,
-    clippy::unwrap_used,
+    clippy::unwrap_used
 )]
 
 use std::{ffi::c_void, slice::from_raw_parts_mut};

@@ -7,7 +7,7 @@
     clippy::indexing_slicing,
     clippy::panic,
     clippy::redundant_field_names,
-    clippy::unwrap_used,
+    clippy::unwrap_used
 )]
 
 use fmi_rs::fmi3::builder::FMU3Builder;

@@ -1,7 +1,6 @@
 use std::{
     ffi::{CStr, c_char},
     path::{Path, PathBuf},
-    ptr,
 };
 
 pub use fmi_rs_macros::log_call;
@@ -77,15 +76,16 @@ fn platform_binary_path(
 
 fn load_platform_binary(file: impl AsRef<Path>) -> Result<Box<Library>, SimulationError> {
     let shared_library_path = PathBuf::from(file.as_ref());
-    let library_directory = shared_library_path.parent();
 
     #[cfg(target_os = "windows")]
     let library = {
         use libloading::os::windows::Library as WinLibrary;
-        use std::os::windows::ffi::OsStrExt;
+        use std::{os::windows::ffi::OsStrExt, ptr};
         use windows_sys::Win32::System::LibraryLoader::{
             AddDllDirectory, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS, RemoveDllDirectory,
         };
+
+        let library_directory = shared_library_path.parent();
 
         unsafe {
             let cookie = if let Some(library_directory) = library_directory {

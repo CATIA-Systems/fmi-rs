@@ -5,7 +5,7 @@
     clippy::indexing_slicing,
     clippy::panic,
     clippy::redundant_field_names,
-    clippy::unwrap_used,
+    clippy::unwrap_used
 )]
 
 use fmi_rs::model_description::validation::validate_structured_variable_name;

@@ -15,9 +15,7 @@ wasmtime::component::bindgen!({
     path:  "wit",
 });
 
-use fmi::fmi3::types::{
-    DependencyKind, IntervalFraction, IntervalQualifier, Status,
-};
+use fmi::fmi3::types::{DependencyKind, IntervalFraction, IntervalQualifier, Status};
 
 use crate::sim::SimulationError;
 
@@ -328,7 +326,8 @@ impl Instance for WasmBackend {
     ) -> fmi3Status {
         let mut store = self.store.borrow_mut();
 
-        match self.world
+        match self
+            .world
             .fmi_fmi3_co_simulation()
             .co_simulation_instance()
             .call_do_step(
@@ -970,11 +969,7 @@ impl Instance for WasmBackend {
                 for (i, (fraction, qualifier)) in results.iter().enumerate() {
                     if !(write_slice_at(counters, i, fraction.counter)
                         && write_slice_at(resolutions, i, fraction.resolution)
-                        && write_slice_at(
-                            qualifiers,
-                            i,
-                            interval_qualifier_from_wit(*qualifier),
-                        ))
+                        && write_slice_at(qualifiers, i, interval_qualifier_from_wit(*qualifier)))
                     {
                         return fmi3Status::Error;
                     }
