@@ -3,6 +3,16 @@
 //! Fixtures live under `tests/resources/` next to this crate's manifest (`fmi-rs/`), not at the
 //! workspace root. Paths are built from `CARGO_MANIFEST_DIR` so tests work regardless of cwd.
 
+#![allow(
+    clippy::arc_with_non_send_sync,
+    clippy::arithmetic_side_effects,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::redundant_field_names,
+    clippy::unwrap_used,
+)]
+
 use std::path::{Path, PathBuf};
 
 use fmi_rs::test_fixtures::download_reference_fmus;

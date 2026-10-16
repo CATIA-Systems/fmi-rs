@@ -7,6 +7,10 @@ pub mod me;
 
 const TARGET_PLATFORM: &str = "wasm32-wasip2";
 
+fn write_slice_at<T>(slice: &mut [T], index: usize, value: T) -> bool {
+    slice.get_mut(index).map(|slot| *slot = value).is_some()
+}
+
 fn fmu_state_from_bytes(data: Vec<u8>) -> fmi3FMUState {
     Box::into_raw(Box::new(data)) as fmi3FMUState
 }

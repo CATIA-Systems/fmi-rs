@@ -1,4 +1,14 @@
-#![allow(non_camel_case_types, non_snake_case)]
+#![allow(
+    non_camel_case_types,
+    non_snake_case,
+    clippy::arc_with_non_send_sync,
+    clippy::arithmetic_side_effects,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::redundant_field_names,
+    clippy::unwrap_used,
+)]
 
 use core::f64;
 use fmi_rs::fmi2::builder::FMU2Builder;
@@ -57,7 +67,7 @@ fn test_csv_input(reference_fmus_dir: &Path, resources_dir: &Path) {
     let input_file = Some(resources_dir.join("fmi2").join("Feedthrough_in.csv"));
 
     let settings = SimulationSettings {
-        unzipdir: unzipdir,
+        unzipdir,
         model_description: model_description.clone(),
         start_time: 0.0,
         stop_time: 1.0,

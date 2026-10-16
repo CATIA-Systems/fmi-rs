@@ -1,10 +1,9 @@
 use std::cell::RefCell;
 use std::path::Path;
-use std::ptr::null_mut;
 
 use crate::CStrExt;
 use crate::fmi3::types::*;
-use crate::fmi3::wasm::{fmu_state_bytes, fmu_state_from_bytes, free_fmu_state};
+use crate::fmi3::wasm::{fmu_state_bytes, fmu_state_from_bytes, free_fmu_state, write_slice_at};
 use crate::fmi3::{Implementation, Instance};
 
 use wasmtime::component::{Component, Linker, ResourceAny};
@@ -17,7 +16,7 @@ wasmtime::component::bindgen!({
 });
 
 use fmi::fmi3::types::{
-    DependencyKind, DiscreteStatesInfo, IntervalFraction, IntervalQualifier, Status,
+    DependencyKind, IntervalFraction, IntervalQualifier, Status,
 };
 
 use crate::sim::SimulationError;
@@ -133,11 +132,11 @@ impl WasmLibrary {
 impl Implementation for WasmLibrary {
     fn instantiateModelExchange(
         &self,
-        instanceName: &str,
-        instantiationToken: &str,
-        resourcePath: Option<&Path>,
-        visible: bool,
-        loggingOn: bool,
+        _instanceName: &str,
+        _instantiationToken: &str,
+        _resourcePath: Option<&Path>,
+        _visible: bool,
+        _loggingOn: bool,
     ) -> Result<Box<dyn Instance>, SimulationError> {
         Err(SimulationError::InterfaceType)
     }
@@ -329,7 +328,7 @@ impl Instance for WasmBackend {
     ) -> fmi3Status {
         let mut store = self.store.borrow_mut();
 
-        match (&self.world)
+        match self.world
             .fmi_fmi3_co_simulation()
             .co_simulation_instance()
             .call_do_step(
@@ -347,7 +346,7 @@ impl Instance for WasmBackend {
                     *lastSuccessfulTime = result.last_successful_time;
                     fmi3Status::Ok
                 }
-                Err(status) => return status.into(),
+                Err(status) => status.into(),
             },
             Err(_) => fmi3Status::Error,
         }
@@ -769,11 +768,25 @@ impl Instance for WasmBackend {
                     return fmi3Status::Error;
                 }
                 for (i, dependency) in dependencies.iter().enumerate() {
-                    elementIndicesOfDependent[i] = dependency.element_index_of_dependent as usize;
-                    independentVariables[i] = dependency.independent_value_reference;
-                    elementIndicesOfIndependents[i] =
-                        dependency.element_index_of_independent as usize;
-                    dependencyKinds[i] = dependency_kind_from_wit(dependency.kind);
+                    if !(write_slice_at(
+                        elementIndicesOfDependent,
+                        i,
+                        dependency.element_index_of_dependent as usize,
+                    ) && write_slice_at(
+                        independentVariables,
+                        i,
+                        dependency.independent_value_reference,
+                    ) && write_slice_at(
+                        elementIndicesOfIndependents,
+                        i,
+                        dependency.element_index_of_independent as usize,
+                    ) && write_slice_at(
+                        dependencyKinds,
+                        i,
+                        dependency_kind_from_wit(dependency.kind),
+                    )) {
+                        return fmi3Status::Error;
+                    }
                 }
                 fmi3Status::Ok
             }
@@ -921,8 +934,11 @@ impl Instance for WasmBackend {
                     return fmi3Status::Error;
                 }
                 for (i, (interval, qualifier)) in results.iter().enumerate() {
-                    intervals[i] = *interval;
-                    qualifiers[i] = interval_qualifier_from_wit(*qualifier);
+                    if !(write_slice_at(intervals, i, *interval)
+                        && write_slice_at(qualifiers, i, interval_qualifier_from_wit(*qualifier)))
+                    {
+                        return fmi3Status::Error;
+                    }
                 }
                 fmi3Status::Ok
             }
@@ -952,9 +968,16 @@ impl Instance for WasmBackend {
                     return fmi3Status::Error;
                 }
                 for (i, (fraction, qualifier)) in results.iter().enumerate() {
-                    counters[i] = fraction.counter;
-                    resolutions[i] = fraction.resolution;
-                    qualifiers[i] = interval_qualifier_from_wit(*qualifier);
+                    if !(write_slice_at(counters, i, fraction.counter)
+                        && write_slice_at(resolutions, i, fraction.resolution)
+                        && write_slice_at(
+                            qualifiers,
+                            i,
+                            interval_qualifier_from_wit(*qualifier),
+                        ))
+                    {
+                        return fmi3Status::Error;
+                    }
                 }
                 fmi3Status::Ok
             }
@@ -995,8 +1018,11 @@ impl Instance for WasmBackend {
                     return fmi3Status::Error;
                 }
                 for (i, fraction) in fractions.iter().enumerate() {
-                    counters[i] = fraction.counter;
-                    resolutions[i] = fraction.resolution;
+                    if !(write_slice_at(counters, i, fraction.counter)
+                        && write_slice_at(resolutions, i, fraction.resolution))
+                    {
+                        return fmi3Status::Error;
+                    }
                 }
                 fmi3Status::Ok
             }
