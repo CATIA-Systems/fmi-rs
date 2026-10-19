@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::fmi3::log::DefaultLogger;
+use crate::fmi3::log::Logger;
 use crate::fmi3::native::{NativeLibrary, PLATFORM_TUPLE};
 use crate::fmi3::types::{fmi3Boolean, fmi3Float64, fmi3ValueReference};
 #[cfg(feature = "wasm")]
@@ -8,7 +8,8 @@ use crate::fmi3::wasm::cs::WasmLibrary;
 use crate::fmi3::{Implementation, IntermediateUpdateHandler, LibraryKind};
 use crate::platform_binary_path;
 use crate::sim::fmi3::{
-    SimulationSettings, call, read_initial_fmu_state, set_start_values, write_final_fmu_state,
+    SimulationSettings, call, default_logger, read_initial_fmu_state, set_start_values,
+    write_final_fmu_state,
 };
 use crate::sim::{
     SimulationError, next_communication_point, next_regular_point, validate_simulation_steps,
@@ -71,6 +72,17 @@ pub fn simulate(
     input: Option<Arc<StaticInput>>,
     recorder: Arc<Recorder>,
 ) -> Result<(), SimulationError> {
+    let logger = default_logger(settings)?;
+    simulate_with_logger(settings, input, recorder, logger)
+}
+
+/// Like [`simulate`], but sends the FMU's log messages and the logged FMI calls to `logger`.
+pub fn simulate_with_logger(
+    settings: &SimulationSettings,
+    input: Option<Arc<StaticInput>>,
+    recorder: Arc<Recorder>,
+    logger: Arc<dyn Logger>,
+) -> Result<(), SimulationError> {
     let start_time = settings.start_time;
     let stop_time = settings.stop_time;
     let set_stop_time = settings.set_stop_time;
@@ -91,12 +103,6 @@ pub fn simulate(
 
     let can_handle_variable_communication_step_size =
         co_simulation.canHandleVariableCommunicationStepSize;
-
-    let logger = Arc::new(if let Some(log_file) = &settings.log_file {
-        DefaultLogger::from_path(log_file).map_err(SimulationError::io(&log_file))?
-    } else {
-        DefaultLogger::default()
-    });
 
     let intermediate_update_handler: Option<Box<dyn IntermediateUpdateHandler>> =
         if settings.intermediate_update {

@@ -11,11 +11,13 @@ use std::cell::RefCell;
 use std::ops::ControlFlow;
 use std::path::Path;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use fmi_rs::fmi2::builder::FMU2Builder;
 use fmi_rs::fmi3::LibraryKind;
 use fmi_rs::fmi3::builder::FMU3Builder;
+use fmi_rs::fmi3::log::Logger;
+use fmi_rs::fmi3::types::fmi3Status;
 use fmi_rs::model_description::{fmi2, fmi3};
 use fmi_rs::sim::SimulationError;
 use fmi_rs::sim::solver::ForwardEulerFactory;
@@ -159,6 +161,39 @@ fn test_fmi3_observer_cancels(reference_fmus_dir: &Path, #[case] me: bool) {
         times.borrow().len(),
         recorder.trajectories.borrow().time.len()
     );
+}
+
+/// Collects the logged FMI calls.
+#[derive(Default)]
+struct CollectingLogger {
+    calls: Mutex<Vec<String>>,
+}
+
+impl Logger for CollectingLogger {
+    fn log_call(&self, _status: fmi3Status, message: &str) {
+        self.calls.lock().unwrap().push(message.to_owned());
+    }
+
+    fn log_message(&self, _status: fmi3Status, _category: &str, _message: &str) {}
+}
+
+#[rstest]
+fn test_fmi3_simulate_with_logger(reference_fmus_dir: &Path) {
+    let (_unzipdir, mut settings, trajectories) = fmi3_settings(reference_fmus_dir, "BouncingBall");
+    settings.log_fmi_calls = true;
+
+    let logger = Arc::new(CollectingLogger::default());
+    let recorder = Arc::new(sim3::recorder::Recorder::new(trajectories));
+
+    sim3::cs::simulate_with_logger(&settings, None, recorder, logger.clone()).unwrap();
+
+    let calls = logger.calls.lock().unwrap();
+    assert!(
+        calls
+            .iter()
+            .any(|c| c.starts_with("fmi3InstantiateCoSimulation("))
+    );
+    assert!(calls.iter().any(|c| c.starts_with("fmi3DoStep(")));
 }
 
 #[rstest]
