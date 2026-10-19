@@ -1,18 +1,32 @@
-use std::{cell::RefCell, vec};
+use std::{
+    cell::{Cell, RefCell},
+    fmt, vec,
+};
 
 use crate::{
     fmi3::FMU3,
     model_description::fmi3::{Dimension, VariableType},
     sim::{
-        SimulationError,
+        SampleObserver, SimulationError,
         fmi3::{Trajectories, VariableValue, call},
     },
 };
 
-#[derive(Debug)]
 pub struct Recorder {
     pub trajectories: RefCell<Trajectories>,
     pub sizes: RefCell<Vec<usize>>,
+    observer: RefCell<Option<Box<dyn SampleObserver<VariableValue>>>>,
+    cancelled: Cell<bool>,
+}
+
+impl fmt::Debug for Recorder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Recorder")
+            .field("trajectories", &self.trajectories)
+            .field("sizes", &self.sizes)
+            .field("cancelled", &self.cancelled)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Recorder {
@@ -20,9 +34,27 @@ impl Recorder {
         Recorder {
             trajectories: RefCell::new(trajectories),
             sizes: RefCell::new(vec![]),
+            observer: RefCell::new(None),
+            cancelled: Cell::new(false),
         }
     }
 
+    /// Creates a recorder that notifies `observer` after each sample.
+    pub fn with_observer(
+        trajectories: Trajectories,
+        observer: impl SampleObserver<VariableValue> + 'static,
+    ) -> Self {
+        let recorder = Recorder::new(trajectories);
+        recorder.observer.replace(Some(Box::new(observer)));
+        recorder
+    }
+
+    /// Returns `true` if the observer has cancelled the simulation.
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.get()
+    }
+
+    pub fn update_sizes(&self, fmu: &FMU3) {
     pub fn update_sizes(&self, fmu: &FMU3) -> Result<(), SimulationError> {
         let mut sizes = self.sizes.borrow_mut();
 
@@ -49,6 +81,10 @@ impl Recorder {
     }
 
     pub fn sample(&self, time: f64, fmu: &FMU3) -> Result<(), SimulationError> {
+        if self.cancelled.get() {
+            return Err(SimulationError::Cancelled);
+        }
+
         if self.sizes.borrow().is_empty() {
             self.update_sizes(fmu)?;
         }
@@ -139,6 +175,26 @@ impl Recorder {
         }
 
         trajectories.rows.push(row);
+
+        drop(trajectories);
+
+        self.notify(time)
+    }
+
+    fn notify(&self, time: f64) -> Result<(), SimulationError> {
+        let mut observer = self.observer.borrow_mut();
+
+        let Some(observer) = observer.as_mut() else {
+            return Ok(());
+        };
+
+        let trajectories = self.trajectories.borrow();
+        let row = trajectories.rows.last().map_or(&[][..], Vec::as_slice);
+
+        if observer.on_sample(time, row).is_break() {
+            self.cancelled.set(true);
+            return Err(SimulationError::Cancelled);
+        }
 
         Ok(())
     }

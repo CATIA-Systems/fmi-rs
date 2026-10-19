@@ -21,3 +21,5 @@ Cargo.lock
 
 # IDE / editor
 .vscode/
+fmi-rs-python/python/fmi_rs/__pycache__
+*.pyd

@@ -9,7 +9,7 @@ pub mod fmi2;
 pub mod fmi3;
 pub mod solver;
 
-use std::{ffi::NulError, path::PathBuf, slice::SliceIndex};
+use std::{ffi::NulError, ops::ControlFlow, path::PathBuf, slice::SliceIndex};
 
 use approx::{relative_eq, relative_ne};
 use thiserror::Error;
@@ -81,6 +81,27 @@ pub enum SimulationError {
 
     #[error("Index out of bounds")]
     IndexOutOfBounds,
+
+    #[error("Simulation cancelled")]
+    Cancelled,
+}
+
+/// Observes the samples taken by a recorder during a simulation.
+///
+/// The observer is called on the simulation thread after each recorded sample and can be used to
+/// report progress or stream the results. It may block (e.g. to pause the simulation).
+/// Returning [`ControlFlow::Break`] cancels the simulation with [`SimulationError::Cancelled`].
+pub trait SampleObserver<V> {
+    fn on_sample(&mut self, time: f64, values: &[V]) -> ControlFlow<()>;
+}
+
+impl<V, F> SampleObserver<V> for F
+where
+    F: FnMut(f64, &[V]) -> ControlFlow<()>,
+{
+    fn on_sample(&mut self, time: f64, values: &[V]) -> ControlFlow<()> {
+        self(time, values)
+    }
 }
 
 impl SimulationError {
