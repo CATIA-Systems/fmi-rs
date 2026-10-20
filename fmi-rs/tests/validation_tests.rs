@@ -19,7 +19,9 @@ fn validate_model_description(xml: &str) -> Vec<ValidationError> {
 }
 
 fn initial_unknowns_error(problems: &[ValidationError]) -> bool {
-    problems.iter().any(|p| p.message.contains("initial unknowns"))
+    problems
+        .iter()
+        .any(|p| p.message.contains("initial unknowns"))
 }
 
 const CLOCK_TEST_BASE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -40,7 +42,10 @@ const CLOCK_TEST_BASE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 #[test]
 fn output_clock_not_required_in_initial_unknowns() {
-    let xml = CLOCK_TEST_BASE.replace("{initial_unknowns}", r#"<InitialUnknown valueReference="3"/>"#);
+    let xml = CLOCK_TEST_BASE.replace(
+        "{initial_unknowns}",
+        r#"<InitialUnknown valueReference="3"/>"#,
+    );
     assert!(!initial_unknowns_error(&validate_model_description(&xml)));
 }
 

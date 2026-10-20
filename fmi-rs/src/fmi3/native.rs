@@ -424,17 +424,17 @@ impl Implementation for Arc<NativeLibrary> {
                 intermediate_update,
             )
         };
-        
+
         if instance.is_null() {
             Err(SimulationError::FMICall)
         } else {
             let native_instance_ptr = instanceEnvironment as *mut NativeInstance;
-            let mut_native_instance : &mut NativeInstance = unsafe { &mut *native_instance_ptr };
+            let mut_native_instance: &mut NativeInstance = unsafe { &mut *native_instance_ptr };
             mut_native_instance.instance = instance;
             Ok(native_instance)
         }
     }
-    
+
     fn instantiateModelExchange(
         &self,
         instanceName: &str,
@@ -478,7 +478,7 @@ impl Implementation for Arc<NativeLibrary> {
             Err(SimulationError::FMICall)
         } else {
             let native_instance_ptr = instanceEnvironment as *mut NativeInstance;
-            let mut_native_instance : &mut NativeInstance = unsafe { &mut *native_instance_ptr };
+            let mut_native_instance: &mut NativeInstance = unsafe { &mut *native_instance_ptr };
             mut_native_instance.instance = instance;
             Ok(native_instance)
         }

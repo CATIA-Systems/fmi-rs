@@ -163,7 +163,8 @@ impl Implementation for WasmLibrary {
             .unwrap_or_default();
 
         // Check for both forward slashes and the platform-specific separator
-        let ends_with_separator = resource_path.ends_with('/') || resource_path.ends_with(MAIN_SEPARATOR);
+        let ends_with_separator =
+            resource_path.ends_with('/') || resource_path.ends_with(MAIN_SEPARATOR);
 
         if !resource_path.is_empty() && !ends_with_separator {
             resource_path.push(MAIN_SEPARATOR);

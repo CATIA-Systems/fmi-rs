@@ -50,7 +50,7 @@ pub trait Implementation {
         loggingOn: bool,
         logger: Arc<dyn Logger>,
     ) -> Result<Arc<dyn Instance>, SimulationError>;
-    
+
     fn instantiateCoSimulation(
         &self,
         instanceName: &str,
@@ -592,7 +592,11 @@ impl FMU3 {
                 earlyReturnAllowed,
                 requiredIntermediateVariables,
             );
-            let status = if instance.is_ok() { fmi3Status::Ok } else { fmi3Status::Error };
+            let status = if instance.is_ok() {
+                fmi3Status::Ok
+            } else {
+                fmi3Status::Error
+            };
             logger.log_call(status, &message);
         }
 
