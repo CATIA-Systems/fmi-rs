@@ -418,7 +418,7 @@ pub struct FMU3 {
     logger: Arc<dyn Logger>,
     intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
     logCalls: bool,
-    backend: Arc<dyn Instance>,
+    instance: Arc<dyn Instance>,
 }
 
 pub trait IntermediateUpdateHandler {
@@ -496,7 +496,7 @@ impl FMU3 {
     }
 
     pub fn getVersion(&self) -> String {
-        let version = self.backend.getVersion();
+        let version = self.instance.getVersion();
         if self.logCalls {
             let message = format!("fmi3GetVersion() -> \"{version}\"");
             self.log_call(fmi3Status::Ok, &message);
@@ -535,7 +535,7 @@ impl FMU3 {
             logger,
             intermediateUpdateHandler: None,
             logCalls,
-            backend: instance,
+            instance,
         };
 
         #[allow(clippy::arc_with_non_send_sync)]
@@ -604,7 +604,7 @@ impl FMU3 {
             logger,
             intermediateUpdateHandler,
             logCalls,
-            backend: instance?,
+            instance: instance?,
         };
 
         #[allow(clippy::arc_with_non_send_sync)]
@@ -613,7 +613,7 @@ impl FMU3 {
 
     #[log_call]
     pub fn terminate(&self) -> fmi3Status {
-        self.backend.terminate()
+        self.instance.terminate()
     }
 
     #[log_call]
@@ -623,18 +623,18 @@ impl FMU3 {
         startTime: fmi3Float64,
         stopTime: Option<fmi3Float64>,
     ) -> fmi3Status {
-        self.backend
+        self.instance
             .enterInitializationMode(tolerance, startTime, stopTime)
     }
 
     #[log_call]
     pub fn exitInitializationMode(&self) -> fmi3Status {
-        self.backend.exitInitializationMode()
+        self.instance.exitInitializationMode()
     }
 
     #[log_call]
     pub fn reset(&self) -> fmi3Status {
-        self.backend.reset()
+        self.instance.reset()
     }
 
     #[log_call]
@@ -648,7 +648,7 @@ impl FMU3 {
         earlyReturn: &mut fmi3Boolean,
         lastSuccessfulTime: &mut fmi3Float64,
     ) -> fmi3Status {
-        self.backend.doStep(
+        self.instance.doStep(
             currentCommunicationPoint,
             communicationStepSize,
             noSetFMUStatePriorToCurrentPoint,
@@ -665,7 +665,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Float32],
     ) -> fmi3Status {
-        self.backend.getFloat32(valueReferences, values)
+        self.instance.getFloat32(valueReferences, values)
     }
 
     #[log_call]
@@ -674,7 +674,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Float64],
     ) -> fmi3Status {
-        self.backend.getFloat64(valueReferences, values)
+        self.instance.getFloat64(valueReferences, values)
     }
 
     #[log_call]
@@ -683,7 +683,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int8],
     ) -> fmi3Status {
-        self.backend.getInt8(valueReferences, values)
+        self.instance.getInt8(valueReferences, values)
     }
 
     #[log_call]
@@ -692,7 +692,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt8],
     ) -> fmi3Status {
-        self.backend.getUInt8(valueReferences, values)
+        self.instance.getUInt8(valueReferences, values)
     }
 
     #[log_call]
@@ -701,7 +701,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int16],
     ) -> fmi3Status {
-        self.backend.getInt16(valueReferences, values)
+        self.instance.getInt16(valueReferences, values)
     }
 
     #[log_call]
@@ -710,7 +710,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt16],
     ) -> fmi3Status {
-        self.backend.getUInt16(valueReferences, values)
+        self.instance.getUInt16(valueReferences, values)
     }
 
     #[log_call]
@@ -719,7 +719,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int32],
     ) -> fmi3Status {
-        self.backend.getInt32(valueReferences, values)
+        self.instance.getInt32(valueReferences, values)
     }
 
     #[log_call]
@@ -728,7 +728,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt32],
     ) -> fmi3Status {
-        self.backend.getUInt32(valueReferences, values)
+        self.instance.getUInt32(valueReferences, values)
     }
 
     #[log_call]
@@ -737,7 +737,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Int64],
     ) -> fmi3Status {
-        self.backend.getInt64(valueReferences, values)
+        self.instance.getInt64(valueReferences, values)
     }
 
     #[log_call]
@@ -746,7 +746,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3UInt64],
     ) -> fmi3Status {
-        self.backend.getUInt64(valueReferences, values)
+        self.instance.getUInt64(valueReferences, values)
     }
 
     #[log_call]
@@ -755,7 +755,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Boolean],
     ) -> fmi3Status {
-        self.backend.getBoolean(valueReferences, values)
+        self.instance.getBoolean(valueReferences, values)
     }
 
     #[log_call]
@@ -764,7 +764,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [String],
     ) -> fmi3Status {
-        self.backend.getString(valueReferences, values)
+        self.instance.getString(valueReferences, values)
     }
 
     #[log_call]
@@ -773,7 +773,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [fmi3Clock],
     ) -> fmi3Status {
-        self.backend.getClock(valueReferences, values)
+        self.instance.getClock(valueReferences, values)
     }
 
     #[log_call]
@@ -782,7 +782,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &mut [Vec<fmi3Byte>],
     ) -> fmi3Status {
-        self.backend.getBinary(valueReferences, values)
+        self.instance.getBinary(valueReferences, values)
     }
 
     #[log_call]
@@ -791,7 +791,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Float32],
     ) -> fmi3Status {
-        self.backend.setFloat32(valueReferences, values)
+        self.instance.setFloat32(valueReferences, values)
     }
 
     #[log_call]
@@ -800,7 +800,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Float64],
     ) -> fmi3Status {
-        self.backend.setFloat64(valueReferences, values)
+        self.instance.setFloat64(valueReferences, values)
     }
 
     #[log_call]
@@ -809,7 +809,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Int8],
     ) -> fmi3Status {
-        self.backend.setInt8(valueReferences, values)
+        self.instance.setInt8(valueReferences, values)
     }
 
     #[log_call]
@@ -818,7 +818,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3UInt8],
     ) -> fmi3Status {
-        self.backend.setUInt8(valueReferences, values)
+        self.instance.setUInt8(valueReferences, values)
     }
 
     #[log_call]
@@ -827,7 +827,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Int16],
     ) -> fmi3Status {
-        self.backend.setInt16(valueReferences, values)
+        self.instance.setInt16(valueReferences, values)
     }
 
     #[log_call]
@@ -836,7 +836,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3UInt16],
     ) -> fmi3Status {
-        self.backend.setUInt16(valueReferences, values)
+        self.instance.setUInt16(valueReferences, values)
     }
 
     #[log_call]
@@ -845,7 +845,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Int32],
     ) -> fmi3Status {
-        self.backend.setInt32(valueReferences, values)
+        self.instance.setInt32(valueReferences, values)
     }
 
     #[log_call]
@@ -854,7 +854,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3UInt32],
     ) -> fmi3Status {
-        self.backend.setUInt32(valueReferences, values)
+        self.instance.setUInt32(valueReferences, values)
     }
 
     #[log_call]
@@ -863,7 +863,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Int64],
     ) -> fmi3Status {
-        self.backend.setInt64(valueReferences, values)
+        self.instance.setInt64(valueReferences, values)
     }
 
     #[log_call]
@@ -872,7 +872,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3UInt64],
     ) -> fmi3Status {
-        self.backend.setUInt64(valueReferences, values)
+        self.instance.setUInt64(valueReferences, values)
     }
 
     #[log_call]
@@ -881,12 +881,12 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Boolean],
     ) -> fmi3Status {
-        self.backend.setBoolean(valueReferences, values)
+        self.instance.setBoolean(valueReferences, values)
     }
 
     #[log_call]
     pub fn setString(&self, valueReferences: &[fmi3ValueReference], values: &[&str]) -> fmi3Status {
-        self.backend.setString(valueReferences, values)
+        self.instance.setString(valueReferences, values)
     }
 
     #[log_call]
@@ -895,7 +895,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[fmi3Clock],
     ) -> fmi3Status {
-        self.backend.setClock(valueReferences, values)
+        self.instance.setClock(valueReferences, values)
     }
 
     #[log_call]
@@ -904,22 +904,22 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         values: &[&[fmi3Byte]],
     ) -> fmi3Status {
-        self.backend.setBinary(valueReferences, values)
+        self.instance.setBinary(valueReferences, values)
     }
 
     #[log_call]
     pub fn setDebugLogging(&self, loggingOn: fmi3Boolean, categories: &[fmi3String]) -> fmi3Status {
-        self.backend.setDebugLogging(loggingOn, categories)
+        self.instance.setDebugLogging(loggingOn, categories)
     }
 
     #[log_call]
     pub fn enterEventMode(&self) -> fmi3Status {
-        self.backend.enterEventMode()
+        self.instance.enterEventMode()
     }
 
     #[log_call]
     pub fn enterStepMode(&self) -> fmi3Status {
-        self.backend.enterStepMode()
+        self.instance.enterStepMode()
     }
 
     #[log_call]
@@ -928,7 +928,7 @@ impl FMU3 {
         valueReference: fmi3ValueReference,
         nDependencies: &mut usize,
     ) -> fmi3Status {
-        self.backend
+        self.instance
             .getNumberOfVariableDependencies(valueReference, nDependencies)
     }
 
@@ -941,7 +941,7 @@ impl FMU3 {
         elementIndicesOfIndependents: &mut [usize],
         dependencyKinds: &mut [fmi3DependencyKind],
     ) -> fmi3Status {
-        self.backend.getVariableDependencies(
+        self.instance.getVariableDependencies(
             valueReference,
             elementIndicesOfDependent,
             independentVariables,
@@ -952,22 +952,22 @@ impl FMU3 {
 
     #[log_call]
     pub fn getFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status {
-        self.backend.getFMUState(FMUState)
+        self.instance.getFMUState(FMUState)
     }
 
     #[log_call]
     pub fn setFMUState(&self, FMUState: fmi3FMUState) -> fmi3Status {
-        self.backend.setFMUState(FMUState)
+        self.instance.setFMUState(FMUState)
     }
 
     #[log_call]
     pub fn freeFMUState(&self, FMUState: &mut fmi3FMUState) -> fmi3Status {
-        self.backend.freeFMUState(FMUState)
+        self.instance.freeFMUState(FMUState)
     }
 
     #[log_call]
     pub fn serializedFMUStateSize(&self, FMUState: fmi3FMUState, size: &mut usize) -> fmi3Status {
-        self.backend.serializedFMUStateSize(FMUState, size)
+        self.instance.serializedFMUStateSize(FMUState, size)
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -977,7 +977,7 @@ impl FMU3 {
         fmuState: fmi3FMUState,
         serializedState: &mut [fmi3Byte],
     ) -> fmi3Status {
-        self.backend.serializeFMUState(fmuState, serializedState)
+        self.instance.serializeFMUState(fmuState, serializedState)
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -987,7 +987,7 @@ impl FMU3 {
         serializedState: &[fmi3Byte],
         FMUState: &mut fmi3FMUState,
     ) -> fmi3Status {
-        self.backend.deserializeFMUState(serializedState, FMUState)
+        self.instance.deserializeFMUState(serializedState, FMUState)
     }
 
     #[log_call]
@@ -998,7 +998,7 @@ impl FMU3 {
         seed: &[fmi3Float64],
         sensitivity: &mut [fmi3Float64],
     ) -> fmi3Status {
-        self.backend
+        self.instance
             .getDirectionalDerivative(unknowns, knowns, seed, sensitivity)
     }
 
@@ -1010,18 +1010,18 @@ impl FMU3 {
         seed: &[fmi3Float64],
         sensitivity: &mut [fmi3Float64],
     ) -> fmi3Status {
-        self.backend
+        self.instance
             .getAdjointDerivative(unknowns, knowns, seed, sensitivity)
     }
 
     #[log_call]
     pub fn enterConfigurationMode(&self) -> fmi3Status {
-        self.backend.enterConfigurationMode()
+        self.instance.enterConfigurationMode()
     }
 
     #[log_call]
     pub fn exitConfigurationMode(&self) -> fmi3Status {
-        self.backend.exitConfigurationMode()
+        self.instance.exitConfigurationMode()
     }
 
     #[log_call]
@@ -1031,7 +1031,7 @@ impl FMU3 {
         intervals: &mut [fmi3Float64],
         qualifiers: &mut [fmi3IntervalQualifier],
     ) -> fmi3Status {
-        self.backend
+        self.instance
             .getIntervalDecimal(valueReferences, intervals, qualifiers)
     }
 
@@ -1043,7 +1043,7 @@ impl FMU3 {
         resolutions: &mut [fmi3UInt64],
         qualifiers: &mut [fmi3IntervalQualifier],
     ) -> fmi3Status {
-        self.backend
+        self.instance
             .getIntervalFraction(valueReferences, counters, resolutions, qualifiers)
     }
 
@@ -1053,7 +1053,7 @@ impl FMU3 {
         valueReferences: &[fmi3ValueReference],
         intervals: &[fmi3Float64],
     ) -> fmi3Status {
-        self.backend.setIntervalDecimal(valueReferences, intervals)
+        self.instance.setIntervalDecimal(valueReferences, intervals)
     }
 
     #[log_call]
@@ -1063,13 +1063,13 @@ impl FMU3 {
         counters: &[fmi3UInt64],
         resolutions: &[fmi3UInt64],
     ) -> fmi3Status {
-        self.backend
+        self.instance
             .setIntervalFraction(valueReferences, counters, resolutions)
     }
 
     #[log_call]
     pub fn enterContinuousTimeMode(&self) -> fmi3Status {
-        self.backend.enterContinuousTimeMode()
+        self.instance.enterContinuousTimeMode()
     }
 
     #[log_call]
@@ -1079,7 +1079,7 @@ impl FMU3 {
         enterEventMode: &mut fmi3Boolean,
         terminateSimulation: &mut fmi3Boolean,
     ) -> fmi3Status {
-        self.backend.completedIntegratorStep(
+        self.instance.completedIntegratorStep(
             noSetFMUStatePriorToCurrentPoint,
             enterEventMode,
             terminateSimulation,
@@ -1088,47 +1088,47 @@ impl FMU3 {
 
     #[log_call]
     pub fn setTime(&self, time: fmi3Float64) -> fmi3Status {
-        self.backend.setTime(time)
+        self.instance.setTime(time)
     }
 
     #[log_call]
     pub fn setContinuousStates(&self, continuousStates: &[fmi3Float64]) -> fmi3Status {
-        self.backend.setContinuousStates(continuousStates)
+        self.instance.setContinuousStates(continuousStates)
     }
 
     #[log_call]
     pub fn getContinuousStates(&self, continuousStates: &mut [fmi3Float64]) -> fmi3Status {
-        self.backend.getContinuousStates(continuousStates)
+        self.instance.getContinuousStates(continuousStates)
     }
 
     #[log_call]
     pub fn getContinuousStateDerivatives(&self, derivatives: &mut [fmi3Float64]) -> fmi3Status {
-        self.backend.getContinuousStateDerivatives(derivatives)
+        self.instance.getContinuousStateDerivatives(derivatives)
     }
 
     #[log_call]
     pub fn getEventIndicators(&self, eventIndicators: &mut [fmi3Float64]) -> fmi3Status {
-        self.backend.getEventIndicators(eventIndicators)
+        self.instance.getEventIndicators(eventIndicators)
     }
 
     #[log_call]
     pub fn getNominalsOfContinuousStates(&self, nominals: &mut [fmi3Float64]) -> fmi3Status {
-        self.backend.getNominalsOfContinuousStates(nominals)
+        self.instance.getNominalsOfContinuousStates(nominals)
     }
 
     #[log_call]
     pub fn getNumberOfEventIndicators(&self, nEventIndicators: &mut usize) -> fmi3Status {
-        self.backend.getNumberOfEventIndicators(nEventIndicators)
+        self.instance.getNumberOfEventIndicators(nEventIndicators)
     }
 
     #[log_call]
     pub fn getNumberOfContinuousStates(&self, nContinuousStates: &mut usize) -> fmi3Status {
-        self.backend.getNumberOfContinuousStates(nContinuousStates)
+        self.instance.getNumberOfContinuousStates(nContinuousStates)
     }
 
     #[log_call]
     pub fn evaluateDiscreteStates(&self) -> fmi3Status {
-        self.backend.evaluateDiscreteStates()
+        self.instance.evaluateDiscreteStates()
     }
 
     #[log_call]
@@ -1140,7 +1140,7 @@ impl FMU3 {
         valuesOfContinuousStatesChanged: &mut fmi3Boolean,
         nextEventTime: &mut Option<fmi3Float64>,
     ) -> fmi3Status {
-        self.backend.updateDiscreteStates(
+        self.instance.updateDiscreteStates(
             discreteStatesNeedUpdate,
             terminateSimulation,
             nominalsOfContinuousStatesChanged,
@@ -1156,7 +1156,7 @@ impl FMU3 {
         orders: &[fmi3Int32],
         values: &mut [fmi3Float64],
     ) -> fmi3Status {
-        self.backend
+        self.instance
             .getOutputDerivatives(valueReferences, orders, values)
     }
 
@@ -1167,7 +1167,7 @@ impl FMU3 {
         activationTime: fmi3Float64,
         priority: fmi3Float64,
     ) -> fmi3Status {
-        self.backend
+        self.instance
             .activateModelPartition(clockReference, activationTime, priority)
     }
 }
