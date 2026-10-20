@@ -14,6 +14,7 @@ pub mod wasm;
 
 use crate::CStrExt;
 use crate::fmi3::log::Logger;
+use crate::fmi3::native::NativeBackend;
 use crate::log_call;
 use crate::sim::SimulationError::{self};
 use std::path::Path;
@@ -49,8 +50,8 @@ pub trait Implementation {
         resourcePath: Option<&Path>,
         visible: bool,
         loggingOn: bool,
-    ) -> Result<Box<dyn Instance>, SimulationError>;
-
+    ) -> Result<Arc<dyn Instance>, SimulationError>;
+    
     fn instantiateCoSimulation(
         &self,
         instanceName: &str,
@@ -61,7 +62,8 @@ pub trait Implementation {
         eventModeUsed: bool,
         earlyReturnAllowed: bool,
         requiredIntermediateVariables: &[fmi3ValueReference],
-    ) -> Result<Box<dyn Instance>, SimulationError>;
+        logger: Arc<dyn Logger>,
+    ) -> Result<Arc<dyn Instance>, SimulationError>;
 }
 
 pub trait Instance {
@@ -417,7 +419,7 @@ pub struct FMU3 {
     logger: Arc<dyn Logger>,
     intermediateUpdateHandler: Option<Box<dyn IntermediateUpdateHandler>>,
     logCalls: bool,
-    backend: Box<dyn Instance>,
+    backend: Arc<dyn Instance>,
 }
 
 #[unsafe(no_mangle)]
@@ -429,7 +431,8 @@ pub extern "C" fn fmi3_logger_callback(
     message: fmi3String,
 ) {
     if !instanceEnvironment.is_null() {
-        let fmu: &FMU3 = unsafe { &*(instanceEnvironment as *const FMU3) };
+        // let fmu: &FMU3 = unsafe { &*(instanceEnvironment as *const FMU3) };
+        let fmu: &NativeBackend = unsafe { &*(instanceEnvironment as *const NativeBackend) };
         fmu.logger.log_message(
             status,
             &category.to_str_or_null(),
@@ -593,7 +596,8 @@ impl FMU3 {
             eventModeUsed,
             earlyReturnAllowed,
             &requiredIntermediateVariables,
-        )?;
+            logger.clone(),
+        );
 
         if logCalls {
             let message = format!(
@@ -607,14 +611,15 @@ impl FMU3 {
                 earlyReturnAllowed,
                 requiredIntermediateVariables,
             );
-            logger.log_call(fmi3Status::Ok, &message);
+            let status = if instance.is_ok() { fmi3Status::Ok } else { fmi3Status::Error };
+            logger.log_call(status, &message);
         }
 
         let fmu = FMU3 {
             logger,
             intermediateUpdateHandler,
             logCalls,
-            backend: instance,
+            backend: instance?,
         };
 
         #[allow(clippy::arc_with_non_send_sync)]

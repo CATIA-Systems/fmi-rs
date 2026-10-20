@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 use std::path::Path;
+use std::sync::Arc;
 
 use crate::CStrExt;
+use crate::fmi3::log::Logger;
 use crate::fmi3::types::*;
 use crate::fmi3::wasm::{fmu_state_bytes, fmu_state_from_bytes, free_fmu_state, write_slice_at};
 use crate::fmi3::{Implementation, Instance};
@@ -120,7 +122,7 @@ impl Implementation for WasmLibrary {
         resourcePath: Option<&Path>,
         visible: bool,
         loggingOn: bool,
-    ) -> Result<Box<dyn Instance>, SimulationError> {
+    ) -> Result<Arc<dyn Instance>, SimulationError> {
         let mut store = Store::new(&self.engine, HostState::default());
 
         let world = ModelExchangeFmu::instantiate(&mut store, &self.component, &self.linker)?;
@@ -142,7 +144,7 @@ impl Implementation for WasmLibrary {
             )?
             .ok_or(SimulationError::FMICall)?;
 
-        Ok(Box::new(WasmInstance {
+        Ok(Arc::new(WasmInstance {
             world,
             store: RefCell::new(store),
             cs,
@@ -159,7 +161,8 @@ impl Implementation for WasmLibrary {
         _eventModeUsed: bool,
         _earlyReturnAllowed: bool,
         _requiredIntermediateVariables: &[fmi3ValueReference],
-    ) -> Result<Box<dyn Instance>, SimulationError> {
+        _logger: Arc<dyn Logger>,
+    ) -> Result<Arc<dyn Instance>, SimulationError> {
         Err(SimulationError::InterfaceType)
     }
 }

@@ -1,10 +1,11 @@
 use super::types::*;
+use crate::fmi3::log::Logger;
 use crate::fmi3::{Implementation, Instance, fmi3_logger_callback};
 use crate::sim::SimulationError::{self};
 use crate::{get_symbol, load_platform_binary};
 use itertools::izip;
 use libloading::Library;
-use std::ffi::{CStr, CString};
+use std::ffi::{CStr, CString, c_void};
 use std::path::Path;
 use std::ptr::{self, null_mut};
 use std::sync::Arc;
@@ -348,8 +349,9 @@ impl Implementation for Arc<NativeLibrary> {
         eventModeUsed: bool,
         earlyReturnAllowed: bool,
         requiredIntermediateVariables: &[fmi3ValueReference],
-    ) -> Result<Box<dyn Instance>, SimulationError> {
-        let instanceEnvironment = null_mut();
+        logger: Arc<dyn Logger>,
+    ) -> Result<Arc<dyn Instance>, SimulationError> {
+        // let instanceEnvironment = null_mut();
         let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
         let intermediate_update = ptr::null_mut() as *const fmi3IntermediateUpdateCallback;
 
@@ -360,6 +362,14 @@ impl Implementation for Arc<NativeLibrary> {
             .as_ref()
             .map(|cstr| cstr.as_ptr())
             .unwrap_or(ptr::null());
+
+        let backend = Arc::new(NativeBackend {
+            library: Arc::clone(self),
+            instance: ptr::null_mut(),
+            logger,
+        });
+
+        let instanceEnvironment = Arc::as_ptr(&backend).cast::<c_void>() as *mut c_void;
 
         let instance = unsafe {
             (self.fmi3InstantiateCoSimulation)(
@@ -379,13 +389,13 @@ impl Implementation for Arc<NativeLibrary> {
         };
 
         if instance.is_null() {
-            return Err(SimulationError::FMICall);
+            Err(SimulationError::FMICall)
+        } else {
+            let backend_ptr = instanceEnvironment as *mut NativeBackend;
+            let mut_backend : &mut NativeBackend = unsafe { &mut *backend_ptr };
+            mut_backend.instance = instance;
+            Ok(backend)
         }
-
-        Ok(Box::new(NativeBackend {
-            library: Arc::clone(self),
-            instance,
-        }))
     }
 
     fn instantiateModelExchange(
@@ -395,7 +405,7 @@ impl Implementation for Arc<NativeLibrary> {
         resourcePath: Option<&Path>,
         visible: bool,
         loggingOn: bool,
-    ) -> Result<Box<dyn Instance>, SimulationError> {
+    ) -> Result<Arc<dyn Instance>, SimulationError> {
         let instanceEnvironment = null_mut();
         let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
 
@@ -423,9 +433,10 @@ impl Implementation for Arc<NativeLibrary> {
             return Err(SimulationError::FMICall);
         }
 
-        Ok(Box::new(NativeBackend {
+        Ok(Arc::new(NativeBackend {
             library: Arc::clone(self),
             instance,
+            logger: todo!(),
         }))
     }
 }
@@ -433,6 +444,7 @@ impl Implementation for Arc<NativeLibrary> {
 pub struct NativeBackend {
     library: Arc<NativeLibrary>,
     instance: fmi3Instance,
+    pub logger: Arc<dyn Logger>,
 }
 
 impl Instance for NativeBackend {
