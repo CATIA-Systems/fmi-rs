@@ -12,9 +12,7 @@ pub mod types;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
-use crate::CStrExt;
 use crate::fmi3::log::Logger;
-use crate::fmi3::native::NativeInstance;
 use crate::log_call;
 use crate::sim::SimulationError::{self};
 use std::path::Path;

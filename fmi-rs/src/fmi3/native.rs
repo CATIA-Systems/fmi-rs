@@ -399,6 +399,7 @@ impl Implementation for Arc<NativeLibrary> {
             .map(|cstr| cstr.as_ptr())
             .unwrap_or(ptr::null());
 
+        #[allow(clippy::arc_with_non_send_sync)]
         let native_instance = Arc::new(NativeInstance {
             library: Arc::clone(self),
             instance: ptr::null_mut(),
@@ -452,6 +453,7 @@ impl Implementation for Arc<NativeLibrary> {
             .map(|cstr| cstr.as_ptr())
             .unwrap_or(ptr::null());
 
+        #[allow(clippy::arc_with_non_send_sync)]
         let native_instance = Arc::new(NativeInstance {
             library: Arc::clone(self),
             instance: ptr::null_mut(),

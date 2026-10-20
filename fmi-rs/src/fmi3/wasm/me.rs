@@ -145,6 +145,7 @@ impl Implementation for WasmLibrary {
             )?
             .ok_or(SimulationError::FMICall)?;
 
+        #[allow(clippy::arc_with_non_send_sync)]
         Ok(Arc::new(WasmInstance {
             world,
             store: RefCell::new(store),
