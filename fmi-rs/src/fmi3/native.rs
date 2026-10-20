@@ -1,11 +1,12 @@
 use super::types::*;
-use crate::fmi3::{Implementation, Instance, fmi3_logger_callback};
+use crate::fmi3::log::Logger;
+use crate::fmi3::{Implementation, Instance};
 use crate::sim::SimulationError::{self};
-use crate::{get_symbol, load_platform_binary};
+use crate::{CStrExt, get_symbol, load_platform_binary};
 use itertools::izip;
 use libloading::Library;
-use std::ffi::{CStr, CString};
-use std::path::Path;
+use std::ffi::{CStr, CString, c_void};
+use std::path::{Path, PathBuf};
 use std::ptr::{self, null_mut};
 use std::sync::Arc;
 
@@ -27,9 +28,47 @@ pub const PLATFORM_TUPLE: &str = "x86-windows";
 #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
 pub const PLATFORM_TUPLE: &str = "x86_64-windows";
 
-pub struct NativeLibrary {
-    _lib: Box<Library>,
+#[unsafe(no_mangle)]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
+pub extern "C" fn fmi3_logger_callback(
+    instanceEnvironment: fmi3InstanceEnvironment,
+    status: fmi3Status,
+    category: fmi3String,
+    message: fmi3String,
+) {
+    if !instanceEnvironment.is_null() {
+        let instance: &NativeInstance = unsafe { &*(instanceEnvironment as *const NativeInstance) };
+        instance.logger.log_message(
+            status,
+            &category.to_str_or_null(),
+            &message.to_str_or_null(),
+        );
+    }
+}
 
+fn resource_path_with_trailing_separator(path: &Path) -> PathBuf {
+    let lossy = path.to_string_lossy();
+    if lossy.is_empty() || lossy.ends_with('/') || lossy.ends_with('\\') {
+        return path.to_path_buf();
+    }
+    if path.is_dir() {
+        let mut buf = path.to_path_buf();
+        buf.push("");
+        buf
+    } else {
+        path.to_path_buf()
+    }
+}
+
+fn resource_path_cstring(resource_path: Option<&Path>) -> Option<CString> {
+    resource_path.and_then(|path| {
+        let normalized = resource_path_with_trailing_separator(path);
+        CString::new(normalized.to_string_lossy().as_ref()).ok()
+    })
+}
+
+pub struct NativeLibrary {
+    library: Box<Library>,
     fmi3GetVersion: fmi3GetVersionTYPE,
     fmi3SetDebugLogging: fmi3SetDebugLoggingTYPE,
     fmi3InstantiateModelExchange: fmi3InstantiateModelExchangeTYPE,
@@ -257,7 +296,7 @@ impl NativeLibrary {
             *get_symbol::<fmi3ActivateModelPartitionTYPE>(&library, b"fmi3ActivateModelPartition")?;
 
         Ok(Arc::new(NativeLibrary {
-            _lib: library,
+            library,
             fmi3GetVersion,
             fmi3SetDebugLogging,
             fmi3InstantiateModelExchange,
@@ -348,18 +387,26 @@ impl Implementation for Arc<NativeLibrary> {
         eventModeUsed: bool,
         earlyReturnAllowed: bool,
         requiredIntermediateVariables: &[fmi3ValueReference],
-    ) -> Result<Box<dyn Instance>, SimulationError> {
-        let instanceEnvironment = null_mut();
+        logger: Arc<dyn Logger>,
+    ) -> Result<Arc<dyn Instance>, SimulationError> {
         let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
         let intermediate_update = ptr::null_mut() as *const fmi3IntermediateUpdateCallback;
 
-        let resource_path_cstr =
-            resourcePath.and_then(|path| CString::new(path.to_string_lossy().as_ref()).ok());
+        let resource_path_cstr = resource_path_cstring(resourcePath);
 
         let path_ptr = resource_path_cstr
             .as_ref()
             .map(|cstr| cstr.as_ptr())
             .unwrap_or(ptr::null());
+
+        #[allow(clippy::arc_with_non_send_sync)]
+        let native_instance = Arc::new(NativeInstance {
+            library: Arc::clone(self),
+            instance: ptr::null_mut(),
+            logger,
+        });
+
+        let instanceEnvironment = Arc::as_ptr(&native_instance).cast::<c_void>() as *mut c_void;
 
         let instance = unsafe {
             (self.fmi3InstantiateCoSimulation)(
@@ -379,13 +426,13 @@ impl Implementation for Arc<NativeLibrary> {
         };
 
         if instance.is_null() {
-            return Err(SimulationError::FMICall);
+            Err(SimulationError::FMICall)
+        } else {
+            let native_instance_ptr = instanceEnvironment as *mut NativeInstance;
+            let mut_native_instance: &mut NativeInstance = unsafe { &mut *native_instance_ptr };
+            mut_native_instance.instance = instance;
+            Ok(native_instance)
         }
-
-        Ok(Box::new(NativeBackend {
-            library: Arc::clone(self),
-            instance,
-        }))
     }
 
     fn instantiateModelExchange(
@@ -395,17 +442,25 @@ impl Implementation for Arc<NativeLibrary> {
         resourcePath: Option<&Path>,
         visible: bool,
         loggingOn: bool,
-    ) -> Result<Box<dyn Instance>, SimulationError> {
-        let instanceEnvironment = null_mut();
+        logger: Arc<dyn Logger>,
+    ) -> Result<Arc<dyn Instance>, SimulationError> {
         let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
 
-        let resource_path_cstr =
-            resourcePath.and_then(|path| CString::new(path.to_string_lossy().as_ref()).ok());
+        let resource_path_cstr = resource_path_cstring(resourcePath);
 
         let path_ptr = resource_path_cstr
             .as_ref()
             .map(|cstr| cstr.as_ptr())
             .unwrap_or(ptr::null());
+
+        #[allow(clippy::arc_with_non_send_sync)]
+        let native_instance = Arc::new(NativeInstance {
+            library: Arc::clone(self),
+            instance: ptr::null_mut(),
+            logger,
+        });
+
+        let instanceEnvironment = Arc::as_ptr(&native_instance).cast::<c_void>() as *mut c_void;
 
         let instance = unsafe {
             (self.fmi3InstantiateModelExchange)(
@@ -420,22 +475,23 @@ impl Implementation for Arc<NativeLibrary> {
         };
 
         if instance.is_null() {
-            return Err(SimulationError::FMICall);
+            Err(SimulationError::FMICall)
+        } else {
+            let native_instance_ptr = instanceEnvironment as *mut NativeInstance;
+            let mut_native_instance: &mut NativeInstance = unsafe { &mut *native_instance_ptr };
+            mut_native_instance.instance = instance;
+            Ok(native_instance)
         }
-
-        Ok(Box::new(NativeBackend {
-            library: Arc::clone(self),
-            instance,
-        }))
     }
 }
 
-pub struct NativeBackend {
+pub struct NativeInstance {
     library: Arc<NativeLibrary>,
     instance: fmi3Instance,
+    pub logger: Arc<dyn Logger>,
 }
 
-impl Instance for NativeBackend {
+impl Instance for NativeInstance {
     fn getVersion(&self) -> String {
         unsafe {
             let version_cstr = (self.library.fmi3GetVersion)();
@@ -1408,7 +1464,7 @@ impl Instance for NativeBackend {
     }
 }
 
-impl Drop for NativeBackend {
+impl Drop for NativeInstance {
     fn drop(&mut self) {
         if !self.instance.is_null() {
             unsafe { (self.library.fmi3FreeInstance)(self.instance) };

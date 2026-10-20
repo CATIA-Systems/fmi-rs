@@ -1,7 +1,9 @@
 use std::cell::RefCell;
-use std::path::Path;
+use std::path::{MAIN_SEPARATOR, Path};
+use std::sync::Arc;
 
 use crate::CStrExt;
+use crate::fmi3::log::Logger;
 use crate::fmi3::types::*;
 use crate::fmi3::wasm::{fmu_state_bytes, fmu_state_from_bytes, free_fmu_state, write_slice_at};
 use crate::fmi3::{Implementation, Instance};
@@ -135,7 +137,8 @@ impl Implementation for WasmLibrary {
         _resourcePath: Option<&Path>,
         _visible: bool,
         _loggingOn: bool,
-    ) -> Result<Box<dyn Instance>, SimulationError> {
+        _logger: Arc<dyn Logger>,
+    ) -> Result<Arc<dyn Instance>, SimulationError> {
         Err(SimulationError::InterfaceType)
     }
 
@@ -149,14 +152,23 @@ impl Implementation for WasmLibrary {
         eventModeUsed: bool,
         earlyReturnAllowed: bool,
         requiredIntermediateVariables: &[fmi3ValueReference],
-    ) -> Result<Box<dyn Instance>, SimulationError> {
+        _logger: Arc<dyn Logger>,
+    ) -> Result<Arc<dyn Instance>, SimulationError> {
         let mut store = Store::new(&self.engine, HostState::default());
 
         let world = CoSimulationFmu::instantiate(&mut store, &self.component, &self.linker)?;
 
-        let resource_path = resourcePath
+        let mut resource_path = resourcePath
             .map(|p| p.to_str().unwrap_or_default().to_string())
             .unwrap_or_default();
+
+        // Check for both forward slashes and the platform-specific separator
+        let ends_with_separator =
+            resource_path.ends_with('/') || resource_path.ends_with(MAIN_SEPARATOR);
+
+        if !resource_path.is_empty() && !ends_with_separator {
+            resource_path.push(MAIN_SEPARATOR);
+        }
 
         let cs: ResourceAny = world
             .fmi_fmi3_co_simulation()
@@ -174,7 +186,8 @@ impl Implementation for WasmLibrary {
             )?
             .ok_or(SimulationError::FMICall)?;
 
-        Ok(Box::new(WasmBackend {
+        #[allow(clippy::arc_with_non_send_sync)]
+        Ok(Arc::new(WasmBackend {
             world,
             store: RefCell::new(store),
             cs,
