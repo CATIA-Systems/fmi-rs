@@ -1,8 +1,8 @@
 use super::types::*;
 use crate::fmi3::log::Logger;
-use crate::fmi3::{Implementation, Instance, fmi3_logger_callback};
+use crate::fmi3::{Implementation, Instance};
 use crate::sim::SimulationError::{self};
-use crate::{get_symbol, load_platform_binary};
+use crate::{CStrExt, get_symbol, load_platform_binary};
 use itertools::izip;
 use libloading::Library;
 use std::ffi::{CStr, CString, c_void};
@@ -27,6 +27,24 @@ pub const PLATFORM_TUPLE: &str = "x86-windows";
 
 #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
 pub const PLATFORM_TUPLE: &str = "x86_64-windows";
+
+#[unsafe(no_mangle)]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
+pub extern "C" fn fmi3_logger_callback(
+    instanceEnvironment: fmi3InstanceEnvironment,
+    status: fmi3Status,
+    category: fmi3String,
+    message: fmi3String,
+) {
+    if !instanceEnvironment.is_null() {
+        let instance: &NativeBackend = unsafe { &*(instanceEnvironment as *const NativeBackend) };
+        instance.logger.log_message(
+            status,
+            &category.to_str_or_null(),
+            &message.to_str_or_null(),
+        );
+    }
+}
 
 pub struct NativeLibrary {
     _lib: Box<Library>,
@@ -351,7 +369,6 @@ impl Implementation for Arc<NativeLibrary> {
         requiredIntermediateVariables: &[fmi3ValueReference],
         logger: Arc<dyn Logger>,
     ) -> Result<Arc<dyn Instance>, SimulationError> {
-        // let instanceEnvironment = null_mut();
         let log_message = fmi3_logger_callback as *const fmi3LogMessageCallback;
         let intermediate_update = ptr::null_mut() as *const fmi3IntermediateUpdateCallback;
 

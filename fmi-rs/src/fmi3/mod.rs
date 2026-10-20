@@ -422,25 +422,6 @@ pub struct FMU3 {
     backend: Arc<dyn Instance>,
 }
 
-#[unsafe(no_mangle)]
-#[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub extern "C" fn fmi3_logger_callback(
-    instanceEnvironment: fmi3InstanceEnvironment,
-    status: fmi3Status,
-    category: fmi3String,
-    message: fmi3String,
-) {
-    if !instanceEnvironment.is_null() {
-        // let fmu: &FMU3 = unsafe { &*(instanceEnvironment as *const FMU3) };
-        let fmu: &NativeBackend = unsafe { &*(instanceEnvironment as *const NativeBackend) };
-        fmu.logger.log_message(
-            status,
-            &category.to_str_or_null(),
-            &message.to_str_or_null(),
-        );
-    }
-}
-
 pub trait IntermediateUpdateHandler {
     fn required_intermediate_variables(&self) -> Vec<fmi3ValueReference>;
     fn intermediate_update(
