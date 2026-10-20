@@ -68,8 +68,7 @@ fn resource_path_cstring(resource_path: Option<&Path>) -> Option<CString> {
 }
 
 pub struct NativeLibrary {
-    _lib: Box<Library>,
-
+    library: Box<Library>,
     fmi3GetVersion: fmi3GetVersionTYPE,
     fmi3SetDebugLogging: fmi3SetDebugLoggingTYPE,
     fmi3InstantiateModelExchange: fmi3InstantiateModelExchangeTYPE,
@@ -297,7 +296,7 @@ impl NativeLibrary {
             *get_symbol::<fmi3ActivateModelPartitionTYPE>(&library, b"fmi3ActivateModelPartition")?;
 
         Ok(Arc::new(NativeLibrary {
-            _lib: library,
+            library,
             fmi3GetVersion,
             fmi3SetDebugLogging,
             fmi3InstantiateModelExchange,
