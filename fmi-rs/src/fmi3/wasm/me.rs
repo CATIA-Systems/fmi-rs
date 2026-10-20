@@ -122,6 +122,7 @@ impl Implementation for WasmLibrary {
         resourcePath: Option<&Path>,
         visible: bool,
         loggingOn: bool,
+        _logger: Arc<dyn Logger>,
     ) -> Result<Arc<dyn Instance>, SimulationError> {
         let mut store = Store::new(&self.engine, HostState::default());
 

@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::path::Path;
+use std::path::{MAIN_SEPARATOR, Path};
 use std::sync::Arc;
 
 use crate::CStrExt;
@@ -137,6 +137,7 @@ impl Implementation for WasmLibrary {
         _resourcePath: Option<&Path>,
         _visible: bool,
         _loggingOn: bool,
+        _logger: Arc<dyn Logger>,
     ) -> Result<Arc<dyn Instance>, SimulationError> {
         Err(SimulationError::InterfaceType)
     }
@@ -157,9 +158,16 @@ impl Implementation for WasmLibrary {
 
         let world = CoSimulationFmu::instantiate(&mut store, &self.component, &self.linker)?;
 
-        let resource_path = resourcePath
+        let mut resource_path = resourcePath
             .map(|p| p.to_str().unwrap_or_default().to_string())
             .unwrap_or_default();
+
+        // Check for both forward slashes and the platform-specific separator
+        let ends_with_separator = resource_path.ends_with('/') || resource_path.ends_with(MAIN_SEPARATOR);
+
+        if !resource_path.is_empty() && !ends_with_separator {
+            resource_path.push(MAIN_SEPARATOR);
+        }
 
         let cs: ResourceAny = world
             .fmi_fmi3_co_simulation()

@@ -14,7 +14,7 @@ pub mod wasm;
 
 use crate::CStrExt;
 use crate::fmi3::log::Logger;
-use crate::fmi3::native::NativeBackend;
+use crate::fmi3::native::NativeInstance;
 use crate::log_call;
 use crate::sim::SimulationError::{self};
 use std::path::Path;
@@ -50,6 +50,7 @@ pub trait Implementation {
         resourcePath: Option<&Path>,
         visible: bool,
         loggingOn: bool,
+        logger: Arc<dyn Logger>,
     ) -> Result<Arc<dyn Instance>, SimulationError>;
     
     fn instantiateCoSimulation(
@@ -521,6 +522,7 @@ impl FMU3 {
             resourcePath,
             visible,
             loggingOn,
+            logger.clone(),
         )?;
 
         if logCalls {
