@@ -4,7 +4,6 @@
 #include <stdlib.h>
 
 extern int yylex();
-extern int yyparse();
 extern FILE* yyin;
 
 void yyerror(char** error_message, const char* s);

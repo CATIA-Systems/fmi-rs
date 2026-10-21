@@ -74,12 +74,11 @@
 #include <stdlib.h>
 
 extern int yylex();
-extern int yyparse();
 extern FILE* yyin;
 
 void yyerror(char** error_message, const char* s);
 
-#line 83 "structured_variable_name.tab.c"
+#line 82 "structured_variable_name.tab.c"
 
 # ifndef YY_CAST
 #  ifdef __cplusplus
@@ -512,8 +511,8 @@ static const yytype_int8 yytranslate[] =
 /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_int8 yyrline[] =
 {
-       0,    24,    24,    25,    26,    30,    31,    35,    36,    40,
-      41,    44,    46,    47,    51,    52
+       0,    23,    23,    24,    25,    29,    30,    34,    35,    39,
+      40,    43,    45,    46,    50,    51
 };
 #endif
 
@@ -1356,7 +1355,7 @@ yyreduce:
   switch (yyn)
     {
 
-#line 1360 "structured_variable_name.tab.c"
+#line 1359 "structured_variable_name.tab.c"
 
       default: break;
     }
@@ -1580,5 +1579,5 @@ yyreturnlab:
   return yyresult;
 }
 
-#line 55 "structured_variable_name.y"
+#line 54 "structured_variable_name.y"
 
