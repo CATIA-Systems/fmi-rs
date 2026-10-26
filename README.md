@@ -15,8 +15,8 @@ Functional Mock-up Interface for Rust.
 
 FMI 3.0 [layered standards](https://fmi-standard.org/docs/3.0/#fmi-layered-standards) supported by fmi-rs:
 
-- [fmi-ls-dae](https://github.com/modelica/fmi-ls-dae) -- Differential Algebraic Equations
-- [fmi-ls-wasm](https://github.com/modelica/fmi-ls-dae) -- WebAssembly (experimental)
+- [fmi-ls-dae](https://github.com/modelica/fmi-ls-dae) &mdash; Differential Algebraic Equations
+- [fmi-ls-wasm](https://github.com/modelica/fmi-ls-dae) &mdash; WebAssembly (experimental)
 
 ## License
 
