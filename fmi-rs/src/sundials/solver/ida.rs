@@ -143,7 +143,7 @@ impl<D: Dae> Solver for Ida<D> {
                 )));
             }
 
-            Ok((next_time, (*self.yy).as_mut(), retval == IDA_ROOT_RETURN))
+            Ok((tret, (*self.yy).as_mut(), retval == IDA_ROOT_RETURN))
         }
     }
 
