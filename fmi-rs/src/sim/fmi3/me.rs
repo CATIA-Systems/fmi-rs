@@ -497,7 +497,7 @@ impl Dae for Dae3 {
 
         expect_ok!(self.fmu.getFloat64(&self.unknown_vrs, residuals));
 
-        for (residual, unknown) in residuals.iter_mut().zip(unknowns) {
+        for (residual, unknown) in residuals.iter_mut().take(self.nx).zip(unknowns) {
             *residual -= *unknown;
         }
 
