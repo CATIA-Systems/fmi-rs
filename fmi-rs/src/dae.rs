@@ -65,11 +65,11 @@ pub struct Unknown {
     #[serde(rename = "@valueReference")]
     pub valueReference: u32,
 
-    #[serde(rename = "@dependencies")]
+    #[serde(rename = "@dependencies", default)]
     #[serde(with = "space_separated")]
     pub dependencies: Option<Vec<u32>>,
 
-    #[serde(rename = "@dependenciesKind")]
+    #[serde(rename = "@dependenciesKind", default)]
     #[serde(with = "space_separated")]
     pub dependenciesKind: Option<Vec<DependencyKind>>,
 }
