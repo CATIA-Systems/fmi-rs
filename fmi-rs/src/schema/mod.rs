@@ -11,11 +11,11 @@ unsafe extern "C" {
         document_buffer_size: i32,
         schema_buffer: *const u8,
         schema_buffer_size: i32,
-        messages: *mut *mut *const i8,
+        messages: *mut *mut *const c_char,
         external_entity_loader: xmlExternalEntityLoader,
     ) -> i32;
 
-    fn free_messages(len: i32, messages: *mut *const i8);
+    fn free_messages(len: i32, messages: *mut *const c_char);
 
     fn xmlNewStringInputStream(ctxt: xmlParserCtxtPtr, value: *const xmlChar) -> xmlParserInputPtr;
 
@@ -182,7 +182,7 @@ fn validate_xml_document_against_schema(
 ) -> Vec<String> {
     init_libxml();
 
-    let mut messages: *mut *const i8 = std::ptr::null_mut();
+    let mut messages: *mut *const c_char = std::ptr::null_mut();
 
     let n_messages = unsafe {
         validate_xml_document(
