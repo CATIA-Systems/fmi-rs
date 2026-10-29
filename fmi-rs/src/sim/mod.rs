@@ -61,9 +61,13 @@ pub enum SimulationError {
     Nul(#[from] NulError),
 
     #[error(
-        "The next event time ({next_event_time}) must be greater than the current time ({time})"
+        "The next event time ({next_event_time}) must be greater than the current time ({time}) at relative tolerance {relative_tolerance}"
     )]
-    NextEventTime { time: f64, next_event_time: f64 },
+    NextEventTime {
+        time: f64,
+        next_event_time: f64,
+        relative_tolerance: f64,
+    },
 
     #[error("Failed to parse value: {0}")]
     Parse(String),

@@ -199,6 +199,7 @@ pub fn simulate(
                     return Err(SimulationError::NextEventTime {
                         time,
                         next_event_time,
+                        relative_tolerance,
                     });
                 }
 
@@ -328,6 +329,7 @@ pub fn simulate(
                     return Err(SimulationError::NextEventTime {
                         time,
                         next_event_time,
+                        relative_tolerance,
                     });
                 }
 

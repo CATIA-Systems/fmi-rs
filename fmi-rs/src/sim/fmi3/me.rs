@@ -252,6 +252,7 @@ pub fn simulate<S: SolverFactory>(
                     return Err(SimulationError::NextEventTime {
                         time,
                         next_event_time,
+                        relative_tolerance,
                     });
                 }
 
