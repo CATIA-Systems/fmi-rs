@@ -92,17 +92,15 @@ impl SimulationError {
 }
 
 pub trait SimulationSliceExt<T> {
-    // fn try_set(&mut self, index: I, value: T) -> Result<(), SimulationError>;
     fn try_get<I>(&self, index: I) -> Result<&I::Output, SimulationError>
     where
         I: SliceIndex<[T]>;
+
     fn try_get_mut<I>(&mut self, index: I) -> Result<&mut I::Output, SimulationError>
     where
         I: SliceIndex<[T]>;
+
     fn set(&mut self, index: usize, value: T) -> Result<(), SimulationError>;
-    // fn try_get_mut(&mut self, index: usize) -> Result<&mut T, SimulationError>;
-    // fn try_get_slice(&self, range: Range<usize>) -> Result<&[T], SimulationError>;
-    // fn try_get_slice_mut(&mut self, range: Range<usize>) -> Result<&mut [T], SimulationError>;
 }
 
 impl<T> SimulationSliceExt<T> for [T] {
@@ -127,21 +125,6 @@ impl<T> SimulationSliceExt<T> for [T] {
         *slot = value;
         Ok(())
     }
-
-    // fn try_get_mut(&mut self, index: usize) -> Result<&mut T, SimulationError> {
-    //     self.get_mut(index)
-    //         .ok_or(SimulationError::IndexOutOfBounds)
-    // }
-
-    // fn try_get_slice(&self, range: std::ops::Range<usize>) -> Result<&[T], SimulationError> {
-    //     self.get(range)
-    //         .ok_or(SimulationError::IndexOutOfBounds)
-    // }
-
-    // fn try_get_slice_mut(&mut self, range: std::ops::Range<usize>) -> Result<&mut [T], SimulationError> {
-    //     self.get_mut(range)
-    //         .ok_or(SimulationError::IndexOutOfBounds)
-    // }
 }
 
 pub type SetTimeFn<'a> = Box<dyn Fn(f64) -> Result<(), SimulationError> + 'a>;

@@ -372,20 +372,19 @@ impl<'a> Ode for Ode2<'a> {
 
         expect_ok!(self.fmu.setContinuousStates(x));
 
-        let mut seed = vec![0.0; self.nx];
+        let seed = &[1.0];
 
         for i in 0..self.nx {
-            seed.set(i, 1.0)?;
             let start = i.saturating_mul(self.nx);
             let end = i.saturating_add(1).saturating_mul(self.nx);
             let column = J.try_get_mut(start..end)?;
+            let known_vrs = self.known_vrs.try_get(i..=i)?;
             expect_ok!(self.fmu.getDirectionalDerivative(
                 &self.unknown_vrs,
-                &self.known_vrs,
-                &seed,
+                known_vrs,
+                seed,
                 column
             ));
-            seed.set(i, 0.0)?;
         }
 
         Ok(())
