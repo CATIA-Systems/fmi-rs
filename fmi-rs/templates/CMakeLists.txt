@@ -8,6 +8,11 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 project (${MODEL_IDENTIFIER})
 
+if(MSVC)
+    # Suppress MSB8029
+    set(CMAKE_VS_GLOBALS "IgnoreWarnIntDirInTempDetected=true")
+endif()
+
 # Detect if the compilation target is 32-bit or 64-bit
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(IS_64_BIT TRUE)
