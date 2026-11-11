@@ -234,7 +234,7 @@ impl ModelDescription {
 
         let typeDefinitions = root
             .get_child("TypeDefinitions")
-            .map(|n| n.get_child("SimpleType"))
+            .map(|n| n.get_children("SimpleType"))
             .into_iter()
             .flatten()
             .map(|n| SimpleType::from_node(&n))
