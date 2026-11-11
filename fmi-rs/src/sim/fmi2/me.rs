@@ -155,22 +155,14 @@ pub fn simulate<S: SolverFactory>(
             relative_tolerance,
         );
 
-        let is_input_event = if let Some(input_event_time) = next_input_event_time {
-            relative_eq(
-                input_event_time,
-                next_communication_point,
-                relative_tolerance,
-            )
-        } else {
-            false
-        };
+        let (x, is_state_event);
+        (time, x, is_state_event) = solver.step(next_communication_point)?;
 
-        let is_time_event = next_event_time
-            .is_some_and(|t| relative_eq(t, next_communication_point, relative_tolerance));
+        let is_input_event =
+            next_input_event_time.is_some_and(|t| relative_eq(t, time, relative_tolerance));
 
-        let (time_reached, x, is_state_event) = solver.step(next_communication_point)?;
-
-        time = time_reached;
+        let is_time_event =
+            next_event_time.is_some_and(|t| relative_eq(t, time, relative_tolerance));
 
         call(fmu.setTime(time))?;
 

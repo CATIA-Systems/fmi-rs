@@ -1,8 +1,11 @@
 use std::{cell::RefCell, vec};
 
 use crate::{
-    fmi3::FMU3, model_description::fmi3::{Dimension, VariableType}, sim::{
-        SimulationError, fmi3::{Trajectories, VariableValue, call},
+    fmi3::FMU3,
+    model_description::fmi3::{Dimension, VariableType},
+    sim::{
+        SimulationError,
+        fmi3::{Trajectories, VariableValue, call},
     },
 };
 
