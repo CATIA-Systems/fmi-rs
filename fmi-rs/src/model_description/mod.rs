@@ -5,7 +5,7 @@ pub mod fmi2;
 pub mod fmi3;
 pub mod validation;
 
-use std::{ops::Range, path::Path};
+use std::{ops::Range};
 use thiserror::Error;
 
 /// Represents a problem found during model description validation.
@@ -98,15 +98,13 @@ pub struct DefaultExperiment {
     pub range: Range<usize>,
 }
 
-pub fn peek_fmi_version(path: &Path) -> Result<String, ModelDescriptionError> {
-    let text = std::fs::read_to_string(path)?;
-
+pub fn peek_fmi_version(text: &str) -> Result<String, ModelDescriptionError> {
     let opt = roxmltree::ParsingOptions {
         allow_dtd: true,
         ..roxmltree::ParsingOptions::default()
     };
 
-    let doc = roxmltree::Document::parse_with_options(&text, opt)
+    let doc = roxmltree::Document::parse_with_options(text, opt)
         .map_err(|err| ModelDescriptionError::Parse(err.to_string()))?;
 
     let root = doc.root_element();
@@ -120,8 +118,8 @@ pub fn peek_fmi_version(path: &Path) -> Result<String, ModelDescriptionError> {
     }
 }
 
-pub fn peek_fmi_major_version(path: &Path) -> Result<FMIMajorVersion, ModelDescriptionError> {
-    let fmi_version = peek_fmi_version(path)?;
+pub fn peek_fmi_major_version(text: &str) -> Result<FMIMajorVersion, ModelDescriptionError> {
+    let fmi_version = peek_fmi_version(text)?;
 
     if fmi_version == "1.0" {
         Err(ModelDescriptionError::UnsupportedVersion(fmi_version))

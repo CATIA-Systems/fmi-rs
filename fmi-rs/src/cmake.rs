@@ -4,8 +4,7 @@ use crate::{
 };
 use askama::Template;
 use std::{
-    fs::{self},
-    path::{self, Path, PathBuf},
+    fs::{self}, path::{self, Path, PathBuf},
 };
 
 #[derive(Template)]
@@ -95,7 +94,9 @@ pub fn create_cmake_project(fmu_path: &Path, project_path: &Path) -> Result<(), 
 
     let model_description_path = source_path.join("modelDescription.xml");
 
-    let fmi_major_version = peek_fmi_major_version(&model_description_path)?;
+    let xml = std::fs::read_to_string(&model_description_path)?;
+
+    let fmi_major_version = peek_fmi_major_version(&xml)?;
 
     let target_path = path::absolute(fmu_path)
         .map_err(CMakeProjectError::io_at(fmu_path))?
