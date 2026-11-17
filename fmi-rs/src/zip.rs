@@ -17,6 +17,13 @@ pub enum ZipError {
         source: std::string::FromUtf8Error,
     },
 
+    #[error("ZIP entry '{name}' contains invalid UTF-8")]
+    InvalidEntryEncoding {
+        name: String,
+        #[source]
+        source: std::string::FromUtf8Error,
+    },
+
     #[error("The source path is not a directory")]
     NotADirectory,
 
@@ -47,6 +54,23 @@ pub fn get_zip_contents(fmu_path: impl AsRef<Path>) -> Result<Vec<String>, ZipEr
     }
 
     Ok(entries)
+}
+
+/// Reads a single entry from a ZIP archive as UTF-8 text.
+pub fn get_zip_entry(
+    zip_path: impl AsRef<Path>,
+    entry_name: &str,
+) -> Result<String, ZipError> {
+    let file = File::open(zip_path)?;
+    let mut archive = ZipArchive::new(file)?;
+    let mut entry = archive.by_name(entry_name)?;
+
+    let mut contents = Vec::new();
+    std::io::Read::read_to_end(&mut entry, &mut contents)?;
+    String::from_utf8(contents).map_err(|source| ZipError::InvalidEntryEncoding {
+        name: entry_name.to_owned(),
+        source,
+    })
 }
 
 /// Extracts a ZIP archive to a given directory
