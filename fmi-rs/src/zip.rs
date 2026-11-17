@@ -28,7 +28,7 @@ pub enum ZipError {
 }
 
 /// Returns all (raw) entries of the ZIP archive
-pub fn get_zip_contents(fmu_path: &str) -> Result<Vec<String>, ZipError> {
+pub fn get_zip_contents(fmu_path: impl AsRef<Path>) -> Result<Vec<String>, ZipError> {
     // Open the FMU file (which is a ZIP archive)
     let file = File::open(fmu_path)?;
     let mut archive = ZipArchive::new(file)?;
@@ -50,9 +50,9 @@ pub fn get_zip_contents(fmu_path: &str) -> Result<Vec<String>, ZipError> {
 }
 
 /// Extracts a ZIP archive to a given directory
-pub fn extract_zip_archive<P: AsRef<Path>, T: AsRef<Path>>(
-    zip_path: P,
-    target_path: T,
+pub fn extract_zip_archive(
+    zip_path: impl AsRef<Path>,
+    target_path: impl AsRef<Path>,
 ) -> Result<(), ZipError> {
     let file = File::open(&zip_path)?;
 
@@ -89,9 +89,9 @@ pub fn extract_zip_archive<P: AsRef<Path>, T: AsRef<Path>>(
 }
 
 /// Creates a ZIP archive from a given directory
-pub fn create_zip_archive<P: AsRef<Path>, T: AsRef<Path>>(
-    src_path: P,
-    dst_path: T,
+pub fn create_zip_archive(
+    src_path: impl AsRef<Path>,
+    dst_path: impl AsRef<Path>,
 ) -> Result<(), ZipError> {
     // 1. Initialize the file writer and the ZipWriter wrapper
     let file = File::create(dst_path)?;
