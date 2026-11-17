@@ -54,6 +54,17 @@ pub fn extract_zip_archive(
     zip_path: impl AsRef<Path>,
     target_path: impl AsRef<Path>,
 ) -> Result<(), ZipError> {
+    extract_zip_archive_with_filter(zip_path, target_path, |_| true)
+}
+
+/// Extracts entries matching `filter` from a ZIP archive to a given directory.
+///
+/// The filter receives each entry's name as stored in the ZIP archive.
+pub fn extract_zip_archive_with_filter(
+    zip_path: impl AsRef<Path>,
+    target_path: impl AsRef<Path>,
+    mut filter: impl FnMut(&str) -> bool,
+) -> Result<(), ZipError> {
     let file = File::open(&zip_path)?;
 
     let mut archive = ZipArchive::new(file)?;
@@ -64,13 +75,17 @@ pub fn extract_zip_archive(
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
-
         let outpath = match file.enclosed_name() {
             Some(path) => target_path.join(path),
             None => continue,
         };
 
-        if file.name()?.ends_with('/') {
+        let name = file.name()?;
+        if !filter(&name) {
+            continue;
+        }
+
+        if name.ends_with('/') {
             // Directory
             std::fs::create_dir_all(&outpath)?;
         } else {
