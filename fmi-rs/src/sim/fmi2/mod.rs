@@ -9,6 +9,7 @@ pub mod recorder;
 use crate::{
     fmi2::{
         FMU2,
+        log::{DefaultLogger, Logger},
         types::{
             fmi2Boolean, fmi2False, fmi2Integer, fmi2Real, fmi2Status, fmi2True, fmi2ValueReference,
         },
@@ -166,6 +167,17 @@ impl Trajectories {
             .map(|row| row.get(index).cloned())
             .collect()
     }
+}
+
+/// Creates the logger used by `simulate()`: writes to `settings.log_file` or to stderr.
+pub fn default_logger(settings: &SimulationSettings) -> Result<Arc<dyn Logger>, SimulationError> {
+    let logger = if let Some(log_file) = &settings.log_file {
+        DefaultLogger::from_path(log_file).map_err(SimulationError::io(log_file))?
+    } else {
+        DefaultLogger::default()
+    };
+
+    Ok(Arc::new(logger))
 }
 
 fn call(status: fmi2Status) -> Result<fmi2Status, SimulationError> {

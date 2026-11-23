@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use crate::dae::DaeManifest;
 use crate::fmi3::Implementation;
-use crate::fmi3::log::DefaultLogger;
+use crate::fmi3::log::Logger;
 use crate::fmi3::native::{NativeLibrary, PLATFORM_TUPLE};
 use crate::model_description::ModelDescriptionError;
 use crate::platform_binary_path;
-use crate::sim::fmi3::{SimulationSettings, call, set_start_values};
+use crate::sim::fmi3::{SimulationSettings, call, default_logger, set_start_values};
 use crate::sim::solver::{Dae, Ode, SolverFactory};
 use crate::sim::{
     SimulationError, SimulationSliceExt, next_communication_point, next_regular_point,
@@ -25,6 +25,18 @@ pub fn simulate<S: SolverFactory>(
     input: Option<Arc<StaticInput>>,
     recorder: Arc<Recorder>,
 ) -> Result<(), SimulationError> {
+    let logger = default_logger(settings)?;
+    simulate_with_logger(settings, solver_factory, input, recorder, logger)
+}
+
+/// Like [`simulate`], but sends the FMU's log messages and the logged FMI calls to `logger`.
+pub fn simulate_with_logger<S: SolverFactory>(
+    settings: &SimulationSettings,
+    solver_factory: &S,
+    input: Option<Arc<StaticInput>>,
+    recorder: Arc<Recorder>,
+    logger: Arc<dyn Logger>,
+) -> Result<(), SimulationError> {
     let start_time = settings.start_time;
     let stop_time = settings.stop_time;
     let set_stop_time = settings.set_stop_time;
@@ -39,12 +51,6 @@ pub fn simulate<S: SolverFactory>(
         .ok_or(SimulationError::InterfaceType)?;
 
     let needs_completed_integrator_step = model_exchange.needsCompletedIntegratorStep;
-
-    let logger = Arc::new(if let Some(log_file) = &settings.log_file {
-        DefaultLogger::from_path(log_file).map_err(SimulationError::io(&log_file))?
-    } else {
-        DefaultLogger::default()
-    });
 
     let file = platform_binary_path(
         &settings.unzipdir,

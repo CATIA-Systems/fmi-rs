@@ -1,0 +1,19 @@
+[package]
+name = "fmi-rs-python"
+workspace = ".."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Python bindings for fmi-rs"
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+fmi-rs = { path = "../fmi-rs", features = ["sundials"] }
+pyo3 = { version = "0.30", features = ["abi3-py310"] }
+tempfile = "3.27"

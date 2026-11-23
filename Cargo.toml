@@ -1,5 +1,7 @@
 [workspace]
-members = ["fmi-rs", "fmi-rs-macros"]
+members = ["fmi-rs", "fmi-rs-macros", "fmi-rs-python"]
+# fmi-rs-python is a Python extension module built with maturin
+default-members = ["fmi-rs", "fmi-rs-macros"]
 resolver = "3"
 
 [workspace.package]

@@ -3,13 +3,13 @@ use std::sync::Arc;
 use crate::{
     fmi2::{
         CS, FMU2,
-        log::DefaultLogger,
+        log::Logger,
         types::{fmi2Status, fmi2StatusKind},
     },
     sim::{
         SimulationError,
         fmi2::{
-            SimulationSettings, call, input::StaticInput, read_initial_fmu_state,
+            SimulationSettings, call, default_logger, input::StaticInput, read_initial_fmu_state,
             recorder::Recorder, set_start_values, write_final_fmu_state,
         },
         next_communication_point, next_regular_point, relative_eq, relative_lt,
@@ -21,6 +21,17 @@ pub fn simulate(
     settings: &SimulationSettings,
     input: Option<Arc<StaticInput>>,
     recorder: Arc<Recorder>,
+) -> Result<(), SimulationError> {
+    let logger = default_logger(settings)?;
+    simulate_with_logger(settings, input, recorder, logger)
+}
+
+/// Like [`simulate`], but sends the FMU's log messages and the logged FMI calls to `logger`.
+pub fn simulate_with_logger(
+    settings: &SimulationSettings,
+    input: Option<Arc<StaticInput>>,
+    recorder: Arc<Recorder>,
+    logger: Arc<dyn Logger>,
 ) -> Result<(), SimulationError> {
     let start_time = settings.start_time;
     let stop_time = settings.stop_time;
@@ -41,12 +52,6 @@ pub fn simulate(
 
     let can_handle_variable_communication_step_size =
         co_simulation.canHandleVariableCommunicationStepSize;
-
-    let logger = Arc::new(if let Some(log_file) = &settings.log_file {
-        DefaultLogger::from_path(log_file).map_err(SimulationError::io(&log_file))?
-    } else {
-        DefaultLogger::default()
-    });
 
     let fmu = FMU2::<CS>::new(
         &settings.unzipdir,

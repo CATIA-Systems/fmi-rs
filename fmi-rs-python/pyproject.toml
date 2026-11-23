@@ -1,0 +1,18 @@
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "fmi-rs"
+description = "Simulate Functional Mock-up Units (FMUs) with fmi-rs"
+requires-python = ">=3.10"
+license = "BSD-2-Clause"
+dependencies = ["numpy>=1.26"]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.maturin]
+python-source = "python"
+module-name = "fmi_rs._native"

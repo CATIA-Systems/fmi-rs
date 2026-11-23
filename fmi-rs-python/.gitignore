@@ -1,0 +1,5 @@
+# built by maturin develop
+python/fmi_rs/*.so
+python/fmi_rs/*.pyd
+__pycache__/
+.pytest_cache/

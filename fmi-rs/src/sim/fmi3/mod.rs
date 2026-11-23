@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::{fs, ptr};
 
 use crate::fmi3::LibraryKind;
+use crate::fmi3::log::{DefaultLogger, Logger};
 use crate::model_description::fmi3::{Causality, ModelDescription};
 use crate::sim::SimulationError;
 use crate::{
@@ -436,6 +437,17 @@ pub fn set_variable_value(
             fmu.setBinary(&[value_reference], values.as_slice())
         }
     }
+}
+
+/// Creates the logger used by `simulate()`: writes to `settings.log_file` or to stderr.
+pub fn default_logger(settings: &SimulationSettings) -> Result<Arc<dyn Logger>, SimulationError> {
+    let logger = if let Some(log_file) = &settings.log_file {
+        DefaultLogger::from_path(log_file).map_err(SimulationError::io(log_file))?
+    } else {
+        DefaultLogger::default()
+    };
+
+    Ok(Arc::new(logger))
 }
 
 pub fn call(status: fmi3Status) -> Result<fmi3Status, SimulationError> {
