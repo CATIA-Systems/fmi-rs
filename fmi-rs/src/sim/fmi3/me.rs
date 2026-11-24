@@ -583,7 +583,7 @@ fn create_dae(
         let variable = settings
             .model_description
             .variable_by_value_reference(algebraic_variable.valueReference)?;
-        algebraic_variable_nominals.push(variable.variableType.nominal().unwrap_or(1.0));
+        algebraic_variable_nominals.push(variable.variableType.nominal_as_f64().unwrap_or(1.0));
     }
 
     let residual_vrs: Vec<u32> = dae_manifest

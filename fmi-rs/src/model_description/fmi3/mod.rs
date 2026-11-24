@@ -50,9 +50,9 @@ pub enum TypeDefinition {
         relativeQuantity: bool,
         unbounded: bool,
         // fmi3Float32Attributes
-        min: Option<f32>,
-        max: Option<f32>,
-        nominal: Option<f32>,
+        min: Option<String>,
+        max: Option<String>,
+        nominal: Option<String>,
         range: Range<usize>,
     },
     Float64 {
@@ -66,73 +66,73 @@ pub enum TypeDefinition {
         relativeQuantity: bool,
         unbounded: bool,
         // fmi3Float64Attributes
-        min: Option<f64>,
-        max: Option<f64>,
-        nominal: Option<f64>,
+        min: Option<String>,
+        max: Option<String>,
+        nominal: Option<String>,
         range: Range<usize>,
     },
     Int8 {
         name: String,
         description: Option<String>,
         quantity: Option<String>,
-        min: Option<i8>,
-        max: Option<i8>,
+        min: Option<String>,
+        max: Option<String>,
         range: Range<usize>,
     },
     UInt8 {
         name: String,
         description: Option<String>,
         quantity: Option<String>,
-        min: Option<u8>,
-        max: Option<u8>,
+        min: Option<String>,
+        max: Option<String>,
         range: Range<usize>,
     },
     Int16 {
         name: String,
         description: Option<String>,
         quantity: Option<String>,
-        min: Option<i16>,
-        max: Option<i16>,
+        min: Option<String>,
+        max: Option<String>,
         range: Range<usize>,
     },
     UInt16 {
         name: String,
         description: Option<String>,
         quantity: Option<String>,
-        min: Option<u16>,
-        max: Option<u16>,
+        min: Option<String>,
+        max: Option<String>,
         range: Range<usize>,
     },
     Int32 {
         name: String,
         description: Option<String>,
         quantity: Option<String>,
-        min: Option<i32>,
-        max: Option<i32>,
+        min: Option<String>,
+        max: Option<String>,
         range: Range<usize>,
     },
     UInt32 {
         name: String,
         description: Option<String>,
         quantity: Option<String>,
-        min: Option<u32>,
-        max: Option<u32>,
+        min: Option<String>,
+        max: Option<String>,
         range: Range<usize>,
     },
     Int64 {
         name: String,
         description: Option<String>,
         quantity: Option<String>,
-        min: Option<i64>,
-        max: Option<i64>,
+        min: Option<String>,
+        max: Option<String>,
         range: Range<usize>,
     },
     UInt64 {
         name: String,
         description: Option<String>,
         quantity: Option<String>,
-        min: Option<u64>,
-        max: Option<u64>,
+        min: Option<String>,
+        max: Option<String>,
         range: Range<usize>,
     },
     Boolean {
@@ -157,8 +157,8 @@ pub enum TypeDefinition {
         description: Option<String>,
         items: Vec<Item>,
         quantity: Option<String>,
-        min: Option<i64>,
-        max: Option<i64>,
+        min: Option<String>,
+        max: Option<String>,
         range: Range<usize>,
     },
     Clock {
@@ -211,9 +211,9 @@ pub enum VariableType {
         displayUnit: Option<String>,
         relativeQuantity: bool,
         unbounded: bool,
-        min: Option<f32>,
-        max: Option<f32>,
-        nominal: Option<f32>,
+        min: Option<String>,
+        max: Option<String>,
+        nominal: Option<String>,
         derivative: Option<fmi3ValueReference>,
         reinit: bool,
     },
@@ -227,9 +227,9 @@ pub enum VariableType {
         displayUnit: Option<String>,
         relativeQuantity: bool,
         unbounded: bool,
-        min: Option<f64>,
-        max: Option<f64>,
-        nominal: Option<f64>,
+        min: Option<String>,
+        max: Option<String>,
+        nominal: Option<String>,
         derivative: Option<fmi3ValueReference>,
         reinit: bool,
     },
@@ -239,8 +239,8 @@ pub enum VariableType {
         intermediateUpdate: bool,
         previous: Option<u32>,
         quantity: Option<String>,
-        min: Option<i8>,
-        max: Option<i8>,
+        min: Option<String>,
+        max: Option<String>,
     },
     UInt8 {
         start: Option<String>,
@@ -248,8 +248,8 @@ pub enum VariableType {
         intermediateUpdate: bool,
         previous: Option<u32>,
         quantity: Option<String>,
-        min: Option<u8>,
-        max: Option<u8>,
+        min: Option<String>,
+        max: Option<String>,
     },
     Int16 {
         start: Option<String>,
@@ -257,8 +257,8 @@ pub enum VariableType {
         intermediateUpdate: bool,
         previous: Option<u32>,
         quantity: Option<String>,
-        min: Option<i16>,
-        max: Option<i16>,
+        min: Option<String>,
+        max: Option<String>,
     },
     UInt16 {
         start: Option<String>,
@@ -266,8 +266,8 @@ pub enum VariableType {
         intermediateUpdate: bool,
         previous: Option<u32>,
         quantity: Option<String>,
-        min: Option<u16>,
-        max: Option<u16>,
+        min: Option<String>,
+        max: Option<String>,
     },
     Int32 {
         start: Option<String>,
@@ -275,8 +275,8 @@ pub enum VariableType {
         intermediateUpdate: bool,
         previous: Option<u32>,
         quantity: Option<String>,
-        min: Option<i32>,
-        max: Option<i32>,
+        min: Option<String>,
+        max: Option<String>,
     },
     UInt32 {
         start: Option<String>,
@@ -284,8 +284,8 @@ pub enum VariableType {
         intermediateUpdate: bool,
         previous: Option<u32>,
         quantity: Option<String>,
-        min: Option<u32>,
-        max: Option<u32>,
+        min: Option<String>,
+        max: Option<String>,
     },
     Int64 {
         start: Option<String>,
@@ -293,8 +293,8 @@ pub enum VariableType {
         intermediateUpdate: bool,
         previous: Option<u32>,
         quantity: Option<String>,
-        min: Option<i64>,
-        max: Option<i64>,
+        min: Option<String>,
+        max: Option<String>,
     },
     UInt64 {
         start: Option<String>,
@@ -302,8 +302,8 @@ pub enum VariableType {
         intermediateUpdate: bool,
         previous: Option<u32>,
         quantity: Option<String>,
-        min: Option<u64>,
-        max: Option<u64>,
+        min: Option<String>,
+        max: Option<String>,
     },
     Boolean {
         start: Option<String>,
@@ -430,13 +430,53 @@ impl VariableType {
         }
     }
 
-    /// Returns the nominal value as an f64 if the nominal attribute is set.
-    pub fn nominal(&self) -> Option<f64> {
+    /// Returns the nominal attribute literal if set.
+    pub fn nominal(&self) -> Option<&str> {
         match self {
-            VariableType::Float32 { nominal, .. } => nominal.map(f64::from),
-            VariableType::Float64 { nominal, .. } => *nominal,
+            VariableType::Float32 { nominal, .. } | VariableType::Float64 { nominal, .. } => {
+                nominal.as_deref()
+            }
             _ => None,
         }
+    }
+
+    /// Returns the min attribute literal if set.
+    pub fn min(&self) -> Option<&str> {
+        match self {
+            VariableType::Float32 { min, .. }
+            | VariableType::Float64 { min, .. }
+            | VariableType::Int8 { min, .. }
+            | VariableType::UInt8 { min, .. }
+            | VariableType::Int16 { min, .. }
+            | VariableType::UInt16 { min, .. }
+            | VariableType::Int32 { min, .. }
+            | VariableType::UInt32 { min, .. }
+            | VariableType::Int64 { min, .. }
+            | VariableType::UInt64 { min, .. } => min.as_deref(),
+            _ => None,
+        }
+    }
+
+    /// Returns the max attribute literal if set.
+    pub fn max(&self) -> Option<&str> {
+        match self {
+            VariableType::Float32 { max, .. }
+            | VariableType::Float64 { max, .. }
+            | VariableType::Int8 { max, .. }
+            | VariableType::UInt8 { max, .. }
+            | VariableType::Int16 { max, .. }
+            | VariableType::UInt16 { max, .. }
+            | VariableType::Int32 { max, .. }
+            | VariableType::UInt32 { max, .. }
+            | VariableType::Int64 { max, .. }
+            | VariableType::UInt64 { max, .. } => max.as_deref(),
+            _ => None,
+        }
+    }
+
+    /// Returns the nominal value as an f64 if the nominal attribute is set and parses as a number.
+    pub fn nominal_as_f64(&self) -> Option<f64> {
+        self.nominal().and_then(|s| s.parse().ok())
     }
 
     /// Returns the value reference of the variable this variable is the derivative of.
