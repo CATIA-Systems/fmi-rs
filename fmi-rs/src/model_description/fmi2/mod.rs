@@ -4,7 +4,7 @@ pub mod validation;
 
 use std::ops::Range;
 
-use strum::EnumString;
+use strum::{Display, EnumString};
 
 use crate::{
     fmi2::types::fmi2ValueReference,
@@ -103,7 +103,7 @@ impl VariableType {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, EnumString)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, EnumString, Display)]
 #[strum(serialize_all = "camelCase")]
 pub enum Causality {
     Parameter,
@@ -114,7 +114,7 @@ pub enum Causality {
     Independent,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, EnumString)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, EnumString, Display)]
 #[strum(serialize_all = "camelCase")]
 pub enum Variability {
     Constant,
@@ -124,7 +124,7 @@ pub enum Variability {
     Continuous,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, EnumString)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, EnumString, Display)]
 #[strum(serialize_all = "camelCase")]
 pub enum Initial {
     Exact,
@@ -132,7 +132,7 @@ pub enum Initial {
     Calculated,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, EnumString)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, EnumString, Display)]
 #[strum(serialize_all = "camelCase")]
 pub enum DependencyKind {
     Dependent,
@@ -142,7 +142,7 @@ pub enum DependencyKind {
     Discrete,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, EnumString)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash, EnumString, Display)]
 #[strum(serialize_all = "camelCase")]
 pub enum VariableNamingConvention {
     Flat,
