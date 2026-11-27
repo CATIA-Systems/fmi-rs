@@ -4,7 +4,8 @@ use crate::{
 };
 use askama::Template;
 use std::{
-    fs::{self}, path::{self, Path, PathBuf},
+    fs::{self},
+    path::{self, Path, PathBuf},
 };
 
 #[derive(Template)]

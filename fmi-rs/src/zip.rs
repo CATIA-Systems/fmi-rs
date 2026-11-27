@@ -57,10 +57,7 @@ pub fn get_zip_contents(fmu_path: impl AsRef<Path>) -> Result<Vec<String>, ZipEr
 }
 
 /// Reads a single entry from a ZIP archive as UTF-8 text.
-pub fn get_zip_entry(
-    zip_path: impl AsRef<Path>,
-    entry_name: &str,
-) -> Result<String, ZipError> {
+pub fn get_zip_entry(zip_path: impl AsRef<Path>, entry_name: &str) -> Result<String, ZipError> {
     let file = File::open(zip_path)?;
     let mut archive = ZipArchive::new(file)?;
     let mut entry = archive.by_name(entry_name)?;

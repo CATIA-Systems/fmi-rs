@@ -5,7 +5,7 @@ pub mod fmi2;
 pub mod fmi3;
 pub mod validation;
 
-use std::{ops::Range};
+use std::ops::Range;
 use thiserror::Error;
 
 /// Represents a problem found during model description validation.
